@@ -306,14 +306,14 @@ bool on_part(int id) { return (int(tri_row(id).a + 0.5) & 0x200) != 0; }
 // own triangle, hidden with SEE-THROUGH where its holed copy is drawn (GlassWalls.HiddenBit).
 int glass_bits(int id) { return int(tri_row(id).a + 0.5) & 0xF000; }
 
-// A triangle's layer among the faces of its own plane (GpuWorld.FindLayers): 0 = nothing under it, 1-7 = it lies on
+// A triangle's layer among the faces of its own plane (GpuWorld.FindLayers): 0 = nothing under it, 1-3 = it lies on
 // earlier faces of that plane. Kept above the corners' marks in x 2's alpha (GpuWorld.LayerShift).
 int face_layer(int id) {
     int per = tri_slots * 3;
     int row = id / per;
     int slot = (id - row * per) / 3;
     vec4 mi = texelFetch(model_tex, ivec2(_eb(ent_tex, row, 0x25), 0), 0);
-    return (int(floor(texelFetch(tri_tex, tri_texel(int(mi.g + 0.5) + slot, 2), 0).a + 0.5)) >> 9) & 7;
+    return (int(floor(texelFetch(tri_tex, tri_texel(int(mi.g + 0.5) + slot, 2), 0).a + 0.5)) >> 9) & 3;
 }
 
 // A thin sheet's parts that stay as thin as they are (GpuWorld.Bake), not widened to a game pixel: a slab's side
