@@ -62,9 +62,10 @@ vec3 view_nib_fire(int i) {
 // DIRECTION from it (tod_d) - day (10 degrees up and more) exactly the original's; golden hour (10 .. 0) the sun's side
 // warming to red-orange at the horizon; civil twilight (0 .. -6, the blue hour at -4 .. -6) a deeper blue (ozone's
 // Chappuis bands), a low red glow under the sun, Earth's shadow and the pink Belt of Venus opposite (strongest at -2, gone
-// by -5); nautical (-6 .. -12) still blue, the glow sinking; astronomical (-12 .. -18) to the night's near black. Every
-// colour on the Amiga's 12-bit steps, at full light: it carries the hour's darkness itself, so only a fade to black and
-// the death fade take it (as fire, view_nib_fire). The sea (sky_raw 6) is the water's own colour lit by this sky (tod_sea_nib).
+// by -5); nautical (-6 .. -12) still blue, the glow sinking; astronomical (-12 .. -18) to the night's near black. At full
+// light: it carries the hour's darkness itself, so only a fade to black and the death fade take it (as fire, view_nib_fire).
+// Full colour across the screen: the fade toward and away from the sun is smooth (tod_lit) - on the Amiga's 12-bit steps
+// each band broke into blocks wherever a channel stepped. The sea (sky_raw 6) is the water's own colour lit by this sky (tod_sea_nib).
 uniform bool tod_on = false;
 uniform float tod_elev = 60.0;      // the sun's height, degrees
 uniform float tod_sun_az = 0.0;     // the sun's direction in the look turn's sense (0 north, + left)
@@ -106,11 +107,18 @@ vec3 tod_band(int k, float d) {
     return night;
 }
 
-// A full-light colour (nibbles, unrounded) on the 12-bit steps, then the screen's fade less the hour's and the death fade.
+// A full-light colour (nibbles, unrounded), then the screen's fade less the hour's and the death fade. Full colour: the two
+// 12-bit colours either side of it faded by the game's own maths (Play.Faded), mixed by how far it lies between them - a
+// whole colour (the original's day sky, the night) is exactly the game's; the death fade keeps its 12-bit steps.
 vec3 tod_lit(vec3 n) {
-    ivec3 q = ivec3(clamp(floor(n + 0.5), vec3(0.0), vec3(15.0)));
-    int f = faded(q.r << 8 | q.g << 4 | q.b, clamp(fade_level + 15 - day_level, 0, 15));
-    return nibbles(death_step > 0 ? death_faded(f, death_step) : f);
+    int level = clamp(fade_level + 15 - day_level, 0, 15);
+    vec3 c = clamp(n, vec3(0.0), vec3(15.0));
+    if (death_step > 0) {
+        ivec3 q = ivec3(floor(c + 0.5));
+        return nibbles(death_faded(faded(q.r << 8 | q.g << 4 | q.b, level), death_step));
+    }
+    ivec3 lo = ivec3(floor(c)), hi = min(lo + 1, ivec3(15));
+    return mix(nibbles(faded(lo.r << 8 | lo.g << 4 | lo.b, level)), nibbles(faded(hi.r << 8 | hi.g << 4 | hi.b, level)), c - vec3(lo));
 }
 
 // The water's own colour lit by the sky: the
@@ -157,13 +165,14 @@ vec3 sky_ok_lab(vec3 c8) {
                 dot(q, vec3(0.0259040371, 0.7827717662, -0.8086757660)));
 }
 
-vec3 sky_ok_rgb8(vec3 lab) {          // rounded to a multiple of 17
+vec3 sky_ok_rgb8(vec3 lab) {          // rounded to a multiple of 17 - not while the low sun's glow runs across the screen (tod_lit)
     vec3 q = vec3(lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z, lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z,
                   lab.x - 0.0894841775 * lab.y - 1.2914855480 * lab.z);
     q = q * q * q;
     vec3 l = vec3(dot(q, vec3(4.0767416621, -3.3077115913, 0.2309699292)), dot(q, vec3(-1.2684380046, 2.6097574011, -0.3413193965)),
                   dot(q, vec3(-0.0041960771, -0.7034186147, 1.7076147010)));
-    return clamp(floor(to_display(l) * 15.0 + 0.5), vec3(0.0), vec3(15.0)) * 17.0;
+    vec3 n = clamp(to_display(l) * 15.0, vec3(0.0), vec3(15.0));
+    return (tod_on && tod_elev < 10.0 ? n : floor(n + 0.5)) * 17.0;   // by day (and with the time of day off) the 12-bit colours, exactly
 }
 
 vec3 sky_aga_at(int y, int height, float fx) {                      // y: the game row; fx: the viewport column (SKY's time of day)
