@@ -94,8 +94,8 @@ dotnet build
 
 On Windows, `hunter2.bat` does the same if the `GODOT` environment variable points at the Godot executable.
 
-To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (a Windows Desktop preset
-is included). Copy `game_data/` next to the exported executable.
+To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (Windows Desktop and macOS
+presets are included). Copy `game_data/` next to the exported executable, or on a Mac next to `Hunter.app`.
 
 ## Game data
 
