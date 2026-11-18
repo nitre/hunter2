@@ -72,7 +72,8 @@ public partial class GameView
         frame                     the frame number, clock, player place
         wire on|off               Godot's own wireframe of the 3D view (a test)
         eye                       the camera's eye height, its place, the smooth and drawn ground there, the highest ground to the player
-        corners ROW [shadow]      where the card puts ROW's triangle corners (or its shadow's): slot corner x y z colour
+        corners ROW [shadow|raw|old]  where the card puts ROW's triangle corners (or its shadow's; raw = before the ground fit;
+                                  old = the fit by heights only, as before vehicles turned): slot corner x y z colour
         joy DIRS FRAMES           hold the stick (letters u d l r f, f = fire; "-" = let go) for FRAMES frames
         log                       the log book's places as its little map marks them (to the nearest 512-unit square), from you
         carry                     what you carry: each item and how many
@@ -128,6 +129,7 @@ public partial class GameView
         #include "res://real3d/view.gdshaderinc"
         #include "res://real3d/ground_contact.gdshaderinc"
         uniform int live_row;
+        uniform int live_raw;                                   // 1: the corners as turned and placed, without the ground fit; 2: the fit by heights only (the rule before vehicles turned)
 
         void fragment() {
             ivec2 fc = ivec2(FRAGCOORD.xy);
@@ -137,7 +139,10 @@ public partial class GameView
             if (layer == 0) {
                 ok = gpu_model_vertex_rot(id, p, colour, pull, rot, own_side);
                 vec4 fit; vec2 c;
-                if (ok && contact_fit_row(live_row, fit, c)) { p = contact_turn(fit, c, p, float(rot.x) * 0.5, float(rot.z) * 0.5); p.y = walls_down(c, p.x, p.z, p.y); }
+                if (ok && live_raw != 1 && contact_fit_row(live_row, fit, c)) {
+                    if (live_raw == 2) fit.w = CONTACT_NO_TURN;
+                    p = contact_turn(fit, c, p, float(rot.x) * 0.5, float(rot.z) * 0.5); p.y = walls_down(c, p.x, p.z, p.y);
+                }
             } else {
                 ok = gpu_model_vertex(id, p, colour, pull);
                 if (ok && cam_on && !inside_view) p.y = float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF));
@@ -150,7 +155,7 @@ public partial class GameView
 
     /// <summary>Where the card puts record row's triangle corners this frame: "slot corner x y z colour" a line,
     /// world units; shadow = its shadow layer (on the ground), else the model as drawn.</summary>
-    async System.Threading.Tasks.Task<string> LiveCorners(int row, bool shadow)
+    async System.Threading.Tasks.Task<string> LiveCorners(int row, bool shadow, int raw = 0)
     {
         var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
         var src = shadow ? gpu.ShadowsMaterial : gpu.ModelsMaterial;
@@ -163,6 +168,7 @@ public partial class GameView
         }
         mat.SetShaderParameter("layer", shadow ? 1 : 0);
         mat.SetShaderParameter("live_row", row);
+        mat.SetShaderParameter("live_raw", raw);
         var size = new Vector2I(4, slots * 3);
         var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
         AddChild(vp);
@@ -181,7 +187,7 @@ public partial class GameView
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow");
+        if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
     }
 
