@@ -4,15 +4,11 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>the card's copy of both tanks ($15 kind $03, $16 kind $04) gets, on each black track panel,
-///   ROAD WHEELS - a row of grey discs proud of the panel, each its own spin-x part on channel 0 (a pivot flagged $10 at the
-///     disc's centre, the disc in four pieces from the hub: a black bowtie that shows the turn and the grey between), their
-///     lowest point 12 over the hull's bottom, so the ground fit (fixed corners within 3 of the lowest) is the original's;
-///   no links drawn on the belt: lines 8 long were too small to draw alike (a turned model's corners land on the nearest
-///     half unit) and read as specks. The belt's Pitch stays: the marks a tank leaves on the ground are that far apart, and
-///     L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough). The BELT part itself (kind 3, card only:
-///     a first corner A flagged $30 | (L - 1) << 2, the next B = A + D the pitch, every corner after sliding by
-///     D * ((L * channel) mod 256) / 256, model.gdshaderinc _walk_step) is still the bicycle's chain, below;
+/// <summary>the card's copy of both tanks ($15 kind $03, $16 kind $04): their sides stay closed and plain, as the original's,
+///   RIBS - bars across the tread where the model has one in view ($16's front run and rear slope), moving along it as the
+///     tank rolls: each run a BELT part (kind 3, card only; Build). No wheels and no marks on the side panels: small
+///     things there came out unalike (a turned model's corners land on the nearest half unit). Pitch is the spacing of
+///     the marks a tank leaves on the ground;
 ///   CLODS:
 ///     not parts of the model: a moving tank throws small triangles of earth from its tracks' rear, each noted once in the
 ///     world (GpuWorld ClodThrows, the marks' ring) with where it left the belt (ClodSpots: most from the rear run, where the
@@ -28,7 +24,7 @@ public static class TankTracks
     /// <summary>The face origin GpuWorld.Bake reads as a track face: a plain part of the body, no glass.</summary>
     public const int Origin = -1002;
 
-    public const int Wheel = 8, Band = 0;                            // grey wheels with a black bowtie (the panels are black 0)
+    public const int Rib = 0;                                        // the ribs: black on the tread's brown (the model's colour 10)
     public const int ClodsATrack = 12;                               // CLODS: thrown a track in a cycle (GpuWorld.ClodThrows)
 
     /// <summary>CLODS: a tank model's ClodsATrack throw spots in turn (right side, model units; the left mirrors x), y given as
@@ -56,34 +52,42 @@ public static class TankTracks
         return spots;
     }
 
-    /// <summary>A tank: its panel's outer face as x of y (right side; the left mirrors it), the belt's outline (z, y) in the order
-    /// the belt moves when the tank goes forward (the top run toward the front), the wheels (centre y, radius, sides, x of their
-    /// plane, centres in z), the link pitch with its L (pitches a wheel turn), and where the clods rest (right side): Flap, three
-    /// spots inside the track's top rear corner under the bodywork, and Rear, one spot each for the ClodsATrack - 3 clods that
-    /// rest on the belt's rear run, just inside its surface at different heights.</summary>
-    sealed record Tank(int Model, Func<double, double> PanelX, (int Z, int Y)[] Belt, int WheelY, int Radius, int Sides, int WheelX,
-        int[] WheelZ, int Pitch, int L, (int X, int Y, int Z)[] Flap, (int X, int Y, int Z)[] Rear);
+    /// <summary>A tank: the belt's outline (z, y) in the order the belt moves when the tank goes forward (the top run toward the
+    /// front); Radius, the circle its rolling is counted in (one turn of channel 0 is 2 pi Radius along the ground); the pitch of
+    /// the marks it leaves on the ground; the ribs' own pitch along the tread with their L (rib pitches a turn of channel 0, so
+    /// L x RibPitch is 2 pi Radius, near enough: the ribs go by at the ground's speed); and where the clods rest (right side):
+    /// Flap, three spots inside the track's top rear corner under the bodywork, and Rear, one spot each for the ClodsATrack - 3
+    /// clods that rest on the belt's rear run, just inside its surface at different heights.</summary>
+    sealed record Tank(int Model, (int Z, int Y)[] Belt, int Radius, int Pitch, int RibPitch, int L,
+        (int X, int Y, int Z)[] Flap, (int X, int Y, int Z)[] Rear);
 
     static readonly Tank[] Tanks =
     [
-        // $15: the lower hull's black side is the panel, sloping out from x 100 (y -64) to 112 (y -14); 50 high, so the wheels
-        // are radius 16; 2 pi 16 = 100.5 = 2 x 50
-        new(0x15, y => 100 + 12 * (y + 64) / 50.0, [(-184, -12), (208, -16), (160, -64), (-160, -64)],
-            -36, 16, 16, 112, [128, 64, 0, -64, -128], 50, 2, [(96, -18, -176), (80, -16, -180), (64, -20, -172)],   // at the belt's top rear (-184, -12)
+        // $15: the lower hull's black side slopes out from x 100 (y -64) to 112 (y -14). It has no tread surface of its own
+        // (TreadRuns): the hull's ends and bottom span its whole width
+        new(0x15, [(-184, -12), (208, -16), (160, -64), (-160, -64)],
+            16, 50, 25, 4, [(96, -18, -176), (80, -16, -180), (64, -20, -172)],   // at the belt's top rear (-184, -12); 2 pi 16 = 100.5 = 4 x 25
             // the rear run (-160, -64) -> (-184, -12): each spot about 2 inside it, so the whole triangle is hidden at rest and the
             // clod is behind the run a tenth into its flight at speed 5 (a few units of depth do both)
             [(88, -60, -160), (72, -56, -161), (96, -52, -163), (64, -48, -165), (80, -44, -167), (96, -40, -169),
              (72, -36, -171), (88, -32, -173), (64, -28, -174)]),
-        // $16: track blocks x 48..120 with a black outer face at x 120, the top run hidden at y 32 under the hull's side;
-        // five wheels, radius 20; 2 pi 20 = 125.7 = 3 x 42. The rear's last step (-272, 0) -> (-280, 32) is shorter than a pitch
-        new(0x16, _ => 120, [(-280, 32), (152, 32), (76, -56), (-208, -56), (-272, 0)],
-            -24, 20, 16, 124, [52, -8, -68, -124, -184], 42, 3, [(72, 24, -272), (88, 26, -276), (104, 22, -268)],   // at the belt's top rear (-280, 32)
+        // $16: track blocks x 48..120 with a black outer face at x 120, the top run hidden at y 32 under the hull's side.
+        // 2 pi 13 = 81.7 = 4 x 21, near enough. The rear's last step (-272, 0) -> (-280, 32) is too short for a rib
+        new(0x16, [(-280, 32), (152, 32), (76, -56), (-208, -56), (-272, 0)],
+            13, 42, 21, 4, [(72, 24, -272), (88, 26, -276), (104, 22, -268)],   // at the belt's top rear (-280, 32)
             // the rear run's upper step (-272, 0) -> (-280, 32) and just below it, each spot the one z that is both hidden at rest
             // and out a tenth into the flight at speed 5; lower down, the slope (-208, -56) -> (-272, 0) leans back about as fast
             // as a clod rises, so a clod resting there would stay inside the track for most of its flight
             [(64, -4, -266), (96, -2, -267), (80, 0, -267), (104, 4, -268), (72, 6, -269), (88, 8, -269),
              (60, 10, -270), (100, 14, -271), (76, 16, -271)]),
     ];
+
+    // RIBS: the belt runs (indices into Belt) whose tread the model has as a surface of its own and that can be seen.
+    // $16: the front run and the rear slope, across x 48..120. Its bottom faces the ground (ribs there would be the model's
+    // lowest corners and change its lift), its top is under the hull and its rear step is shorter than a rib and its gap.
+    // $15 has none.
+    static readonly Dictionary<int, int[]> TreadRuns = new() { [0x16] = [1, 3] };
+    const int Inset = 4, RibProud = 2;                               // full units: in from the tread's edges, out from its surface
 
     /// <summary>The tanks' models (the objfile numbers): GpuWorld sends their offsets as track_models.</summary>
     public static IEnumerable<int> Models => Tanks.Select(t => t.Model);
@@ -98,7 +102,7 @@ public static class TankTracks
         TreadX.TryGetValue(model, out var x) && Tanks.FirstOrDefault(t => t.Model == model) is { } t
             ? ((x.Inner + x.Outer) / 2, x.Outer - x.Inner, t.Pitch) : null;
 
-    /// <summary>A tank model's wheel radius (full units), 0 for any other model: GpuWorld turns a record's rolling into 256ths of it.</summary>
+    /// <summary>A tank model's rolling circle's radius (full units), 0 for any other model: GpuWorld turns a record's rolling into 256ths of it.</summary>
     public static int Radius(int model) => Tanks.FirstOrDefault(t => t.Model == model)?.Radius ?? 0;
 
     public static void Make(CardModels store, Dictionary<int, int[]>? origins = null)
@@ -115,31 +119,42 @@ public static class TankTracks
         if (md.Corners.Any(c => c.Flag != 0)) throw new InvalidOperationException($"model {t.Model}: the tank already has parts");
         var nf = md.Faces.Length;
         var pile = new Pile(md);
-        // the wheels: a part a disc - its pivot the disc's own centre (a spin about x does not care where the pivot is in x), so
-        // the bowtie across the hub can meet there
-        foreach (var z in t.WheelZ)
+        // RIBS: bars across the tread, one every RibPitch along a run, half a pitch long (bar and gap equal), from 4 in of the
+        // track's inner edge to 4 in of its outer, standing 2 out from the tread's surface - clear of it, so the two never
+        // share a plane. Each run a side is a BELT part (kind 3, card only): its first corner A is flagged $30 | (L - 1) << 2,
+        // the next B = A + D is the pitch, and every corner after slides by D * ((L * channel 0) mod 256) / 256
+        // (model.gdshaderinc _walk_step) - a rib's four corners slide together and the ribs repeat every pitch, so the
+        // pattern moves without end.
+        if (TreadRuns.TryGetValue(t.Model, out var runs) && TreadX.TryGetValue(t.Model, out var tx))
+        {
+            long turn = 0;                                               // the outline's turn in (z, y): > 0 anticlockwise (z right, y up)
+            for (var i = 0; i < t.Belt.Length; i++) { var (p, q) = (t.Belt[i], t.Belt[(i + 1) % t.Belt.Length]); turn += (long)p.Z * q.Y - (long)q.Z * p.Y; }
             foreach (var side in new[] { 1, -1 })
-            {
-                var hub = pile.P(side * t.WheelX, t.WheelY, z, 0x10);     // spin about x on channel 0
-                var ring = new int[t.Sides];
-                var seen = new HashSet<(int, int)>();
-                for (var k = 0; k < t.Sides; k++)
+                foreach (var r in runs)
                 {
-                    var a = 2 * Math.PI * k / t.Sides;
-                    var (y, zz) = (t.WheelY + R(t.Radius * Math.Cos(a)), z - R(t.Radius * Math.Sin(a)));
-                    if (!seen.Add((y, zz))) throw new InvalidOperationException($"model {t.Model}: a wheel of {t.Sides} sides and radius {t.Radius} folds onto whole units");
-                    ring[k] = pile.P(side * t.WheelX, y, zz);
+                    var (az, ay) = t.Belt[r];
+                    var (bz, by) = t.Belt[(r + 1) % t.Belt.Length];
+                    double len = Math.Sqrt((bz - az) * (bz - az) + (by - ay) * (by - ay));
+                    double uz = (bz - az) / len, uy = (by - ay) / len;
+                    double oz = uy, oy = -uz;                            // the right of the run: outward when the belt goes round anticlockwise
+                    if (turn < 0) (oz, oy) = (-oz, -oy);                 // clockwise (both tanks' belts): the left is outward
+                    var (dz, dy) = (R(uz * t.RibPitch), R(uy * t.RibPitch));
+                    double step = Math.Sqrt(dz * dz + dy * dy);
+                    var (wz, wy) = (R(dz / 2.0), R(dy / 2.0));           // a rib's length along the run
+                    // the first rib 8 along the run; the last one's far end slides to 4 short of the run's end, no further
+                    var ribs = (int)Math.Floor((len - 3 * Inset - Math.Sqrt(wz * wz + wy * wy)) / step);
+                    if (ribs < 1) continue;
+                    var (tz, ty) = (R(az + uz * 2 * Inset + oz * RibProud), R(ay + uy * 2 * Inset + oy * RibProud));
+                    var (xi, xo) = (side * (tx.Inner + Inset), side * (tx.Outer - Inset));
+                    pile.P(xi, ty, tz, 0x30 | (t.L - 1) << 2);           // A: a belt part on channel 0
+                    pile.P(xi, ty + dy, tz + dz);                        // B = A + D: the pitch
+                    for (var k = 0; k < ribs; k++)
+                    {
+                        var (pz, py) = (tz + k * dz, ty + k * dy);
+                        pile.Face(Rib, [pile.P(xi, py, pz), pile.P(xo, py, pz), pile.P(xo, py + wy, pz + wz), pile.P(xi, py + wy, pz + wz)]);
+                    }
                 }
-                var (h, w) = (t.Sides / 2, Math.Max(1, t.Sides / 8));       // a wedge spans an eighth of the rim
-                // the disc as four pieces from the hub, side by side: the BOWTIE's two opposite black wedges and the two grey
-                // parts between them. Nothing lies on anything (a whole grey disc under the wedges, and its copy facing the
-                // other way, fought the wedges for the same pixels); the card draws each piece from both sides.
-                int[] Piece(int from, int steps) => [hub, .. Enumerable.Range(from, steps + 1).Select(k => ring[k % t.Sides])];
-                pile.Face(Band, Piece(1, w));
-                pile.Face(Wheel, Piece(1 + w, h - w));
-                pile.Face(Band, Piece(h + 1, w));
-                pile.Face(Wheel, Piece(h + 1 + w, h - w));
-            }
+        }
         md.Replace([.. md.Corners, .. pile.Corners], [.. md.Edges, .. pile.Edges], [.. md.Faces, .. pile.Faces]);
         if (origins is not null)
             origins[t.Model] = (origins.TryGetValue(t.Model, out var old) ? old : Enumerable.Range(0, nf).ToArray()).Concat(pile.Faces.Select(_ => Origin)).ToArray();
