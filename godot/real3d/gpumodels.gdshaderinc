@@ -42,6 +42,14 @@ uniform int shell_row = -1;     // inside a building: the building's own record,
 uniform sampler2D line_tex : filter_nearest;
 uniform int line_slots = 1;
 
+// ENHANCEMENT: a boat drawn sitting in the water, not on it - the game lifts every thing till its
+// lowest corner touches the ground ($51F8), so a hull floated on its keel with its bow in the air; drawn a third of that lift
+// lower, the sea hides the part under the waterline. Boat: movement mode 10 (kind flags +$08, no higher mode bit).
+float boat_sink(int row, int ground, int low) {
+    if ((_eb(ent_tex, row, 0x08) & 0xFC) != 0x04) return 0.0;
+    return float(lift_to_ground(ground, low) / 3);
+}
+
 // VERTEX_ID of the line mesh (two per segment) -> a world point and the colour.
 bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     pos = vec3(0.0); colour = 0;
@@ -63,8 +71,12 @@ bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     vec4 seg = texelFetch(line_tex, ivec2(0, start + slot), 0);
     int vidx = int((end == 0 ? seg.r : seg.g) + 0.5);
     colour = int(seg.b + 0.5);
-    ivec3 w = entity_vertex2(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx);
-    pos = vec3(float(w.x) * 0.5, float(w.y), float(w.z) * 0.5);
+    // placed exactly as the model's own corners are (gpu_model_vertex_rot): the same turn (fine angles), the same lift and a
+    // boat's same sink - a window's frame is part of the thing and goes wherever its faces go
+    int low;
+    ivec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
+    int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
+    pos = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))) - boat_sink(row, ground, low), float(2 * z + rot.z) * 0.5);
     return true;
 }
 
@@ -159,13 +171,6 @@ ivec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int ro
     return corner_fine(pt, ang, entity_frac(ent, row), trig_tex);
 }
 
-// ENHANCEMENT: a boat drawn sitting in the water, not on it - the game lifts every thing till its
-// lowest corner touches the ground ($51F8), so a hull floated on its keel with its bow in the air; drawn a third of that lift
-// lower, the sea hides the part under the waterline. Boat: movement mode 10 (kind flags +$08, no higher mode bit).
-float boat_sink(int row, int ground, int low) {
-    if ((_eb(ent_tex, row, 0x08) & 0xFC) != 0x04) return 0.0;
-    return float(lift_to_ground(ground, low) / 3);
-}
 
 // VERTEX_ID -> a world point (x, y, z in world units, z north) and the face's colour / pull flag (gpu_model_vertex),
 // and the corner as turned but not yet placed (x and z doubled, y whole: the picture's own units, alike every way) -
