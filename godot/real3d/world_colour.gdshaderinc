@@ -203,7 +203,12 @@ vec3 sky_flat(float y, float fx) {    // the original's six flat bands at viewpo
 // idx 0-14 the palette, 15 the sky band at this pixel row, 16 the sea (the last band's colour); 32-46 palette colour
 // idx - 32 at half brightness (the sun's shades, sunshade.gdshaderinc); 64-78 colour idx - 64 as fire (not darkened).
 // The colour as 0..255 a channel (world_albedo's, before the display's linear step).
+const int CREAM = 0xEEC;            // the car's shelf (CarInside.Cream, tag 80 = gpumodels.gdshaderinc CREAM_TAG): a cream the palette lacks
 vec3 world_rgb8(int idx, vec4 fragcoord) {
+    if (idx == 80) {                                                   // cream, faded with the screen and the death fade as a palette colour
+        int c = view_faded(CREAM, fade_level);
+        return nibbles(death_step > 0 ? death_faded(c, death_step) : c) * 17.0;
+    }
     if (idx >= 64) return view_nib_fire(idx - 64) * 17.0;
     if (idx >= 32) return view_nib_half(idx - 32) * 17.0;
     vec3 nib = idx < 15 ? view_nib(idx) : idx == 16 ? sky_nib_x(6, fragcoord.x) : sky_nib(0);

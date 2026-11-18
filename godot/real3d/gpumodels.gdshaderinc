@@ -18,7 +18,8 @@
 #include "res://real3d/debris.gdshaderinc"
 
 uniform sampler2D ent_tex : filter_nearest;
-uniform bool painted_light = false;   // the sun shades the models (GpuWorld: sun_shading, the sun up): walls with the painters' light in them are marked (PaintedLight)
+const int CREAM_TAG = 80;              // a face's colour tag for cream (CarInside.Cream): world_colour.gdshaderinc world_rgb8 draws 80 as CREAM
+uniform bool painted_light = false;  // the sun shades the models (GpuWorld: sun_shading, the sun up): walls with the painters' light in them are marked (PaintedLight)
 uniform sampler2D entprev_tex : filter_nearest;   // SMOOTH PARTS: the records' part bytes one step back
 uniform sampler2D anim_tex : filter_nearest;
 uniform sampler2D trig_tex : filter_nearest;
@@ -245,6 +246,7 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     if (layer != 0 && !sun && ((meta >> 8) & 1) != 0) return false;                       // a rod (meta bit 8) casts a flat shadow only in the sun's
     if (layer != 0 && ((meta >> 13) & 1) != 0) return false;                              // the sunk glass and its frame (bit 13) throw no shadow of their own
     colour = (meta & 15) | (painted_light && !inside_view && ((meta >> 10) & 1) != 0 ? 128 | ((meta >> 11) & 1) * 256 : 0);   // + 128 painted light, + 256 a copied back
+    if (((meta >> 23) & 1) != 0) colour = CREAM_TAG;                                     // CarInside.Cream: a colour the palette lacks (world_colour CREAM)
     pull = ((meta >> 4) & 1) != 0;
     own_side = ((meta >> 7) & 1) != 0;
     bool fire = type >= 0x61 && type <= 0x67;

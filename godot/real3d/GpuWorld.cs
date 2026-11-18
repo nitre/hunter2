@@ -569,7 +569,8 @@ public sealed partial class GpuWorld : Node3D
                     var mast = from == RotorMast.Origin || from == TankTracks.Origin;   // ROTOR MASTS, TANK TRACKS: plain faces of the body, no glass, always drawn
                     faces.Add((model, md.Offset, n, (face.Colour & 15) | ((flags & 0x80) != 0 ? 16 : 0) | (glass ? Glass.Bit : 0) | (core ? Fireball.Bit : 0)
                         | (from < 0 && !core && !mast ? Glass.Sunk | CarInside.Bit : 0)
-                        | (from <= -2 && !core && !mast ? CarInside.Driver | (-from - 2) << 18 : 0), ordinal));   // -(2 + red): a driver's face (CarInside.Driver)
+                        | (from == CarInside.CreamOrigin ? CarInside.Cream : 0)                                    // the car's shelf: cream
+                        | (from is <= -2 and >= -17 ? CarInside.Driver | (-from - 2) << 18 : 0), ordinal));   // -(2 + red): a driver's face (CarInside.Driver)
                     FilledFaces[model] = filled;
                     if (glass) { GlassFaces[model]++; glassNumber[(model, ordinal)] = number[from]; }
                 }
