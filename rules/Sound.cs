@@ -18,8 +18,7 @@ public sealed class Channels(byte[] main, byte[] soundfile)
     /// silent until the next start, volume moves no longer reach it.
     public static event Action<int, int, int, int>? Changed;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (SOUND VOICES: MORE, owner 2026-11-02: more than the Paula's four sounds at
-    /// once): where the four channels leave a sound out - a one-shot no channel takes, a thing's engine that gets none
+    /// <summary>(SOUND VOICES: MORE): where the four channels leave a sound out - a one-shot no channel takes, a thing's engine that gets none
     /// this pass - the speakers play it on a spare voice: (key, sound, volume 0-63, period), key = the thing's slot,
     /// -1 a one-shot, -3 every spare voice silent. The game's four channels, the records' +$98 and bit 2, the save -
     /// all exactly as the original: only the speakers hear it.</summary>

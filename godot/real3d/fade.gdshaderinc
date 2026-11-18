@@ -1,5 +1,5 @@
 // The CPU's palette fades as shader functions, so a fragment can fade its own colour with the
-// game's exact maths. ENHANCEMENT, NOT THE ORIGINAL: the original runs these on the 68000 and
+// game's exact maths. the original runs these on the 68000 and
 // uploads finished colours (godot/GameView.cs ViewPalette only looks them up).
 // All three work on $0RGB ints: three nibbles 0..15, red = c >> 8 & 15, green = c >> 4 & 15, blue = c & 15.
 // Bit-exact against rules/Play.cs; checked colour by colour on the card by real3d/CheckFade.cs.

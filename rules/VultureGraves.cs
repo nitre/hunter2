@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (vulture_graves): a NEW grave - a paid death's placed $7C
+/// (vulture_graves): a NEW grave - a paid death's placed $7C
 /// record (rules/Graves.cs Place) - brings a pair of vultures ($1C) that circles over it for a
 /// while. The pair is the nearest live vulture in reach (FindNearestInRange's measure, $340E:
 /// max of |dx| and |dz| as signed words) drafted to the spot, one per circle centre; a missing

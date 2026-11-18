@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL: a smooth picture for the demo. The original's demo moves the game
+/// a smooth picture for the demo. The original's demo moves the game
 /// on only when its pace table says (a pass every 2-14 blanks), and the recording only replays right
 /// at that pace (a pass every blank sends the soldier elsewhere within 1000 blanks), so the game
 /// keeps the original's passes exactly. Only the picture is new: on every blank the view is drawn
@@ -49,7 +49,7 @@ public sealed partial class Play
     /// and GameView's HUNTER_CHECK_FEED go by too.</summary>
     public bool SmoothWillDraw => Smooth && _posesBefore is not null && _posesNow is not null
         && Mode == PlayMode.Play && !Quit && !(Waiting && !Demo.PaceHeld(State))
-        && !Inside;                   // outdoors only. Indoors with the card (bf80363, owner 11-02) kept the attract's man out of the
+        && !Inside;                   // outdoors only. Indoors with the card (bf80363) kept the attract's man out of the
                                       // first hut - he lost the recording's way there (bisected 11-08); back as before it
 
     // in a building: the camera stays where entering placed it ($47D6) and the room is no ground to stand things on

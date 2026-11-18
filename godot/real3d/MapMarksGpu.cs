@@ -11,7 +11,7 @@ namespace Hunter;
 /// bitmap is resent only when it changes; the player's pixel and the graves go up each frame.</summary>
 public sealed partial class MapMarksGpu : ColorRect
 {
-    const int Side = 128, FirstSlots = 1024;              // graves: room sized up front (owner: big cards), grown only past it
+    const int Side = 128, FirstSlots = 1024;              // graves: room sized up front (big cards), grown only past it
 
     readonly ShaderMaterial mat;
     readonly LogBook log;

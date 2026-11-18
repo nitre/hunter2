@@ -1,5 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (setting clouds, CLOUDS, the card-drawn 3D view; owner 2026-10-30: a few separate blocky
-// clouds with blue between, like the Amiga parallax skies; Knights of the Sky drew flat clumps the same way): CLOUDS
+// (setting clouds, CLOUDS, the card-drawn 3D view; Knights of the Sky drew flat clumps the same way): CLOUDS
 // separate blocky clumps in the sky, far away - fixed to world directions (they slide with the Q / E turn, never with
 // walking) and drifting one fixed way at a slow pace on the game's clock (cloud_clock, frozen while paused).
 // Drawn on the sky backdrop only, so land, sea and things (the depth buffer) are always in front of them.
@@ -25,7 +24,7 @@ uint _cloud_hash(uint a) {
 }
 
 // 0 = blue sky, 1 = cloud, 3 = its faint ends. gx: the game pixel column (0..319), gy: the game row. High CIRRUS as
-// the first blocky streaks (owner 2026-10-31: those, made better): blocks one cell tall, but not a repeating row of
+// the first blocky streaks: blocks one cell tall, but not a repeating row of
 // bars - each streak has its own place round the turn, length (5..13 cells), height and a gentle tilt of its own
 // (a cell row every 10..21 cells, up or down, some flat); a few gaps; the end cells faint, the middle full.
 int cloud_in(int gx, int gy, float yaw) {
@@ -58,7 +57,7 @@ int cloud_at(int gx, int gy) { return cloud_on ? cloud_in(gx, gy, cloud_yaw) : 0
 
 // The sky's colour at the pixel with a cloud of kind k (1 body, 2 top, 3 faint) on it: that colour lightened toward the sky's
 // white (white through the sky's own fade, so it darkens at night with the bands), 0..255 a channel.
-// With SKY's time of day (world_colour.gdshaderinc tod_band; owner 2026-11-12) the light on a cloud follows the sun's height
+// With SKY's time of day (world_colour.gdshaderinc tod_band) the light on a cloud follows the sun's height
 // instead: white by day, warm in the golden hour, lit pink-red from below just after sunset, then grey-blue and dark at night
 // (docs/clouds-reference.md "Dawn and dusk"); lift: degrees the cloud sees the sun above the ground's horizon - the high
 // cirrus stays lit after the low cumulus has gone dark.
@@ -81,15 +80,14 @@ vec3 cloud_rgb8(vec3 sky8, int k) {
 	return floor(mix(sky8, cloud_white8_at(3.0), k == 2 ? 0.95 : k == 3 ? 0.55 : 0.85) + 0.5);   // white cirrus (docs/clouds-reference.md); high, so lit 3 degrees longer
 }
 
-// The LOW layer (owner 2026-10-30: "parallax"; the look from the cloud atlas, docs/extras.md): fair-weather cumulus -
+// The LOW layer (the look from the cloud atlas, docs/extras.md): fair-weather cumulus -
 // LOW_CLOUD_N heaps at fixed places over the map and a little past it, drifting one way on the game's clock, every flat
 // base at low_cloud_y. Each is 2-5 rounded heaps side by side (small flat / wide lumpy / taller kinds), stepped in
-// blocks. Drawn by lowclouds.gdshader as upright cards facing the eye. SHADED (owner 2026-11-11: the low ones "very
-// flat"): each heap is a rounded lump (half an ellipsoid on the flat base, as deep as it is wide), the lump that bulges
+// blocks. Drawn by lowclouds.gdshader as upright cards facing the eye. SHADED: each heap is a rounded lump (half an ellipsoid on the flat base, as deep as it is wide), the lump that bulges
 // nearest the eye shows at each block, and the sun lights it from its own side - a bright top, a lit side, a shaded
 // side, the flat base in shadow; the heaps 1.4x taller than the first flat try.
 uniform float low_cloud_y = 6144.0;     // world units up: half again the highest ground (255 x 16). A flier has no ceiling in the movement (rules/Movement.cs Settle $2AF2: only the height word's 32767), so the helicopter can climb above
-uniform float low_fade_near = 800.0;    // near the camera a cloud dissolves in dots (owner: no white screen, "Try classic"): gone by here
+uniform float low_fade_near = 800.0;    // near the camera a cloud dissolves in dots: gone by here
 uniform float low_fade_far = 3000.0;    // and whole from here
 const int LOW_CLOUD_N = 64;
 const float LOW_CLOUD_DRIFT = 24.0;     // world units a second

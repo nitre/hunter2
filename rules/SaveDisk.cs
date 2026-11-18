@@ -32,7 +32,7 @@ public sealed class SaveDisk
 
     /// <summary>InitDiskButton $10176/$10182-$101B4: the header, then 6 slots from +$20, each marked free
     /// ($FF at +0, "free*" at +$10); written as file 15. The remake first copies every save file into
-    /// backup\&lt;date-time&gt; (owner 2026-10-20: a disk is never wiped without a copy).</summary>
+    /// backup\&lt;date-time&gt;.</summary>
     public byte[] Init()
     {
         Backup();

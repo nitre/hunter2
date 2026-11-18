@@ -4,8 +4,7 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (row SHARKS AND SUBS, the card-drawn 3D view; owner 2026-11-11: "flesh out the shark
-/// and submarine models"; the shark first asked 2026-11-02: "make sharks more than just the fin"): the card's copy of the
+/// <summary>(row SHARKS AND SUBS, the card-drawn 3D view): the card's copy of the
 /// shark (type $18, model 50: the original's lone black fin) and the submarine (type $0A, model 31: a periscope) given
 /// whole bodies. The rules keep their own objfile (boxes, collisions, +$7A): the picture only, like RoundWheels.
 ///

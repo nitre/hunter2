@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (setting sun_shading, the card-drawn 3D view): the sun lights every face and
+/// <summary>(setting sun_shading, the card-drawn 3D view): the sun lights every face and
 /// ground square from its own angle to it, using only the game's own colours. The models' face colours hold no
 /// light - each is just its paint - so a face's brightness comes from the sun alone: the paint's own ramp of shades
 /// in the view palette (bank 2) and their Extra Half-Brite copies (each channel halved, as the Amiga shows colour
@@ -23,8 +23,7 @@ public static class SunShade
     public static int Luma(int rgb) => 299 * (rgb >> 8 & 15) + 587 * (rgb >> 4 & 15) + 114 * (rgb & 15);
 
     /// <summary>The sun's light on a face, in 64ths: 64 (the original's own colour) edge-on, 83 full on, 45 turned
-    /// straight away - faces of every direction average the original (owner 2026-10-30: the extras looked much darker;
-    /// the old 32 + 48k averaged 0.69). k = the cosine between the face's outward direction and the direction to the
+    /// straight away - faces of every direction average the original (the old 32 + 48k averaged 0.69). k = the cosine between the face's outward direction and the direction to the
     /// sun, taken to 1/256.</summary>
     public static int Light64(float k)
     {
@@ -63,7 +62,7 @@ public static class SunShade
         return ladder[Position(ladder, Luma(palette[colour]) * Light64(k) * 64 / Light64(kp))] is var e ? (e.Index, e.Half) : default;
     }
 
-    /// <summary>ENHANCEMENT (owner 2026-11-02): a face lighter than its ramp's lightest paint - the sun asks for more than
+    /// <summary>ENHANCEMENT: a face lighter than its ramp's lightest paint - the sun asks for more than
     /// the palette has (light green 4, red 5, yellow 7, grey 8, brown 11, dark green 14 in full sun). Pick then gives
     /// the lightest paint; this is what the card multiplies it by in full colour, as the ground (GroundLight): the
     /// asked-for brightness over the lightest's, at most Light64(1) / 64. 1 when the ramp has the shade.</summary>
@@ -83,9 +82,9 @@ public static class SunShade
 
     // (A lit ground square keeps the original's own colour, its fake sun's lighter B / E on slopes falling east included
     // (Terrain.Point $CF28). Swapping those back to the dark 9 / C, as GroundColour did till 11-08, took two thirds of
-    // the light off the slopes the original lights and made the 3D view far darker than it - owner 11-08.)
+    // The light off the slopes the original lights and made the 3D view far darker than it -.)
 
-    /// <summary>The sun on a ground POINT (owner 2026-10-30: "Smooth shadin yessss"): the land's slope there from the
+    /// <summary>The sun on a ground POINT: the land's slope there from the
     /// heights one square either side (west / east, z - 512 / z + 512), x and z doubled as the picture's units; the
     /// card blends the points' light across each triangle, so neighbouring squares share it along their edge.</summary>
     public static float GroundK(int hl, int hr, int hb, int hf, (float X, float Y, float Z) sun)
@@ -94,12 +93,11 @@ public static class SunShade
         return (x * sun.X + 2048f * sun.Y + z * sun.Z) / len;
     }
 
-    /// <summary>What a lit ground point's own colour is multiplied by (owner 2026-10-28: "Sun is an effect not a ground
-    /// changer"): the sun's light, Light64 / 64 (RELIEF / VARIETY's extra step went with them, retired 11-01).
+    /// <summary>What a lit ground point's own colour is multiplied by: the sun's light, Light64 / 64 (RELIEF / VARIETY's extra step went with them, retired 11-01).
     /// The card multiplies in full colour, then hazes (world_colour.gdshaderinc world_lit_hazed).</summary>
     public static double GroundLight(float k) => Light64(k) / 64.0;
 
-    /// <summary>What a lit ground point is drawn with (owner 11-08: the extras no brighter than the original): its light
+    /// <summary>What a lit ground point is drawn with: its light
     /// over flat ground's (flatK = the sun's height, Toward's Y), so flat land is the original's own colour and only
     /// slopes go lighter or darker. Ground faces up, so GroundLight alone never fell below 1 - 1.3 at midday.</summary>
     public static double GroundLevel(float k, float flatK) => GroundLight(k) / GroundLight(flatK);
@@ -141,7 +139,6 @@ public static class SunShade
     }
 
     /// <summary>How far a corner h above the ground throws its shadow away from the sun (own shadows,
-    /// Objects.ProjectModelFlat): h / tan(elevation), no cap (owner 2026-10-30: limits only for artistic effect - the old
-    /// 4 x width cap piled a person's upper body onto one line); nothing for a corner on or under the ground.</summary>
+    /// Objects.ProjectModelFlat): h / tan(elevation), no cap; nothing for a corner on or under the ground.</summary>
     public static double ShadowLength(double h, double tanElev) => h > 0 ? h / tanElev : 0;
 }

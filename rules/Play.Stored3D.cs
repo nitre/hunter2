@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): every object stored on the map (the grid's 16 x 16 cells of
+/// <summary>(renderer = 3d): every object stored on the map (the grid's 16 x 16 cells of
 /// 8 records, and roomy_memory's overflow) as look records for the card-built world - shown where they stand, not
 /// brought to life - handed over only when those records changed (a thing spawned or written back), so a still
 /// map costs a byte compare a frame. Nothing in the game changes.</summary>

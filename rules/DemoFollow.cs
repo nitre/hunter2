@@ -1,7 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-12: "We should also be able to upgrade the attract demo there's no
-/// reason to be tethered" - "it doesn't matter if anything changes slightly, it's the key things that matter"): the attract
+/// <summary>the attract
 /// demo played by following the plain demo's route instead of replaying its stick blindly. The recording (file 11) steers a
 /// soldier only while the world is the one it was made in; with any change (finer ground, other rules) he loses his way at
 /// once and the rest of the recording plays at nothing. Here the plain demo is played once (Track) and each counted blank:
@@ -269,10 +268,10 @@ public sealed class DemoFollow
 
         /// <summary>In a land vehicle, the way past an armed thing (+$26 a weapon, +$32 rounds) that ramming would cost him
         /// dear: a ram costs each the other's hit points (+$2A, $455C) - at least half his. Its box in his way within Clear: along
-        /// its edge, as Around. Not the kinds he rides (an empty tank is armed). Owner 11-12: getting past the rocket launcher
+        /// its edge, as Around. Not the kinds he rides (an empty tank is armed). Getting past the rocket launcher
         /// alive is enough - the plain demo's kills it by chance (its own shell, at 18 after a hit in its own world); the
         /// straight demo's tank, 46, rammed it at 30 and its shell finished him.</summary>
-        /// <summary>Owner 11-12: "don't ram if shoot is fine". An armed tank (turns on the spot, a weapon, rounds - Hunt.ArmedTank)
+        /// <summary>. An armed tank (turns on the spot, a weapon, rounds - Hunt.ArmedTank)
         /// meeting an enemy it cannot wreck by ramming and live (FoeInWay) shoots it as the bot does (Hunt.Ride): stopped at its
         /// standoff (Hunt.Standoff + its half size, 200 of play), turned on the spot to its bearing, firing once on it within the
         /// angle its box takes. Given up after Hunt.Patience blanks of firing with it none the worse - then round it (NoRam).
@@ -295,7 +294,7 @@ public sealed class DemoFollow
                 double along = (Senses.Diff(ex, mx) * wx + Senses.Diff(ez, mz) * wz) / len, across = Math.Abs(Senses.Diff(ex, mx) * wz - Senses.Diff(ez, mz) * wx) / len;
                 var reach = Math.Sqrt(Math.Pow(me.W(0x6E) + e.W(0x6E), 2) + Math.Pow(me.W(0x72) + e.W(0x72), 2));
                 if (along <= 0 || across > reach + InWay) continue;              // not on his way: left alone (the car stood shooting a
-                // $92 near the route at 3427 and the plane's moment at 6545 went by - not seek and destroy, owner 11-12)
+                // $92 near the route at 3427 and the plane's moment at 6545 went by - not seek and destroy)
                 if (foe is null || d < fd) (foe, fd, half) = (e, d, h);
             }
             if (foe is null) { gunAt = -1; return null; }

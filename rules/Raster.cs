@@ -9,7 +9,7 @@ public sealed class View
     public const int Width = 320, Height = 140;
     public byte[] Pixels { get; } = new byte[Width * Height];
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Objects.OwnShadows): a shadow span ORs this bit
+    /// <summary>(Objects.OwnShadows): a shadow span ORs this bit
     /// into the pixels it covers instead of writing a colour - Extra Half-Brite, colour n + 32 =
     /// colour n with each channel halved. The reader of a pixel halves the looked-up colour when
     /// the bit is set (Play.Screen); a later plain colour write clears it, and Clear() overwrites
@@ -57,7 +57,7 @@ public sealed class Raster
     readonly short[] _spans = new short[2 * 160]; // $79BA
     public bool SkipFlag;                        // $1600(a5)
     public bool Filled;                          // $1601(a5)
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Objects.OwnShadows): Line and Fill mark the EHB
+    /// <summary>(Objects.OwnShadows): Line and Fill mark the EHB
     /// bit instead of writing a colour while set. Clear with the faces done - Faces does.</summary>
     public bool Mark;
 
@@ -235,7 +235,7 @@ public sealed class Raster
         }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.View2, mp_views): the second picture draws
+    /// <summary>(Play.View2, mp_views): the second picture draws
     /// with this raster and must leave it byte for byte as the pass's own draw did. The scratch
     /// is never fully rewritten between faces (spans and edge records stop at each face's count),
     /// so a picture at another camera leaves other leftovers behind - the state hash counts the

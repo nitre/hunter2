@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (setting view_distance, the card-drawn 3D view): how much of the world the card
+/// <summary>(setting view_distance, the card-drawn 3D view): how much of the world the card
 /// draws. The game itself never reads it - only the picture changes. ORIGINAL (7) is exactly what the original draws:
 /// the ground walk's 7 x 7 cells with its template ($39B0 / $3AA3, Ground.Visible) and the things Place marks in view
 /// (+$1C); nothing stored on the map. A bigger value adds ground rows beyond the far row, the patch widening so its far

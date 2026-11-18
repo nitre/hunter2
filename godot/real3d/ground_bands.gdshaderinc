@@ -1,13 +1,12 @@
-// ENHANCEMENT, NOT THE ORIGINAL (setting ground_colours, GROUND COLOURS: BANDS, the card-drawn 3D view): each ground
-// pixel's colour from its own ground point (per pixel since 2026-11-02, owner: the per-piece colour scalloped the
-// bands' edges; the colours are still the stepped $0RGB words) - the twin of rules/GroundBands.cs (Colour, Brown64, Mix: the same whole numbers): the
+// (setting ground_colours, GROUND COLOURS: BANDS, the card-drawn 3D view): each ground
+// pixel's colour from its own ground point (per pixel since 2026-11-02; the colours are still the stepped $0RGB words) - the twin of rules/GroundBands.cs (Colour, Brown64, Mix: the same whole numbers): the
 // original map's own green or brown land, a ramp of its own colours up each by height (each band a set share of that
 // land), green and brown blended across a square, sand at the shore, rock on steep sides, every second square a touch
 // darker (the checker, enough to show movement). The pieces are the grain, so the specks are left off banded ground.
 // Needs world_colour.gdshaderinc (shore_far), ground_height.gdshaderinc and ground_cell.gdshaderinc.
 
 uniform bool ground_bands = false;
-uniform float band_gain = 1.0;                   // GroundBands.Gain: the land as bright as the original's on average (owner 11-08)
+uniform float band_gain = 1.0;                   // GroundBands.Gain: the land as bright as the original's on average
 uniform int band_green_h[3];                     // GroundBands.Heights(green): each key's height, world units
 uniform int band_brown_h[3];                     // GroundBands.Heights(brown)
 const int BAND_GREEN[3] = int[](0x251, 0x362, 0x372);   // GroundBands.GreenKeys' colours
@@ -73,8 +72,7 @@ int band_slope(sampler2D hmap, int x, int z) {
 
 bool ground_banded(int colour) { return ground_bands && colour >= 9 && colour <= 14; }
 
-// The band colour at one ground point (owner 2026-11-02: smooth the band edges - groundgpu.gdshader asks it per pixel,
-// so a band's edge follows the land, not the pieces' edges; the colours stay the stepped words)
+// The band colour at one ground point (the colours stay the stepped words)
 int ground_point_word(sampler2D hmap, sampler2D types, ivec2 mid, int h) {
     int bend = 4 * h;
     ivec2 offs[4] = ivec2[](ivec2(1024, 0), ivec2(-1024, 0), ivec2(0, 1024), ivec2(0, -1024));

@@ -3,7 +3,7 @@ using Godot;
 
 namespace Hunter;
 
-/// <summary>The two-player screen split (ENHANCEMENT, not the original; multiplayer piece 3c,
+/// <summary>The two-player screen split (multiplayer piece 3c,
 /// LAYOUT ONLY). Settings.Players == 2: the window shows the game's 320 x 200 frame TWICE, at the
 /// same pixel scale as today's single picture, with a 2-px divider - side by side, or one above
 /// the other (Settings.SplitLayout). The second frame source is a STUB the later piece mp_views

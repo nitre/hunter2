@@ -27,7 +27,7 @@ public sealed class WorldState
     public short Timer1AC;
     /// <summary>$A5 bit 4: entities re-plan next pass ($2BF8 -> $25BC -> $26C0).</summary>
     public bool Replan;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (multiplayer piece 1): how many of the leading
+    /// <summary>(multiplayer piece 1): how many of the leading
     /// entity slots are reserved for players. 1 is the original - there the player is slot 0 only
     /// because it spawns first and SpawnInFreeSlot ($314C) takes the first free slot. Not saved,
     /// not a setting yet.</summary>
@@ -106,69 +106,69 @@ public sealed class WorldState
     public byte Flags0A4;
     /// <summary>$9288: ends counted per type (EntityEnds $3078); $21A score.</summary>
     public readonly byte[] Kills = new byte[ExtraKinds.Slots];   // (the program's 256 bytes; ExtraKinds: every type)
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.RoomyMemory): the extras of the roomy_memory
+    /// <summary>(Play.RoomyMemory): the extras of the roomy_memory
     /// setting, kept beside the original's arrays - the grid ($C000), Kills and the save block stay
     /// the original's layout and bytes. The defaults are the empty extras: nothing reads them while
     /// the setting is off, so every byte and every rule is the original's.</summary>
     public bool RoomyMemory;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.MoreObjects, set with it): things woken only by the bigger window
+    /// <summary>(Play.MoreObjects, set with it): things woken only by the bigger window
     /// stand until they are in the original's (Behaviour.Steer).</summary>
     public bool MoreObjects;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIVING WORLD, owner 2026-11-01, rules/LivingWorld.cs): people and animals
+    /// <summary>(LIVING WORLD): people and animals
     /// notice each other, not only the player. Off: every planner targets the player, as the original.</summary>
     public bool LivingWorld;
     /// <summary>LIVING WORLD: passes counted for its replans (LivingWorld.ReplanEvery). Not saved.</summary>
     public int LivingPass;
     /// <summary>LIVING WORLD: each map square's island or stretch of water (LivingWorld.RegionAt), built on first use.</summary>
     public int[]? LivingRegions;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.Maths32, owner 2026-10-26 "32 it is"): the upgrade's maths in 32 bits -
+    /// <summary>(Play.Maths32): the upgrade's maths in 32 bits -
     /// sums, differences and divides that the original wraps or overflows at 16 bits work in full. Off: every 16-bit wrap
     /// and divs overflow is the original's. Groups move onto it one at a time (docs/maths32.md); the stored words
     /// (entity records, the map byte, colours) stay the original's layout either way.</summary>
     public bool Maths32;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, owner 2026-11-01): the fine height store's spec - N points a
+    /// <summary>(FINER GROUND): the fine height store's spec - N points a
     /// cell side (0 = off, the original's ground) and the height factor FineNum / FineDen. Set at a new game (never the
     /// attract demo) or from a save's extension; the store itself (Ground.Fine) is rebuilt from it and the world's seed.</summary>
     public int FineN, FineNum = FineGround.FactorNum, FineDen = FineGround.FactorDen;
-    /// <summary>ENHANCEMENT (GROUND SEED / RELIEF, owner 2026-11-11): the rest of the store's spec - the seed its detail
+    /// <summary>ENHANCEMENT (GROUND SEED / RELIEF): the rest of the store's spec - the seed its detail
     /// was grown from (the world's own, or the one GROUND SEED drew), Vista's dimension and the hold (FineGround.Reliefs).
     /// With FineN: in the save's extension, so a load rebuilds the same store whatever the settings say then.</summary>
     public ushort FineSeed;
     public int FineDim = FineGround.Dimension, FineHold = FineGround.Gentle;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-10-30 "seems like a bug", on by default): moving along a heading
+    /// <summary>moving along a heading
     /// rounds the sin/cos products toward 0 - the original's asr.l rounds a tiny negative cos($40) / sin($80) down to -1,
     /// so walking east also went 1 south a frame and south 1 west (docs/original-bugs.md). Off: the original's rounding.</summary>
     public bool StraightMoves;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINE POSITIONS, owner 11-12 "nyquist" item 3): a step along a heading keeps
+    /// <summary>(FINE POSITIONS): a step along a heading keeps
     /// the fraction the shift drops (Movement.Vector's asr), carried on the entity (Entity.FracX..) to the next - so a
     /// pass a blank, 9 a step, goes where a 7-blank pass of 63 went (rounded each step it lost up to 1 a step an axis: a
     /// car 300 off the demo's road by blank 2000). Off: the original's whole units.</summary>
     public bool FinePositions;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-02, off by default): leaving a vehicle first tries the spot behind it
+    /// <summary>leaving a vehicle first tries the spot behind it
     /// (away from its heading), then the original's four. Off: the original puts you on its +x side first, so a boat heading
     /// that way runs into you and takes you back in (PlaceBeside).</summary>
     public bool LeaveBehind;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-03, off by default): a gamepad stick's sideways lean turns the player's
+    /// <summary>a gamepad stick's sideways lean turns the player's
     /// vehicle by as much as it leans. AnalogLean is the shell's lean, -16..16 sixteenths of the full turn, set each blank (0 =
     /// keys / d-pad / no stick, or the flag off); +$18 stays the original's -1 / 0 / +1. MoveAndTurn reads both (slot 0 only).</summary>
     public bool AnalogSteering;
     public int AnalogLean;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIMB DAMAGE, owner 2026-11-03, off by default): a bullet hitting a person hurts the
+    /// <summary>(LIMB DAMAGE): a bullet hitting a person hurts the
     /// limb at the hit's height (Limbs.Classify); a leg or arm hit does not kill (at least 1 energy stays). Off: the original.</summary>
     public bool LimbDamage;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (BULLET BOX, owner 2026-11-09): bullets ($52, $5B) have no model, so SetCollisionBox
+    /// <summary>(BULLET BOX): bullets ($52, $5B) have no model, so SetCollisionBox
     /// ($334A) gives them model 0's box - 0 wide, 288 long north-south whatever way they fly: two on a north-south line jam
     /// each other, one born by a corner hits it. On: Arms.BulletHalf across both ways, the height kept (no aiming up or down
     /// on foot). Off: the original.</summary>
     public bool BulletBox;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (A500 PACE, owner 2026-11-08, on by default, never the attract demo): the game
+    /// <summary>(A500 PACE): the game
     /// runs a pass every blank where the A500 ran one about every PaceBlanks; moves, turns, fuel and clocks scale by the
     /// blanks, but what the original does once a pass does not. On: those happen only on an A500 pass (PaceTick, every
     /// PaceBlanks blanks) - contact hurt (Collisions $454E, a ram $44FC), a record ending ($2646), the player's rebuild
     /// ($25C8), speed lost out of fuel or bumped, the bump's turn aside and +$1B; a landing's drop is measured from the
     /// height at the last A500 pass (Entity.PaceY). Off: the original's code at a pass a blank.</summary>
     public bool A500Pace;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINE ANGLES, owner 11-12, on with the setting, never the attract demo): a grounded
+    /// <summary>(FINE ANGLES): a grounded
     /// thing's pitch from the exact heading and a blended height (Objects.FineTilt), kept fine. Off: the original's $42A6.</summary>
     public bool FineTilt;
     /// <summary>The A500's blanks a pass for A500 PACE (measured mean 6.3; the animations use the same, Play.AnimEveryBlanks).</summary>
@@ -178,32 +178,31 @@ public sealed class WorldState
     public bool PaceTick = true;
     public int PaceGathered, PaceBlank;
     public readonly Dictionary<(int, int), int> PaceHurts = [];
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's PLOT ARMOUR, owner 2026-11-07, docs/bot-plan.md): in the bot's own films
+    /// <summary>(the BOT's PLOT ARMOUR): in the bot's own films
     /// the player's soldier does not die - his record's energy is kept at 1 when it would end (Movement.Pass, $2646), the panel's
     /// energy at 1 (Vehicles.AddEnergy: no drowning), his own hard landing ends nothing (CrashDestroyEntity). He is still hit,
     /// so the bot flinches. Set only by whatever starts a bot film; never in a player's game; not saved.</summary>
     public bool PlotArmour;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's death log, testing only - nothing in the game reads it, not saved): what
+    /// <summary>(the BOT's death log, testing only - nothing in the game reads it, not saved): what
     /// last hurt the player's soldier (Collisions: the shot, blast or rammer's type, and for a shot its shooter's type, -1 when
     /// none), and how many times plot armour kept him alive, by what (Movement.Pass "hit", AddEnergy "drowning", the crash
     /// "fall"). Hunt reads them to write each death down.</summary>
     public int LastHurtBy = -1, LastHurtShooter = -1;
     public readonly List<string> ArmourSaves = [];
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's hearing, docs/bot-brain.md 1): called with each message's template and
+    /// <summary>(the BOT's hearing, docs/bot-brain.md 1): called with each message's template and
     /// arguments as ShowMessage prints it (Messages.Show, $C1B2) - the message line a player reads. Nothing in the game reads
     /// it; unset, nothing happens.</summary>
     public Action<int, int[]>? Heard;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (AIMING: RETICLE, owner 2026-11-03, off by default; play input, never the demo): on foot
+    /// <summary>(AIMING: RETICLE; play input, never the demo): on foot
     /// the player's soldier turns to the point under the reticle and his shots go there (rules/Aim.cs). ReticleX / Y are the
     /// reticle in game pixels over the view (set by the shell each blank); X below 0 = no reticle yet (the keys turn as ever).</summary>
     public bool AimReticle;
     public int ReticleX = -1, ReticleY;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-10-30, on by default): walking into the HQ (the goal building)
+    /// <summary>walking into the HQ (the goal building)
     /// before the mission is done says the debrief's "not yet completed" and puts you back outside its door - the game
     /// goes on. Off: the original's visit ends the game (GameOver $3514, the debrief, the briefing again).</summary>
     public bool EarlyHqBack;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-17: "Every boat you find is in parallel to the shore"; on by
-    /// default, not in the attract demo): an empty sea-only boat coming to life from the map is turned along the shore
+    /// <summary>(on by default, not in the attract demo): an empty sea-only boat coming to life from the map is turned along the shore
     /// (BoatShore.Heading), so it can be driven off as soon as it is boarded. Off: the record's own heading.</summary>
     public bool BoatsAlongShore;
     /// <summary>Maths32 group 2 (docs/maths32.md): the difference a-b of two position words (+$4A/+$4E)
@@ -217,26 +216,26 @@ public sealed class WorldState
         var d = Dist(s, a, b);
         return s != null && s.Maths32 ? Math.Abs(d) : (short)(d < 0 ? -d : d);
     }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.Graves): the graves of paid deaths, each holding
+    /// <summary>(Play.Graves): the graves of paid deaths, each holding
     /// the 30 carried counts of the death - out of play - beside the original's arrays, which stay
     /// the original's layout and bytes. The placed grave itself is an ordinary grid record; only the
     /// store (and the graves still waiting for a grid slot) rides the save's extension block. The
     /// defaults are the empty store: nothing reads it while the setting is off.</summary>
     public bool Graves;
     public readonly List<Grave> GraveStore = new();
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.VultureGraves): the running grave visits -
+    /// <summary>(Play.VultureGraves): the running grave visits -
     /// a new grave's vulture pair circling it for a while. Not in the save: a load drops the
     /// visit (like a debris shower). Nothing reads the list while the setting is off.</summary>
     public bool VultureGraves;
     public readonly List<VultureGraves.Post> VulturePosts = new();
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (multiplayer piece mp_view_angle): the second
+    /// <summary>(multiplayer piece mp_view_angle): the second
     /// view's camera angle - 0 the original (facing north), $80 a half turn (facing south).
     /// Consumed at the two camera writers behind a guard (Ground.Place's depth term and clamp,
     /// Objects.Place's +$56/+$5A deltas): at 0 they run the original's exact instructions, so
     /// player 1's view - which never has an angle - stays byte for byte. Not in the save: no
     /// byte of it rides SaveGame, the saved block stays the original's.</summary>
     public byte ViewAngle2;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (real 3D): player 1's view turn as a heading offset
+    /// <summary>(real 3D): player 1's view turn as a heading offset
     /// (a byte, $100 = a full turn, clockwise like the heading; a left turn of the view is $100 minus
     /// its angle). Read by Controls only: on foot his stick walks where the turned view points.
     /// 0 = the original byte for byte. The old drawer never sees it.</summary>
@@ -256,7 +255,7 @@ public sealed class WorldState
     /// <summary>The live player's fuel low byte (+$35), kept by GameToSoldier ($82E6 keeps only the
     /// high byte in the record). A loaded game carries it back from the extension block.
     /// Per player (multiplayer piece 2); every save/load site touches player 0's - the per-player
-    /// save format is the owner's question (GAPS).</summary>
+    /// save format is still open (GAPS).</summary>
     public byte PlayerFuelLow { get => _player[0].FuelLow; set => _player[0].FuelLow = value; }
     /// <summary>The parked things' fuel low bytes, by grid record offset ($82E6 writes only the high
     /// byte into the record; $8246 restores it << 8). An entry is consumed when the record spawns.</summary>
@@ -377,7 +376,7 @@ public sealed class WorldState
     /// Data.DemoFile()). Outside a demo nothing replays it (ReplayDemoInput runs only in the demo,
     /// $C706), so an empty buffer stands for whatever it held.</summary>
     public byte[] DemoBuffer = new byte[Demo.RecordsBytes + Demo.PaceBytes];
-    // NOT THE GAME - copy protection, left out (owner 2026-10-17): $161A is the disk wiper's counter
+    // NOT THE GAME - copy protection, left out: $161A is the disk wiper's counter
     // (docs/cut-content.md "the disk wiper"; re/vars.txt DiskWiperCount), not a clock.
     // public int MusicClock161A;
     /// <summary>$22A: the soldier's energy ($87A0: word +6 of the soldier record $85E2, $20 for a
@@ -491,10 +490,10 @@ public static class StartState
             Trig = new Trig(d.Sinfile), Data = d, Models = d.Models,     // one per session: StartDebris rewrites model 0
             Channels = new Channels(d.Main, d.Soundfile),
         };
-        // ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND): a new game with the setting, or a load of a game that had it,
+        // (FINER GROUND): a new game with the setting, or a load of a game that had it,
         // grows the fine store from the world's seed (the same store every time); before the fill, which stands
         // things on the height the game will use. finerGround 0 and no spec in the save = the original's ground.
-        // GROUND SEED / RELIEF (owner 2026-11-11): a new game grows its detail from groundSeed (null: the world's own) at
+        // GROUND SEED / RELIEF: a new game grows its detail from groundSeed (null: the world's own) at
         // the relief level (FineGround.Reliefs: 0 = 2X, today's); a load from the spec its save carries, the settings unread.
         var lvl = FineGround.Reliefs[Math.Clamp(relief, 0, FineGround.Reliefs.Count - 1)];
         var (fineN, fineNum, fineDen, fineSeed, fineDim, fineHold) = saved is null
@@ -509,7 +508,7 @@ public static class StartState
             if (saved is null) StandOnFine(s.Grid, ground);        // a loaded grid was stood on it when its game began
         }
         if (saved is null && fullerWorld > 0)
-        {                                                          // ENHANCEMENT, NOT THE ORIGINAL (fuller world, build
+        {                                                          // (fuller world, build
             var table = TypeTable(d);                              // job 2): a NEW game works the extra records out of
                                                                    // the map itself (Fill.Plan) and writes each into a free
                                                                    // slot of its cell. A loaded game's grid IS the saved
@@ -517,7 +516,7 @@ public static class StartState
             var starts = StartSpots[mode].Concat(BaseSpots).ToArray();   // and never double them. fullerWorld 0 = the original.
             s.Maths32 = ground.Maths32 = maths32;                  // the fill stands things on the height the game will use
             var recs = Fill.Plan(w.Seed, terrain.Map, s.Grid, Math.Min(fullerWorld, 3), table, starts, ground);
-            if (fullerWorld >= 4)                                  // WILD: the attract's own (owner 2026-11-02) - groups
+            if (fullerWorld >= 4)                                  // WILD: the attract's own - groups
             {                                                      // beside the demo's route, its way kept clear of all
                 recs.AddRange(Wild.Plan(terrain.Map, s.Grid, table, starts, ground, recs));   // that was added
                 var route = DemoRoute.Points(d);
@@ -585,7 +584,7 @@ public static class StartState
         s.Panel = new Panel(d);                                // $84AC at start-up: panfile rows 0-59
         s.Panel.SetUp(s);                                          // $24C6 $24FA: $9A3E, PanelClock
         if (s.Players > 1)
-        {                                                          // ENHANCEMENT, NOT THE ORIGINAL (mp_panel):
+        {                                                          // (mp_panel):
             s.Panel2 = new Panel(d);                           // player 2's own buffer, set up the same way
             s.Panel2.SetUp(s);                                 // ($9A3E, PanelClock) - his X/Y and rounds fill in
         }                                                      // from his entity as the passes run (Play.Draw)
@@ -597,7 +596,7 @@ public static class StartState
         var p = s.Entities.All[0];
         s.Camera = ground.Place(p.UW(0x4A), p.W(0x4C), p.UW(0x4E), s.Distance, s.Lift);
         if (s.Players > 1)
-        {                                                          // ENHANCEMENT, NOT THE ORIGINAL (mp_two_soldiers): player 2
+        {                                                          // (mp_two_soldiers): player 2
             var rec2 = file.AsSpan(0x16, 16).ToArray();            // spawns at his own base (docs/extras.md mp_start_spots,
             var (bx, bz) = BaseSpots[(int)mode];                   // BaseSpots above); player 1 keeps the original start. Same
             var y2 = ground.Height((ushort)bx, (ushort)bz);        // record, moved to the base and set on the ground there.
@@ -634,7 +633,7 @@ public static class StartState
     /// inside.</summary>
     public static void SpawnPlayer(WorldState s, byte[] rec, int player = 0) => new Builder(s.Data, s).SpawnPlayer(rec, player);
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (multiplayer piece 4): players 1.. carry their own
+    /// <summary>(multiplayer piece 4): players 1.. carry their own
     /// item table, masks and talk table, made the first time the player is set up (Builder.Construct,
     /// before PlayerSetUpOrDie whose $A37C LoadWeapon reads the table). What a new game gives player 0,
     /// from the code: a copy of the world file's first $3E8 bytes (fresh counts - the file's, not
@@ -763,7 +762,7 @@ public static class StartState
     /// the original map's heights under the finer ground, which is higher nearly everywhere (Missions: 344 of 485 buried,
     /// the bike at 21069,14640 36 under) - the card drew them up on top, but the game read the buried height: a parked
     /// vehicle's pitch ($42A6, Objects.Tilt: its height less the ground ahead) came out steep, the bike's 0xDB (52 degrees
-    /// nose up), and the rider took it for a frame on boarding (owner 11-12: "the bike never got fixed").</summary>
+    /// nose up), and the rider took it for a frame on boarding.</summary>
     public static void StandOnFine(byte[] grid, Ground ground)
     {
         const int OnGround = 16;
@@ -799,7 +798,7 @@ public static class StartState
         list.Add(big);
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): a stored map record's LOOK in e - the bytes
+    /// <summary>(renderer = 3d): a stored map record's LOOK in e - the bytes
     /// ConstructEntity ($3196) sets that the model draw reads (models, angles, flags, position, ground height),
     /// none of its side effects (no slot, no plan, no sound). False for an empty or unknown record.</summary>
     public static bool Appearance(GameData d, WorldState s, byte[] rec, int at, Entity e) => new Builder(d, s).Appearance(rec, at, e);

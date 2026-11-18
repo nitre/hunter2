@@ -5,8 +5,7 @@ using Hunter.Rules;
 
 namespace Hunter;
 
-/// <summary>Back from the retired processor-built 3D view (owner 2026-10-24: "automatic backs now, hand-made
-/// where it matters"; card version owner 2026-10-29: "buildings need to have backs on them"). The original's
+/// <summary>Back from the retired processor-built 3D view. The original's
 /// camera only ever looked north, so many models are open somewhere (every building: no back wall; ~80 models:
 /// no bottom). Each open side (north, south, east, west) whose opposite side is built gets that half's filled,
 /// non-detail faces (on plain, non-articulated corners) mirrored across the model's middle, in their own
@@ -22,7 +21,7 @@ public static class ModelCaps
 
     static readonly Dictionary<(CardModels.Model, bool), Back?> Cache = new();
 
-    /// <summary>Hand-made backs (owner 2026-10-24: automatic now, hand-made where it matters), by model number;
+    /// <summary>Hand-made backs, by model number;
     /// they replace the automatic ones. Model units, x east, y up, z north; the front is the south (low z) side.</summary>
     static readonly Dictionary<int, Back> HandMade = new()
     {
@@ -91,7 +90,7 @@ public static class ModelCaps
     }
 
     /// <summary>careful (vehicles, animals, people: types below $30, re/formats/vehicles.md 1): not the same front and
-    /// back, so only left / right mirrors and the bottom - their open ends wait for hand-made backs (owner).</summary>
+    /// back, so only left / right mirrors and the bottom - their open ends wait for hand-made backs.</summary>
     public static Back? For(CardModels.Model md, bool careful = false, int model = -1)
     {
         lock (Cache)

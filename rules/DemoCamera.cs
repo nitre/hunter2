@@ -1,8 +1,8 @@
 namespace Hunter.Rules;
 
-/// <summary>NEW, NOT THE ORIGINAL (DEMO CAMERA: MOVING, owner 2026-11-02: a smart camera, not circling): the attract
+/// <summary>NEW, NOT THE ORIGINAL (DEMO CAMERA: MOVING): the attract
 /// demo's camera picks its own shot from what happens. Every shot is the game's own camera turned round the player
-/// (View3D.Eye: the same distance and height - the owner's camera rule, near the original view; his one exception:
+/// (View3D.Eye: the same distance and height, near the original view; one exception:
 /// in the car the eye moves in, Scale), so
 /// only where it looks changes. Shots, the first that applies:
 ///   Blast  - an explosion near him: face it, held a moment
@@ -10,7 +10,7 @@ namespace Hunter.Rules;
 ///   Group  - passing something worth seeing (a herd, boats, a squadron): bring it into the picture, once a group
 ///   Chase  - moving: swing round behind him
 ///   North  - standing still: the original view
-/// Calm (owner 2026-11-02: the first try was sickening): a pan speeds up and slows down gently and never passes
+/// Calm: a pan speeds up and slows down gently and never passes
 /// MaxTurn (a film pan's rule: a frame width in some seconds; 40 a second is where the eye stops following smoothly);
 /// a shot plays at least MinShot before another takes over; a subject further round than Reach is let go; the chase
 /// follows his heading smoothed over seconds and only re-aims past Deadband. A pan that would take the eye into the
@@ -20,19 +20,18 @@ public sealed class DemoCamera
 {
     public enum Shot { North, Chase, Group, Flight, Blast, Fire, Hit, Sight, Side }
 
-    // THE SHOWCASE (owner 2026-11-17: "showcase that we now have lifted that limitation but tastefully"): a building or a
+    // THE SHOWCASE: a building or a
     // parked vehicle near his way not shown yet is turned to (Sight, once each, one every SightGap at most, within Reach);
     // a long chase gives way to a look across his way (Side) after SideAfter; the chase leads into a bend by up to
     // LeadMax, a second's turn ahead.
-    // Owner 2026-11-18 "The camera is turned too fast and too often" (the plain demo: 55 shots in 5.4 min, a new one every 6 s on
+    // (the plain demo: 55 shots in 5.4 min, a new one every 6 s on
     // the median, 26 under 4 s): the turns at half speed, every shot held twice as long, a sight at most every 45 s.
     const int SightGap = 50 * 45, SideAfter = 50 * 40, SightNear = 1500;
     const double LeadMax = 20 * Math.PI / 180, LeadAhead = 50;
 
     const int Near = 2500;                                          // world units: what counts as near him
     const int MinShot = 50 * 12, ChaseAfter = 50 * 2, NorthAfter = 50 * 10;   // blanks
-    // THE FIGHT (owner 2026-11-12: "the camera should follow aim of weapon fire", "not destroy things off screen when
-    // you could rotate view and see it"; 11-17 "showcase that we now have lifted that limitation but tastefully"): a
+    // THE FIGHT: a
     // blast near him, a thing near him losing energy, his own fire (bullets too) take over any other shot at once and
     // from all the way round (no Reach); a fight shot holds FightMin before another fight takes it; his fire is
     // followed while he fires and held FireHold after; fight pans may go FightTurn times as fast.
@@ -92,7 +91,7 @@ public sealed class DemoCamera
         var head = -p.B[0x7E] * Math.Tau / 256;                     // his facing, (-sin, cos) - Shots' way round
         for (var i = 0; i < steps; i++)
         {
-            Close = Math.Clamp(Close + (p.W(4) == 0x01 ? CloseEase : -CloseEase), 0, 1);   // the car (owner: not the helicopter)
+            Close = Math.Clamp(Close + (p.W(4) == 0x01 ? CloseEase : -CloseEase), 0, 1);   // the car (not the helicopter)
             headX += (-Math.Sin(head) - headX) * HeadEase;
             headZ += (Math.Cos(head) - headZ) * HeadEase;
             var smooth = Math.Atan2(-headX, headZ);
@@ -338,7 +337,7 @@ public sealed class DemoCamera
     public static bool Inside(WorldState s, (double X, double Y, double Z) eye, int margin = 0)
     {
         // heights are the map's bytes x16, never below 0, and the sea's top is 0: 16 above the land is above the water too
-        // (no shot under the water until there is underwater vision, owner 2026-11-02)
+        // (no shot under the water until there is underwater vision)
         if (eye.Y < s.Ground.Height((ushort)(int)eye.X, (ushort)(int)eye.Z) + 16 + margin) return true;
         for (var r = 1; r < s.Entities.Count; r++)
         {

@@ -1,32 +1,32 @@
-// ENHANCEMENT, NOT THE ORIGINAL (setting card_pieces, DEBRIS: PIECES, the card-drawn 3D view): when a thing blows up, the
+// (setting card_pieces, DEBRIS: PIECES, the card-drawn 3D view): when a thing blows up, the
 // card breaks it apart - written for the card, not the old picture's code. The game itself is untouched: it only notes
 // the thing's record at the moment it blew up (rules Objects.Exploded) and when; everything here is a pure function of
 // that record, the time since, and the ground (ground_height.gdshaderinc, the game's own $36AA, number-checked).
-// Two stages (owner 2026-10-26: "up as each piece of the model, then the pieces break into triangles"): each panel (a
-// filled face, wheels included) flies up whole from where it sat, spinning as the push gave it; at the top of its rise
+// Two stages: each panel (a filled face, wheels included) flies up whole from where it sat, spinning as the push gave
+// it; at the top of its rise
 // it breaks into its triangles, each going on with the speed and spin it had there; a triangle lands when its lowest
 // point can touch, no bounce, tipping where it landed to lie flat along the ground's slope, and lies
 // still at most 5 seconds, shrinking away at the end; at sea it slips under and is gone. Nothing jumps at the break,
 // and on land no corner is ever under the ground under it.
-// Spin is the push's own (owner: "Spin should natural"): the blast pushes a panel at its centre of pressure, off its
+// Spin is the push's own: the blast pushes a panel at its centre of pressure, off its
 // middle toward the blast, so spin = offset x push / the panel's spread (a flat plate's moment, GPU Gems 3 ch. 29):
 // small panels and edge-on panels turn fast, big ones facing the blast hardly at all.
 // Units: the picture's own (x and z doubled world units, heights whole - alike every way); t in game frames (blanks).
 // Needs place.gdshaderinc, gpumodels.gdshaderinc (model_tex, tri_tex, tri_slots, trig_tex, anim_tex),
 // ground_height.gdshaderinc and ground_cell.gdshaderinc.
 
-uniform float piece_air = 100.0;         // frames a panel would be in the air on flat ground: two seconds, whole for the first (owner 2026-10-31: "a bit fast, the initial break up should take a little more"; was 75)
+uniform float piece_air = 100.0;         // frames a panel would be in the air on flat ground: two seconds, whole for the first (was 75)
 uniform float piece_spread = 1024.0;     // how far out the panels land, in the picture's units (a ground square is 1024)
 uniform float piece_rise = 400.0;        // how high they go before they break
 uniform float piece_pressure = 0.25;     // centre of pressure: this much of a panel's radius toward the blast
 uniform float piece_break_down = 0.5;   // a panel breaks this far down from its top to the ground: halfway
-uniform float piece_settle = 8.0;       // frames a landed triangle takes to tip flat where it lies (no bounce, owner: "lose the bounce")
+uniform float piece_settle = 8.0;       // frames a landed triangle takes to tip flat where it lies (no bounce)
 uniform float piece_crack = 0.15;        // the break's own push on each triangle, as a part of the panel's speed
 uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hit's own point flies this much faster than the average one...
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
-uniform float piece_rest = 250.0;        // frames a piece lies on the ground at most (owner: "5 seconds on ground at max")
+uniform float piece_rest = 250.0;        // frames a piece lies on the ground at most
 uniform float piece_shrink = 25.0;       // the last of them it shrinks away in, lying where it is
-uniform bool piece_stay = false;         // EXPLOSIONS: LASTING (owner 2026-11-03 "pieces stay") - no end to lying still
+uniform bool piece_stay = false;         // EXPLOSIONS: LASTING - no end to lying still
 
 vec3 _piece_rotate(vec3 v, vec3 axis, float a) {
     float c = cos(a), s = sin(a);
@@ -121,7 +121,7 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
     ivec3 cr = entity_unrotated(blast, row) ? cl : corner(cl, ivec3(_eb(blast, row, 0x80), _eb(blast, row, 0x7C), _eb(blast, row, 0x7E)), 0, ivec3(0), trig_tex);
     vec3 centre = vec3(float(2 * x + cr.x), float(_wrap16(_wrap16(cr.y + y) + lift_to_ground(ground, low))), float(2 * z + cr.z));
 
-    // BETTER EXPLOSIONS (owner 2026-11-07, docs/better-explosions-plan.md step 3): hit by a shell, missile or blast, the
+    // BETTER EXPLOSIONS: hit by a shell, missile or blast, the
     // push comes from where that was, not the thing's middle - away from it, the nearest panels fastest
     vec3 blast_at = centre;
     float near = 1.0;
@@ -150,8 +150,7 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
     vec3 axis = spin > 0.0 ? omega / spin : vec3(0.0, 1.0, 0.0);
 
     // stage 1: the panel whole, up and out and back down to halfway between its top and the ground under it, then it
-    // breaks (owner 2026-10-31: "We don't want instant confetti"; "make the main panels fly up and out and break to
-    // triangles half way down") - the same moment for every triangle of the panel
+    // breaks into its triangles - the same moment for every triangle of the panel
     float top = v.y / g;
     vec3 pt = mid + v * top - vec3(0.0, 0.5 * g * top * top, 0.0);
     float tb = top + sqrt(max(pt.y - _piece_ground(map, pt.x, pt.z), 0.0) * 2.0 * piece_break_down / g);

@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's trips, docs/bot-brain.md 2 and its STEP 2 PLAN): the quickest way to a
+/// <summary>(the BOT's trips, docs/bot-brain.md 2 and its STEP 2 PLAN): the quickest way to a
 /// place over what he knows. The map's squares are cut into AREAS (Navigate.Areas: each island's land, each sea); a trip runs
 /// over LINKS whose times are in blanks, length / that way's top speed (+$36; the kind's +$12 for a thing not in sight): walking
 /// and swimming (the same +$36 - WalkSwimSwitch $2BAC swaps only the models), boarding a vehicle he knows of, driving, a boat
@@ -165,14 +165,13 @@ public sealed class Trip
 
     /// <summary>The energy a swim of this many blanks costs: the water timer starts afresh each time he goes in ($206, Swimming
     /// $B05C), the first point after 3 minutes, then one each 4 - a swim under 3 minutes costs none.</summary>
-    /// <summary>A swim counts this many times its blanks when trips are weighed (owner 11-08: the boat, not a swim): in the
+    /// <summary>A swim counts this many times its blanks when trips are weighed: in the
     /// water he cannot fight, is a target, and a long one costs energy. Chosen, not the game's; the legs keep real times.</summary>
     const double SwimWeight = 4;
 
     static int SwimCost(double ticks) => ticks < SwimFirst ? 0 : 1 + (int)((ticks - SwimFirst) / SwimEach);
 
-    /// <summary>The energy all the swims of a trip may cost: half of his; as a LAST RESORT (no other way, owner 11-08: fix the
-    /// stranding - M1 / M4 stood 26000+ passes on "no way") all but 2, so he lands alive.</summary>
+    /// <summary>The energy all the swims of a trip may cost: half of his; as a LAST RESORT (no other way) all but 2, so he lands alive.</summary>
     int Spend(int energy) => LastResort ? energy - 2 : (int)(energy * SpendShare);
     /// <summary>The share of his energy a trip's swims may cost (0.5: half - the floor, as energy / 2 was); a setting for the lab.</summary>
     static double SpendShare = 0.5;
@@ -288,7 +287,7 @@ public sealed class Trip
         return best == double.MaxValue ? foot / 2.0 : 1 / best;
     }
 
-    /// <summary>ISLAND TO ISLAND on foot (owner 11-08): from p on island ap to q on island aq over the swim links - the least
+    /// <summary>ISLAND TO ISLAND on foot: from p on island ap to q on island aq over the swim links - the least
     /// energy first, then the quickest (walks over each island by the way, swims shore to shore), all the swims together
     /// costing no more than half his energy. Null: none.</summary>
     (double Time, List<Leg> Legs)? Hops(WorldState s, int[] areas, int foot, int energy, (int X, int Z) p, int ap, (int X, int Z) q, int aq)
@@ -399,7 +398,7 @@ public sealed class Trip
             var flies = ModeOf(FlagsOf(s, r)) == Mode.Air;
             if (lasts <= 0 || t > lasts && flies) return null;             // an aircraft: no flight it cannot finish
             if (home is { } h && !rides.Any(o => o != r && Senses.Dist(o.X, o.Z, drop.X, drop.Z) <= OtherRideNear)
-                && Run(s, areas, r, drop, h, ShoreNear, speed) is var (back, _, _) && lasts < t + back) return null;   // ROUND TRIP (owner 11-08): the gauge
+                && Run(s, areas, r, drop, h, ShoreNear, speed) is var (back, _, _) && lasts < t + back) return null;   // ROUND TRIP: the gauge
                                                                            // must bring him back too (M1: a rocket boat ran dry 29000 from home after the dump)
             if (t > lasts)                                                 // as far as it goes, then out on the empty gauge (Hunt) and the rest on foot
                 return (lasts + (1 - lasts / t) * Len(q.X, q.Z, drop.X, drop.Z) / Pace(s, footSpeed, q, drop), legs, drop);
@@ -432,7 +431,7 @@ public sealed class Trip
         return false;
     }
 
-    /// <summary>A FLIGHT ROUND THE REACHES (owner 11-08: yes, route round; Killzone plans round restricted areas): the points
+    /// <summary>A FLIGHT ROUND THE REACHES (Killzone plans round restricted areas): the points
     /// on the way from p to q, q last - straight when that meets no reach for this status, else the shortest chain over the
     /// corners of the reaches (each box with its margin, a square further out) whose every hop meets none. Null: none.</summary>
     List<(int X, int Z)>? AirWay((int X, int Z) p, (int X, int Z) q, int status, int speed)

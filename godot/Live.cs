@@ -6,8 +6,7 @@ using System.Threading.Tasks;
 
 namespace Hunter;
 
-/// <summary>NEW, NOT THE ORIGINAL (development only, owner 2026-10-30: "have the game open with a debug interface
-/// and get it to do whatever you want LIVE"): HUNTER_LIVE=port opens 127.0.0.1:port; each line sent is one command,
+/// <summary>NEW, NOT THE ORIGINAL (development only): HUNTER_LIVE=port opens 127.0.0.1:port; each line sent is one command,
 /// run on the game's own thread at the start of the next frame (GameView.LiveCommand), the reply sent back as lines
 /// ending with a lone ".". Never in a normal game: nothing listens without the variable. Client: tools/live.py.</summary>
 public sealed class Live

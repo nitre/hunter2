@@ -3,7 +3,7 @@ using Godot;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (gpu_height, owner 2026-10-24): the whole map's heights as one float
+/// <summary>(gpu_height): the whole map's heights as one float
 /// texture for the GPU ground shaders. Texel (col, row) = the height byte of map point (col, row) as a float
 /// (map[(row * 128 + col) * 2], 0..255 - float32 holds it exactly), 128 x 128, Rf. Sample with texelFetch:
 /// nearest, no repeat, no filtering involved (the edge neighbours are fetched explicitly, see
@@ -18,7 +18,7 @@ public static class HeightTexture
         return ImageTexture.CreateFromImage(Image.CreateFromData(128, 128, false, Image.Format.Rf, data));
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND): the fine store (rules/FineGround.cs) as one Rf texture,
+    /// <summary>(FINER GROUND): the fine store (rules/FineGround.cs) as one Rf texture,
     /// Side x Side, texel (i, j) = the height in world units (0..32767, exact in a float) - fine_ground.gdshaderinc.</summary>
     public static ImageTexture From(Hunter.Rules.FineGround fine)
     {

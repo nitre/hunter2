@@ -1,4 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (setting ground_pattern, GROUND PATTERN: SPECKS, the card-drawn 3D view): fine specks inside
+// (setting ground_pattern, GROUND PATTERN: SPECKS, the card-drawn 3D view): fine specks inside
 // every ground square - a 16 x 16 grid of texels (nearest, blocky), most the square's plain colour, some a touch lighter or
 // darker (the lit colour times ground_speck_dark / ground_speck_light, never a palette neighbour). Each square has its own
 // layout, a hash of its map column and row and the texel. The haze fades the specks to the plain colour. Needs world_colour.gdshaderinc.

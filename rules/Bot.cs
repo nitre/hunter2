@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT, docs/bot-plan.md): what plays player 1 instead of the port - asked for
+/// <summary>(the BOT, docs/bot-plan.md): what plays player 1 instead of the port - asked for
 /// the joystick every blank of play (Play.Pilot, Play.VerticalBlank).</summary>
 public interface IPilot
 {

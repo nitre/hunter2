@@ -15,11 +15,11 @@ public sealed partial class Play
     readonly Sky _sky;
     public readonly View View = new();
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Objects.OwnShadows): every object casts a half-bright
+    /// <summary>(Objects.OwnShadows): every object casts a half-bright
     /// (EHB) shadow from its own main model. Off - the default - the view is the original's: black
     /// colour-0 faces for its 13 shadow types only.</summary>
     public bool OwnShadows { get => _objects.OwnShadows; set => _objects.OwnShadows = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: objects and ground are placed and drawn farther -
+    /// <summary>objects and ground are placed and drawn farther -
     /// the depth bound $1800 -> $2800, the grid four point rows farther ($2900). Handed to Objects
     /// and Ground; not in the world state and not in the save. Off - the default - the view is the
     /// original's byte for byte. (The far ground draws, but few live things are out there until a
@@ -30,7 +30,7 @@ public sealed partial class Play
         set { _objects.FarView = value; State.Ground.FarView = value; }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: the upgrade's 32-bit maths (WorldState.Maths32). Set before
+    /// <summary>the upgrade's 32-bit maths (WorldState.Maths32). Set before
     /// the first pass; also switches the Ground's height lerp (group 1, docs/maths32.md; Fill places on the shipped maps only, where the lerp never overflows).</summary>
     public bool Maths32
     {
@@ -38,32 +38,32 @@ public sealed partial class Play
         set { State.Maths32 = value; State.Ground.Maths32 = value; }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: no drift when moving along a heading (WorldState.StraightMoves).</summary>
+    /// <summary>no drift when moving along a heading (WorldState.StraightMoves).</summary>
     public bool StraightMoves { get => State.StraightMoves; set => State.StraightMoves = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: a step keeps its fraction (WorldState.FinePositions).</summary>
+    /// <summary>a step keeps its fraction (WorldState.FinePositions).</summary>
     public bool FinePositions { get => State.FinePositions; set => State.FinePositions = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: leaving a vehicle puts you behind it first (WorldState.LeaveBehind).</summary>
+    /// <summary>leaving a vehicle puts you behind it first (WorldState.LeaveBehind).</summary>
     public bool LeaveBehind { get => State.LeaveBehind; set => State.LeaveBehind = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: a stick's lean turns the player's vehicle by that share of the full turn (WorldState.AnalogSteering).</summary>
+    /// <summary>a stick's lean turns the player's vehicle by that share of the full turn (WorldState.AnalogSteering).</summary>
     public bool AnalogSteering { get => State.AnalogSteering; set => State.AnalogSteering = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: a bullet hurts the limb it hits and a limb hit does not kill (WorldState.LimbDamage).</summary>
+    /// <summary>a bullet hurts the limb it hits and a limb hit does not kill (WorldState.LimbDamage).</summary>
     public bool LimbDamage { get => State.LimbDamage; set => State.LimbDamage = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: bullets get a small box, not model 0's (WorldState.BulletBox).</summary>
+    /// <summary>bullets get a small box, not model 0's (WorldState.BulletBox).</summary>
     public bool BulletBox { get => State.BulletBox; set => State.BulletBox = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: what the original does once a pass happens at the A500's pace (WorldState.A500Pace).</summary>
+    /// <summary>what the original does once a pass happens at the A500's pace (WorldState.A500Pace).</summary>
     public bool A500Pace { get => State.A500Pace; set => State.A500Pace = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINE ANGLES): the ground tilt from the exact heading (WorldState.FineTilt).</summary>
+    /// <summary>(FINE ANGLES): the ground tilt from the exact heading (WorldState.FineTilt).</summary>
     public bool FineTilt { get => State.FineTilt; set => State.FineTilt = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: on foot the soldier turns to the reticle and his shots go to the point under it (WorldState.AimReticle, rules/Aim.cs).</summary>
+    /// <summary>on foot the soldier turns to the reticle and his shots go to the point under it (WorldState.AimReticle, rules/Aim.cs).</summary>
     public bool AimReticle { get => State.AimReticle; set => State.AimReticle = value; }
     /// <summary>The reticle in game pixels over the view (the shell sets it each blank); x below 0 = none.</summary>
     public void SetReticle(int x, int y) { State.ReticleX = x; State.ReticleY = y; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: an early HQ visit sends you back out (WorldState.EarlyHqBack).</summary>
+    /// <summary>an early HQ visit sends you back out (WorldState.EarlyHqBack).</summary>
     public bool EarlyHqBack { get => State.EarlyHqBack; set => State.EarlyHqBack = value; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: parked boats lie along the shore (WorldState.BoatsAlongShore).</summary>
+    /// <summary>parked boats lie along the shore (WorldState.BoatsAlongShore).</summary>
     public bool BoatsAlongShore { get => State.BoatsAlongShore; set => State.BoatsAlongShore = value; }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: the original's three memory squeezes are lifted - a
+    /// <summary>the original's three memory squeezes are lifted - a
     /// parked thing keeps its fuel's low byte (Objects.WriteBack $82E6 / Builder.Spawn $8246), a
     /// full grid cell takes more than 8 records ($830E: an overflow list beside the grid, spawned
     /// after the cell's 8, oldest first), and the kill counts do not wrap at a byte ($99EA's signed
@@ -86,7 +86,7 @@ public sealed partial class Play
         }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Graves): a paid death - never the last - leaves a
+    /// <summary>(Graves): a paid death - never the last - leaves a
     /// grave holding what the soldier carried, out of play so no free resources, and the next soldier
     /// starts at the mode's home record with the normal starting kit. The life bar, 4 a death and
     /// the last death (the original's own grave, 250 blanks, debrief) are the original's; unlimited
@@ -101,7 +101,7 @@ public sealed partial class Play
         set => State.Graves = value;
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (VultureGraves): a new grave - a paid death's
+    /// <summary>(VultureGraves): a new grave - a paid death's
     /// placed $7C, so it needs Graves on to have one - brings a pair of vultures that circles
     /// over it for a while: the nearest live vultures drafted, a missing one spawned at the
     /// circle. The flight is the vulture's own steering at the spot over the grave. Off - the
@@ -112,7 +112,7 @@ public sealed partial class Play
         set => State.VultureGraves = value;
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Objects.MoreObjects): more live things and a bigger
+    /// <summary>(Objects.MoreObjects): more live things and a bigger
     /// live area - 30 records (29 handed out, the last reserved, $3398/$3154) become 395 (394 handed
     /// out; the port's sort list is unbounded, so it cannot overflow; the three word reads that turn
     /// a slot back into a record are unsigned), and the spawn/live window
@@ -122,7 +122,7 @@ public sealed partial class Play
     /// (the save holds no live-thing table - plan B). Set before the first pass (the shell sets it
     /// at Init / load). Off - the default - the game is the original's byte for byte: 30 records,
     /// the 2 x 2 window, the radar's slots 1-29.</summary>
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIVING WORLD, rules/LivingWorld.cs): people and animals notice each
+    /// <summary>(LIVING WORLD, rules/LivingWorld.cs): people and animals notice each
     /// other. The shell sets it for the player's games, never the attract demo. Off: the original's planning.</summary>
     public bool LivingWorld { get => State.LivingWorld; set => State.LivingWorld = value; }
 
@@ -131,14 +131,14 @@ public sealed partial class Play
         get => _objects.MoreObjects;
         set { _objects.MoreObjects = value; State.MoreObjects = value; State.Entities.Count = value ? EntityTable.MaxCount : 30; }
     }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (SmoothLight): while the light is settled on the
+    /// <summary>(SmoothLight): while the light is settled on the
     /// hour's level, the view and the sky band drift minute by minute between this hour's table
     /// level ($C4A4[h]) and the next hour's, where the original holds the hour's level for 59
     /// minutes and then steps ($C466, FadeToLight $C47C). Off - the default - the view is the
     /// original's: at hh:00 it is byte-identical either way.</summary>
     public bool SmoothLight;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (split-draw, docs\split-draw.md): off - when the
+    /// <summary>(split-draw, docs\split-draw.md): off - when the
     /// card-built world (renderer 3d) draws the view - this pass skips the flat
     /// painting only: the shown copy, the clear, the ground walk, the map marks. Everything else
     /// the draw does is game work and still runs: the animation steps and the record writes in
@@ -146,14 +146,14 @@ public sealed partial class Play
     /// pass is exactly the original's.</summary>
     public bool PaintView = true;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Sky.Steps): the sky's six flat colour-15 bands
+    /// <summary>(Sky.Steps): the sky's six flat colour-15 bands
     /// become a stepped Amiga-style gradient - each band's interior steps through the in-between
     /// 12-bit colours of its two band colours, never a step thinner than a row. The colours at the
     /// original band rows and the sea below the horizon do not move. Off - the default - the view
     /// is the original's.</summary>
     public bool SkySteps { get => _sky.Steps; set => _sky.Steps = value; }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (MessageLog): the panel's 2-line message window can
+    /// <summary>(MessageLog): the panel's 2-line message window can
     /// be scrolled back through the last 64 lines that left it (rules/Text.cs MessageHistory,
     /// recorded only while this is on). Off - the default - nothing is recorded and every byte is
     /// the original's. On, the panel buffer and the game bytes are still the original's: only
@@ -356,14 +356,14 @@ public sealed partial class Play
         _sky = new Sky(d.Main, d.PaletteBanks);
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT, docs/bot-plan.md): when set, player 1's joystick comes from it every blank
+    /// <summary>(the BOT, docs/bot-plan.md): when set, player 1's joystick comes from it every blank
     /// of play instead of the port - a computer player, playing by the same rules through the same input. Null: the port.</summary>
     public IPilot? Pilot { get; set; }
 
     /// <summary>ENHANCEMENT (the bot's TAPES, rules/Tape.cs): told of every key and click as it is given (null: none kept).</summary>
     public TapeRecorder? Taping { get; set; }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (rules/DemoFollow.cs): in the demo, each counted blank's stick, fire and keys come
+    /// <summary>(rules/DemoFollow.cs): in the demo, each counted blank's stick, fire and keys come
     /// from it instead of the recording's replay ($C826), and the demo ends when it says (Keys.QuitKey), not when the pace
     /// table runs out (past it a pass waits for nothing, Demo.PaceWord). Null: the original replay.</summary>
     public DemoFollow.IBlank? Follow { get; set; }
@@ -375,7 +375,7 @@ public sealed partial class Play
     public byte D6 { get; private set; }
     /// <summary>$D4 bit 0: fire as the last blank left it (SpeedControl may clear it).</summary>
     public byte D4 { get; private set; }
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (mp_two_soldiers): player 2's own joystick and
+    /// <summary>(mp_two_soldiers): player 2's own joystick and
     /// fire, read the same blank as player 1's. Nothing reads them while State.Players is 1 -
     /// one player stays byte for byte the original.</summary>
     public byte D6Second { get; private set; }
@@ -837,7 +837,7 @@ public sealed partial class Play
     /// moving parts across it, as the in-between pictures do. Read-only; no rule reads it. The demo (Smooth)
     /// runs the original's passes of several blanks, the table stepping at most once a pass: its fraction is the
     /// in-between pictures' own (Between) - _animBlanks there gained the pass's surplus every pass, so it read
-    /// 93 by the helicopter and the rotors stood still (owner 2026-10-31).</summary>
+    /// 93 by the helicopter and the rotors stood still.</summary>
     public float AnimFraction => Smooth ? (float)Between() : SmoothAnimation || AnimEveryBlanks == 0 ? 1f : (float)_animBlanks / AnimEveryBlanks;
 
     /// <summary>ENHANCEMENT (SMOOTH ANIMATION, Objects.AnimShare): the joints move a share of a step every pass instead

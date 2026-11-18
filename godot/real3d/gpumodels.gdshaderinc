@@ -68,6 +68,17 @@ bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     return true;
 }
 
+// A segment's alpha in line_tex: 1 = a window's border (GpuWorld.Bake, the pane on the outer edge), 0 = the model's own line.
+bool gpu_line_border(int id) {
+    int per = line_slots * 2;
+    int row = id / per;
+    int slot = (id - row * per) / 2;
+    int b25 = _eb(ent_tex, row, 0x25);
+    vec4 li = texelFetch(model_tex, ivec2(b25, 1), 0);
+    if (b25 == 0 || slot >= int(li.g + 0.5)) return false;
+    return texelFetch(line_tex, ivec2(0, int(li.r + 0.5) + slot), 0).a > 0.5;
+}
+
 // The original's explosion debris ($4F22 DrawDebrisSpin, debris.gdshaderinc): the thing's model number slot says debris
 // (+$24 negative), the model drawn is model 0 as $59FE rewrote it - the victim's scale shift in its header and the
 // victim's colours in its first ten faces - ten triangles of 3 corners, each
@@ -112,7 +123,7 @@ bool gpu_dot_vertex(int id, out vec3 pos, out int colour) {
 
 // ENHANCEMENT (setting own_shadows, SHADOWS: MORE): a thing with no shadow model of its own throws its main model's
 // shadow away from the sun (rules/Objects.cs ProjectModelFlat with the sun): each corner h above the ground moves
-// SunShade.ShadowLength(h) along the way the shadows fall (no cap: owner, limits only for artistic effect).
+// SunShade.ShadowLength(h) along the way the shadows fall (no cap: limits only for artistic effect).
 uniform bool own_shadows = false;
 uniform bool shadow_sun_up = false;
 uniform vec3 sun_shadow = vec3(0.0, 0.0, 1.0);   // Objects.SunOffset: DirX, DirZ (the way shadows fall), tan(elevation)
@@ -148,7 +159,7 @@ ivec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int ro
     return corner_fine(pt, ang, entity_frac(ent, row), trig_tex);
 }
 
-// ENHANCEMENT (owner 2026-11-01): a boat drawn sitting in the water, not on it - the game lifts every thing till its
+// ENHANCEMENT: a boat drawn sitting in the water, not on it - the game lifts every thing till its
 // lowest corner touches the ground ($51F8), so a hull floated on its keel with its bow in the air; drawn a third of that lift
 // lower, the sea hides the part under the waterline. Boat: movement mode 10 (kind flags +$08, no higher mode bit).
 float boat_sink(int row, int ground, int low) {
@@ -166,7 +177,7 @@ float boat_sink(int row, int ground, int low) {
 // size to whole over the first quarter, in steps; BURN - the fire's colours from the hottest, 4 (pale) 7 (yellow) 6 (red)
 // 5 (dark red), the core a third of the life on each of 4 7 6 (every other facet a step cooler), a spike never hotter than one step past the core (the edge
 // darker) and never hotter than its own paint; FADE - the last third the core shrinks to half, the spikes stay out.
-// Stepped, not smooth: a throwback look (owner 2026-11-07). Off: the original's star (the core not drawn).
+// Stepped, not smooth: a throwback look. Off: the original's star (the core not drawn).
 uniform bool better_fire = false;
 const int FIRE_HOT[4] = int[4](4, 7, 6, 5);
 int _fire_heat(int c) { return c == 4 ? 0 : (c == 7 ? 1 : (c == 6 ? 2 : 3)); }
@@ -201,8 +212,7 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     int model;
     bool sun = false;                                                                      // own shadows: the main model, away from the sun
     bool plates = false;                                                                   // the main model's ground plates only
-    // own shadows with the sun up: every thing throws its own shape, none of the original's fake ones (owner
-    // 2026-10-30: "if we are using shader shadows ... completely don't use the existing games fake shadows") -
+    // own shadows with the sun up: every thing throws its own shape, none of the original's fake ones -
     // not the 14 kinds' flat shadow models (+$24), not the black patches painted under a model (plates)
     int type = _ew(ent_tex, row, 4);
     bool sun_shape = own_shadows && shadow_sun_up && !inside_view && b25 != 0 && !(type >= 0x61 && type <= 0x67);   // fire throws no shadow
@@ -298,8 +308,7 @@ int glass_bits(int id) { return int(tri_row(id).a + 0.5) & 0xF000; }
 
 // A thin sheet's parts that stay as thin as they are (GpuWorld.Bake), not widened to a game pixel: a slab's side
 // (meta bit 6, not a rod, some corners moved and some not), the thin edge between the sheet's two copies, and the
-// sheet's resting copy (bit 7 without bit 6) - edge-on, its moved copy alone is widened, one line of one colour
-// (owner 2026-10-31: widened, the blades' sides stuck out past the tips, and edge-on both copies showed).
+// sheet's resting copy (bit 7 without bit 6) - edge-on, its moved copy alone is widened, one line of one colour.
 bool stays_thin(int id) {
     vec4 tri = tri_row(id);
     int meta = int(tri.a + 0.5);

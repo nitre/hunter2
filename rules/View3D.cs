@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): where the 3D view's eye stands, in world units (x
+/// <summary>(renderer = 3d): where the 3D view's eye stands, in world units (x
 /// east, height units up, z north). From the game's camera: x = $1548 / 2, z = ($1544 - $100) / 2 - Persp's
 /// depth puts the eye $100 doubled behind $1544 - and height $0E. The player stands (distance + $100) / 2
 /// north of it ($1544 = 2z - distance). NEW, not the original: yaw (radians, 0 = north, positive turns left,

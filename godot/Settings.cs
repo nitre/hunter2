@@ -45,20 +45,19 @@ public static class Settings
         set => Set("look", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: who draws the view - "software" (default: the original's picture,
+    /// <summary>who draws the view - "software" (default: the original's picture,
     /// byte for byte) or "3d" (godot/real3d: the card draws the world from the game's own data, GpuWorld). The
     /// retired "gpu" (the flat picture coloured on the card) reads as 3d: a file that asked for the card
-    /// keeps the card (owner 2026-10-28: "it can't fall back to flat when we aren't working on flat").</summary>
+    /// keeps the card.</summary>
     public static string Renderer
     {
         get => (string)Get("renderer", "software") switch { "3d" or "gpu" => "3d", _ => "software" };
         set => Set("renderer", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: with renderer = 3d, how many window pixels each game view pixel
+    /// <summary>with renderer = 3d, how many window pixels each game view pixel
     /// gets - 1, 2 or 4 (the 3D view's SubViewport at that scale), or 0 = AUTO (the default): the window's own whole
-    /// scale, followed as the window changes, so one drawn pixel is one screen pixel (owner 2026-10-30: sharp shapes,
-    /// chunky details); anything else reads AUTO.</summary>
+    /// scale, followed as the window changes, so one drawn pixel is one screen pixel; anything else reads AUTO.</summary>
     public static int GpuScale
     {
         get { var v = (int)Get("gpu_scale", 0); return v is 1 or 2 or 4 ? v : 0; }
@@ -87,7 +86,7 @@ public static class Settings
         set => Set("pause_on_focus_loss", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: a MANUAL button on the main menu and the in-play
+    /// <summary>a MANUAL button on the main menu and the in-play
     /// options menu (the manual itself is always reachable on F3). Default off: with it off every
     /// menu is byte-identical to before (ManualScreenTests draws them and compares).</summary>
     public static bool ManualButton
@@ -96,7 +95,7 @@ public static class Settings
         set => Set("manual_button", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (DEMO CAMERA, 3D world only): the attract demo's camera moves by itself -
+    /// <summary>(DEMO CAMERA, 3D world only): the attract demo's camera moves by itself -
     /// the game's own camera turned round the player (rules/DemoCamera.cs). Default off: the north view.</summary>
     public static bool DemoCamera
     {
@@ -104,7 +103,7 @@ public static class Settings
         set => Set("demo_camera", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (DEMO WORLD: WILD): the attract demo plays the wild world - the fullest fill,
+    /// <summary>(DEMO WORLD: WILD): the attract demo plays the wild world - the fullest fill,
     /// groups beside the demo's own route, living world on (rules Wild, DemoRoute). Default off: the original's world.</summary>
     public static bool WildDemo
     {
@@ -113,7 +112,7 @@ public static class Settings
     }
 
     /// <summary>A fresh settings file (nothing set yet): a new player, asked AS IT WAS / AS IT COULD BE at the
-    /// first start (StartSequence, owner 2026-11-02). A player who already has settings is never asked.</summary>
+    /// first start (StartSequence). A player who already has settings is never asked.</summary>
     public static bool FirstStart => !File().HasSection(Section);
 
     /// <summary>The first start's answer, kept for the record: "as_it_was" or "as_it_could_be" (the PC's own, not a save's).</summary>
@@ -123,7 +122,7 @@ public static class Settings
         set => Set("start_choice", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original, DEFAULT ON (playtest note 2): a QUIT button at the foot of
+    /// <summary>DEFAULT ON (playtest note 2): a QUIT button at the foot of
     /// the main menu that closes the program - the original has none. Off: the menu as the original.</summary>
     public static bool QuitButton
     {
@@ -131,20 +130,19 @@ public static class Settings
         set => Set("quit_button", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original, DEFAULT ON: saving and loading without the disk
+    /// <summary>DEFAULT ON: saving and loading without the disk
     /// handling - the first Load or Save sets the save folder up by itself (SaveDisk.Init, nothing
     /// existing is wiped), the disk menu hides Init Disk (Load Game / Save Game / End stay where
     /// the original puts them), a save left unnamed names itself (the game day and the slot), and
     /// F5 quick saves to its own file 22 with F4 loading it back ("Game saved" / "Game loaded" /
-    /// "No quick save" in the message box). Default on (owner 2026-10-22: disk operations are not
-    /// necessary for the remake); off = the original's disk menu exactly.</summary>
+    /// "No quick save" in the message box). Default on; off = the original's disk menu exactly.</summary>
     public static bool EasySaves
     {
-        get => (bool)Get("easy_saves", true);   // owner 2026-10-27: always on, no menu row
+        get => (bool)Get("easy_saves", true);   // Always on, no menu row
         set => Set("easy_saves", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: every object casts a half-bright (EHB) shadow from
+    /// <summary>every object casts a half-bright (EHB) shadow from
     /// its own main model (rules/Objects.cs OwnShadows), where the original draws black shadows for
     /// its 13 shadow types only. Default off: with it off the picture is byte-identical to before,
     /// and the original's 13 shadows stay their colour-0 black.</summary>
@@ -154,7 +152,7 @@ public static class Settings
         set => Set("own_shadows", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SUN, the card-drawn 3D view): the sun lights every face and ground
+    /// <summary>(row SUN, the card-drawn 3D view): the sun lights every face and ground
     /// square from its angle to it, in the game's own shades and their half-bright copies (rules/SunShade.cs); the
     /// ground's checker stays. Default off: the faces keep their flat paint, as the original. Read every frame.</summary>
     public static bool SunShading
@@ -163,7 +161,7 @@ public static class Settings
         set => Set("sun_shading", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row 3D VIEW DISTANCE, the card-drawn 3D view): how far the card draws -
+    /// <summary>(row 3D VIEW DISTANCE, the card-drawn 3D view): how far the card draws -
     /// 7 rows (the original's patch and in-view things, the default), 11 / 15 / 23 / 31 rows, or 0 = all of the map
     /// (rules/ViewDistance.cs). The picture only; the game is untouched. Read every frame.</summary>
     public static int ViewDistance
@@ -172,7 +170,7 @@ public static class Settings
         set => Set("view_distance", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row EXPLOSIONS, the card-drawn 3D view): a thing that blows up breaks into its
+    /// <summary>(row EXPLOSIONS, the card-drawn 3D view): a thing that blows up breaks into its
     /// own triangles, thrown out, falling, bouncing once, sinking at sea (godot/real3d/pieces.gdshaderinc), instead of
     /// the original's ten triangles. The picture only. Default off.</summary>
     public static bool CardPieces
@@ -181,7 +179,7 @@ public static class Settings
         set => Set("card_pieces", value);
     }
 
-    /// <summary>ENHANCEMENT (EXPLOSIONS: LASTING, owner 2026-11-03 "pieces stay"): with CardPieces, the pieces lie where
+    /// <summary>ENHANCEMENT (EXPLOSIONS: LASTING): with CardPieces, the pieces lie where
     /// they fell for good instead of shrinking away after 5 s - until the card's ring of 2048 blasts comes round to
     /// theirs. The picture only: nothing to touch or move. Default off.</summary>
     public static bool PiecesStay
@@ -190,8 +188,7 @@ public static class Settings
         set => Set("pieces_stay", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row MODEL COLOURS, the card-drawn 3D view; owner 2026-10-31: "helicopter is
-    /// green, tank is green, soldier is green"): those models drawn in their own shades, A1200-style, apart from the
+    /// <summary>(row MODEL COLOURS, the card-drawn 3D view): those models drawn in their own shades, A1200-style, apart from the
     /// grass (GpuWorld.OwnColours). The picture only. Default off.</summary>
     public static bool OwnColours
     {
@@ -199,8 +196,7 @@ public static class Settings
         set => Set("own_colours", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SHARKS AND SUBS, the card-drawn 3D view; owner 2026-11-11: "flesh out the
-    /// shark and submarine models"): the shark a whole shark under its fin, the submarine a hull and sail under its
+    /// <summary>(row SHARKS AND SUBS, the card-drawn 3D view): the shark a whole shark under its fin, the submarine a hull and sail under its
     /// periscope (godot/real3d/SeaBodies.cs). The models are baked at launch: a change shows at the next start. The
     /// picture only. Default off.</summary>
     public static bool SeaBodies
@@ -210,10 +206,10 @@ public static class Settings
     }
 
     /// <summary>A build that starts a new machine on the full modern settings without asking (the export's custom feature
-    /// "modern_default" - the Windows release, owner 2026-11-12: "Full modern default"; GameView.ApplyModernDefault).</summary>
+    /// "modern_default" - the Windows release GameView.ApplyModernDefault).</summary>
     public static bool ModernDefault => OS.HasFeature("modern_default");
 
-    /// <summary>ENHANCEMENT, not the original (row GLASS, the card-drawn 3D view; owner: real car windows): the windows'
+    /// <summary>(row GLASS, the card-drawn 3D view): the windows'
     /// faces (Glass.cs) drawn see-through. The picture only. Default off.</summary>
     public static bool SeeThroughGlass
     {
@@ -221,16 +217,15 @@ public static class Settings
         set => Set("glass", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row ANIMATION; owner 2026-11-02: the animation itself smoother, not drawn
-    /// in between): the joints move a share of a step every pass (Play.SmoothAnimation, Objects.AnimShare). The
-    /// picture only - no rule reads the joints. Default ON (owner: "on by default for us").</summary>
+    /// <summary>(row ANIMATION): the joints move a share of a step every pass (Play.SmoothAnimation, Objects.AnimShare). The
+    /// picture only - no rule reads the joints. Default ON.</summary>
     public static bool SmoothAnimation
     {
         get => (bool)Get("smooth_animation", true);
         set => Set("smooth_animation", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row GROUND PATTERN, the card-drawn 3D view): fine blocky 16 x 16 specks
+    /// <summary>(row GROUND PATTERN, the card-drawn 3D view): fine blocky 16 x 16 specks
     /// (a touch lighter / darker) inside every ground square (ground_pattern.gdshaderinc), fading to plain with the haze.
     /// The picture only. Default off.</summary>
     public static bool GroundPattern
@@ -239,7 +234,7 @@ public static class Settings
         set => Set("ground_pattern", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row GROUND COLOURS, the card-drawn 3D view): sand, grasses, the hills' browns
+    /// <summary>(row GROUND COLOURS, the card-drawn 3D view): sand, grasses, the hills' browns
     /// and rock by height and slope, Vista Pro's method (rules/GroundBands.cs). The picture only. Default off.</summary>
     public static bool GroundColours
     {
@@ -247,16 +242,16 @@ public static class Settings
         set => Set("ground_colours", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row CLOUDS, the card-drawn 3D view): a few separate blocky clouds in the sky, far
+    /// <summary>(row CLOUDS, the card-drawn 3D view): a few separate blocky clouds in the sky, far
     /// away, sliding with the turn and drifting slowly on the game's clock (godot/real3d/clouds.gdshaderinc); at night also steady stars and a moon going
-    /// through its phases over the game's days (godot/real3d/stars.gdshaderinc, owner 2026-11-12). Default off.</summary>
+    /// through its phases over the game's days (godot/real3d/stars.gdshaderinc). Default off.</summary>
     public static bool Clouds
     {
         get => (bool)Get("clouds", false);
         set => Set("clouds", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SKY: SMOOTH, the card-drawn 3D view; owner 2026-11-12): the sky's colours by
+    /// <summary>(row SKY: SMOOTH, the card-drawn 3D view): the sky's colours by
     /// the sun's height and direction - golden hour, the twilights, Earth's shadow and the Belt of Venus, night - and the
     /// sea lit by that sky (godot/real3d/world_colour.gdshaderinc tod_band, docs/sky-reference.md). The picture only.
     /// Unsaved, it follows SKY: SMOOTH's sky (sky_steps), so a saved SMOOTH gets it.</summary>
@@ -266,10 +261,10 @@ public static class Settings
         set => Set("sky_time", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row GROUND SHAPE, the card-drawn 3D view): each drawn ground triangle cut into
+    /// <summary>(row GROUND SHAPE, the card-drawn 3D view): each drawn ground triangle cut into
     /// N x N pieces whose corners take the game's own height ($36AA), so the drawn ground follows the height the rules
     /// use (groundgpu.gdshader). Default 4: the original's flat triangles (1, row ORIGINAL) disagree with the height the
-    /// rules use - a bug the owner wants fixed (2026-10-26); 2, 4 or 8. The picture only. Recordings that compare against
+    /// rules use; 2, 4 or 8. The picture only. Recordings that compare against
     /// the original game set ground_cuts=1.</summary>
     public static int GroundCuts
     {
@@ -277,7 +272,7 @@ public static class Settings
         set => Set("ground_cuts", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row HAZE, the card-drawn 3D view): 0 off, 1 BANDS (4 clear steps), 2 FINE -
+    /// <summary>(row HAZE, the card-drawn 3D view): 0 off, 1 BANDS (4 clear steps), 2 FINE -
     /// from halfway out to the 3D VIEW DISTANCE's far edge everything fades to the far sea's colour (world_colour
     /// world_hazed), in full colour. Default off.</summary>
     public static int Haze
@@ -286,7 +281,7 @@ public static class Settings
         set => Set("haze", value is 1 or 2 ? value : 0);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SEA, the card-drawn 3D view): LIVING colours the sea per pixel from the
+    /// <summary>(row SEA, the card-drawn 3D view): LIVING colours the sea per pixel from the
     /// hour's own colours - pale by the coast, the original's colour out at sea, slow quiet waves, the sky's bands near the horizon, full colour
     /// (world_colour sea_rgb8). Default ORIGINAL: one flat colour.</summary>
     public static bool LivingSea
@@ -295,7 +290,7 @@ public static class Settings
         set => Set("living_sea", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SEA's third choice, CYCLING; with LivingSea): the sea in blocky cells whose
+    /// <summary>(row SEA's third choice, CYCLING; with LivingSea): the sea in blocky cells whose
     /// colours glide round a fixed ramp on the game clock, the Amiga's colour cycling (world_colour sea_rgb8). Default off.</summary>
     public static bool SeaCycling
     {
@@ -303,7 +298,7 @@ public static class Settings
         set => Set("sea_cycling", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: while the light is settled on the hour's level the
+    /// <summary>while the light is settled on the hour's level the
     /// view and the sky band drift minute by minute between the hour table's levels (rules/Play.cs
     /// SmoothLight), where the original holds one level for 59 minutes and then steps. Default off:
     /// with it off the picture is byte-identical to before, and at every full hour it is the
@@ -314,7 +309,7 @@ public static class Settings
         set => Set("smooth_light", value);
     }
 
-    /// <summary>NEW, NOT THE ORIGINAL (row VIEW, owner 2026-10-23/24): with renderer = 3d the 3D view fills the
+    /// <summary>NEW, NOT THE ORIGINAL (row VIEW): with renderer = 3d the 3D view fills the
     /// window's whole width - more of the world left and right, nothing stretched; the panel stays 320 wide in
     /// the middle. Default off (4:3, the original's frame). Other renderers read false.</summary>
     public static bool WideView
@@ -323,7 +318,7 @@ public static class Settings
         set => Set("wide_view", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the sky's six flat bands become a stepped Amiga-style
+    /// <summary>the sky's six flat bands become a stepped Amiga-style
     /// gradient - between each two band colours only the in-between colours the Amiga can show, one
     /// step at least a row high (rules/Sky.cs Steps); the band rows and the sea do not move. Default
     /// off: with it off the picture is byte-identical to before.</summary>
@@ -333,7 +328,7 @@ public static class Settings
         set => Set("sky_steps", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the ground and objects are placed and drawn farther
+    /// <summary>the ground and objects are placed and drawn farther
     /// (rules/Play.cs FarView -> Objects and Ground). Default off: with it off the picture is
     /// byte-identical to before. With it on the farther ground draws, but few things live out
     /// there yet - a later change widens the live area (more_objects).</summary>
@@ -343,13 +338,13 @@ public static class Settings
         set => Set("far_view", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: more live things and a bigger live area - 30 live
+    /// <summary>more live things and a bigger live area - 30 live
     /// records (29 handed out, the last reserved) become 256 (255 handed out) and the spawn/live
     /// window 2 x 2 cells becomes 4 x 4 (rules/Play.cs MoreObjects). Not part of the save: the
     /// save holds no live-thing table, the game writes its live things back into the grid. Default
     /// off: with it off the game is byte-identical to before. With far_view on as well the farther
     /// view has things in it - the bigger live area is what puts live things out past $1800.</summary>
-    /// <summary>ENHANCEMENT, not the original: LIVING WORLD - people and animals notice each other, not only the player:
+    /// <summary>LIVING WORLD - people and animals notice each other, not only the player:
     /// enemies go for armed friends, friends for enemies, civilians run, wild things charge or run (rules/LivingWorld.cs).
     /// The player's games only, never the attract demo. Default off: the original's planning. Original / On.</summary>
     public static bool LivingWorld
@@ -358,7 +353,7 @@ public static class Settings
         set => Set("living_world", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: LEAVING A VEHICLE - you step out behind it first (rules WorldState.LeaveBehind),
+    /// <summary>LEAVING A VEHICLE - you step out behind it first (rules WorldState.LeaveBehind),
     /// not on its east side; the player's games only, never the attract demo. Default off. Original / Behind.</summary>
     public static bool LeaveBehind
     {
@@ -366,7 +361,7 @@ public static class Settings
         set => Set("leave_behind", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: AIMING - on foot the soldier turns to a free reticle (the mouse over the view, the right
+    /// <summary>AIMING - on foot the soldier turns to a free reticle (the mouse over the view, the right
     /// stick) and his shot goes to the point under it (rules WorldState.AimReticle); never the attract demo. Default off. Original / Reticle.</summary>
     public static bool AimReticle
     {
@@ -374,7 +369,7 @@ public static class Settings
         set => Set("aiming", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: STICK STEERING - a gamepad stick's lean turns a vehicle by as much as it leans
+    /// <summary>STICK STEERING - a gamepad stick's lean turns a vehicle by as much as it leans
     /// (rules WorldState.AnalogSteering); the player's games only, never the attract demo. Default off. Original / Analog.</summary>
     public static bool AnalogSteering
     {
@@ -382,7 +377,7 @@ public static class Settings
         set => Set("analog_steering", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: LIMB DAMAGE - a bullet hurts the limb it hits and a leg or arm hit does not kill
+    /// <summary>LIMB DAMAGE - a bullet hurts the limb it hits and a leg or arm hit does not kill
     /// (rules WorldState.LimbDamage); the player's games only, never the attract demo. Default off. Original / On.</summary>
     public static bool LimbDamage
     {
@@ -390,18 +385,18 @@ public static class Settings
         set => Set("limb_damage", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: BULLET BOX - bullets get a small box (16 across, the height kept) instead of
-    /// model 0's 0 x 288 (rules WorldState.BulletBox); never the attract demo (it plays the recording exactly). Default on (owner
-    /// 2026-11-09). Original / Small.</summary>
+    /// <summary>BULLET BOX - bullets get a small box (16 across, the height kept) instead of
+    /// model 0's 0 x 288 (rules WorldState.BulletBox); never the attract demo (it plays the recording exactly). Default on.
+    /// Original / Small.</summary>
     public static bool BulletBox
     {
         get => (bool)Get("bullet_box", true);
         set => Set("bullet_box", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: A500 PACE - what the original does once a pass (a touch's hurt, a record's end,
+    /// <summary>A500 PACE - what the original does once a pass (a touch's hurt, a record's end,
     /// a hard landing, ...) at the A500's ~7 blanks a pass (rules WorldState.A500Pace); never the attract demo (it plays the
-    /// recording exactly). Default on (owner 2026-11-08). Off / On.</summary>
+    /// recording exactly). Default on. Off / On.</summary>
     public static bool A500Pace
     {
         get => (bool)Get("a500_pace", true);
@@ -414,7 +409,7 @@ public static class Settings
         set => Set("more_objects", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the panel's 2-line message window keeps the last 64
+    /// <summary>the panel's 2-line message window keeps the last 64
     /// lines that scrolled off its top and the shell can scroll back through them (mouse wheel over
     /// the window, Page Up / Page Down; rules/Text.cs history, rules/Play.cs drawing). A new message
     /// returns to live. Default off: with it off nothing is recorded and the game is byte-identical
@@ -425,23 +420,23 @@ public static class Settings
         set => Set("message_log", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the three memory squeezes are lifted - a parked thing
+    /// <summary>the three memory squeezes are lifted - a parked thing
     /// keeps its fuel's low byte, a full grid cell takes more than 8 records, and the kill counts do
     /// not wrap at a byte (rules/Play.cs RoomyMemory). The original's arrays and the save's first
     /// $C880 bytes stay the original's; the extras ride the save as an extension block after them.
-    /// Always on (owner 2026-10-27, no menu row); off only from a settings file for original-only runs - then the game,
+    /// Always on; off only from a settings file for original-only runs - then the game,
     /// the rules and the save are byte-identical to the original.</summary>
     public static bool RoomyMemory
     {
-        get => (bool)Get("roomy_memory", true);   // owner 2026-10-27: always on, no menu row; false only in a settings file for original-only runs
+        get => (bool)Get("roomy_memory", true);   // Always on, no menu row; false only in a settings file for original-only runs
         set => Set("roomy_memory", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the upgrade's maths in 32 bits (rules WorldState.Maths32, docs/maths32.md) -
+    /// <summary>the upgrade's maths in 32 bits (rules WorldState.Maths32, docs/maths32.md) -
     /// no 16-bit wraps or divide overflows. On the shipped maps in one-player nothing changes (the wraps never fire there);
     /// it matters for taller hills, two players and things alive farther out. Always on like roomy_memory, no menu row;
     /// false only in a settings file for original-only runs.</summary>
-    /// <summary>ENHANCEMENT, not the original (owner 2026-11-12 "nyquist": the fine variables, angles first): the card turns
+    /// <summary>the card turns
     /// each thing by its fine angles where the game has them (Entity.PitchFine: a turn's own angle word, a flier's climb, the
     /// smooth picture's in-between) instead of the bytes' 256 whole steps; and a grounded thing's pitch is worked out from the
     /// exact heading and kept fine (rules Objects.FineTilt, Play.FineTilt) - that one changes play a little (the pitch aims a
@@ -459,8 +454,8 @@ public static class Settings
         set => Set("maths32", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: straight walking (rules WorldState.StraightMoves) - the original's rounding
-    /// walked east 1 south a frame and south 1 west (docs/original-bugs.md). Owner 2026-10-30: on by default; no menu
+    /// <summary>straight walking (rules WorldState.StraightMoves) - the original's rounding
+    /// walked east 1 south a frame and south 1 west (docs/original-bugs.md). On by default; no menu
     /// row, false only in a settings file for original-only runs. Never the attract demo (it plays the recording exactly).</summary>
     public static bool StraightMoves
     {
@@ -468,7 +463,7 @@ public static class Settings
         set => Set("straight_moves", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the spike fix - Missions' 12 spikes are spots meant to be under the sea
+    /// <summary>the spike fix - Missions' 12 spikes are spots meant to be under the sea
     /// whose height (just below 0) wrapped round in the map's one byte to the top (docs/original-bugs.md); fixed, they are
     /// at the sea's level. On by default, no menu row, false only in a settings file for original-only runs.</summary>
     public static bool FixSpikes
@@ -477,8 +472,8 @@ public static class Settings
         set => Set("fix_spikes", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: walking into the HQ before the mission is done tells you off and puts
-    /// you back outside, the game going on (rules WorldState.EarlyHqBack). Owner 2026-10-30: on by default; false
+    /// <summary>walking into the HQ before the mission is done tells you off and puts
+    /// you back outside, the game going on (rules WorldState.EarlyHqBack). On by default; false
     /// gives the original's game-ending visit.</summary>
     public static bool EarlyHqBack
     {
@@ -486,25 +481,24 @@ public static class Settings
         set => Set("early_hq_back", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: every parked boat you come to lies along the shore, ready to drive off
-    /// (rules WorldState.BoatsAlongShore). Owner 2026-11-17: on by default, no menu row; never in the attract demo (its
-    /// recording boards boats as parked); false gives the maps' own headings, most bow-in to the shore.</summary>
+    /// <summary>every parked boat you come to lies along the shore, ready to drive off
+    /// (rules WorldState.BoatsAlongShore).; never in the attract demo (its recording boards boats as parked); false gives the maps' own headings, most bow-in to the shore.</summary>
     public static bool BoatsAlongShore
     {
         get => (bool)Get("boats_along_shore", true);
         set => Set("boats_along_shore", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the attract demo starts at 13:00 rather than the world file's 09:00, so it
+    /// <summary>the attract demo starts at 13:00 rather than the world file's 09:00, so it
     /// plays in afternoon light throughout (GameView.Init; the clock only feeds the light there, the route is the same).
-    /// Owner 2026-11-18: "For lighting forget fast day just set it in the afternoon"; on by default, no menu row.</summary>
+    /// on by default, no menu row.</summary>
     public static bool DemoAfternoon
     {
         get => (bool)Get("demo_afternoon", true);
         set => Set("demo_afternoon", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: FINER GROUND - the game's ground grown finer between the map's points
+    /// <summary>FINER GROUND - the game's ground grown finer between the map's points
     /// (2 points a cell side - "2 for now" - Vista Pro's method from the world's seed, gentle, evening out over every
     /// square) and 1.5x taller (rules/FineGround.cs).
     /// New games only, never the attract demo; a save carries it and a load rebuilds it. Default 0 (off): the
@@ -515,7 +509,7 @@ public static class Settings
         set => Set("finer_ground", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: RELIEF (owner 2026-11-11: "more height and cliffs") - the FINER GROUND
+    /// <summary>RELIEF - the FINER GROUND
     /// row's HILLS and CLIFFS: with finer ground on, how tall and rough the ground grows (FineGround.Reliefs: 0 = 2X,
     /// today's gentle store, 1 HILLS 2x taller, 2 CLIFFS 3x taller, each rougher). Read at a new game with finer ground;
     /// a save carries the numbers. Default 0.</summary>
@@ -525,7 +519,7 @@ public static class Settings
         set => Set("ground_relief", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: GROUND SEED (owner 2026-11-11: "random but not chaos") - where a new game's
+    /// <summary>GROUND SEED - where a new game's
     /// finer ground grows its detail from: "world" (default, the world's own seed: the same hills every game), "random"
     /// (a fresh seed each new game, remembered in LastGroundSeed and printed to the log) or "last" (the remembered one
     /// again - or any typed into ground_seed_last in the settings file). Only the points between the map's own move:
@@ -543,7 +537,7 @@ public static class Settings
         set => Set("ground_seed_last", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: the fuller world - extra trees, flowers, stones,
+    /// <summary>the fuller world - extra trees, flowers, stones,
     /// ducks, fish, gulls and animals worked out from the map itself and written into the grid
     /// at a new game (rules/Fill.cs; 1/2/3 = about 145/300/450 records). A loaded game's grid
     /// is the saved one and never fills again, so saves keep the records. Default 0 (off):
@@ -554,7 +548,7 @@ public static class Settings
         set => Set("fuller_world", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: each paid death - never the last - leaves a grave
+    /// <summary>each paid death - never the last - leaves a grave
     /// holding what the soldier carried, out of play so no free resources, and the next soldier starts
     /// at home with the normal starting kit (rules/Play.cs Graves). The life bar, 4 a death and the
     /// last death are the original's; unlimited graves in one game; the graves ride the save's
@@ -566,7 +560,7 @@ public static class Settings
         set => Set("graves", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: a new grave brings a pair of vultures that circles
+    /// <summary>a new grave brings a pair of vultures that circles
     /// over it for a while - the nearest live ones drafted, a missing one spawned at the circle
     /// (rules/Play.cs VultureGraves). Needs graves on to have a grave at all. Default off: with
     /// it off nothing runs and the game is byte-identical to before. Not part of the save.</summary>
@@ -577,7 +571,7 @@ public static class Settings
     }
 
 
-    /// <summary>ENHANCEMENT, not the original: each Paula channel is panned by where its owner is on
+    /// <summary>each Paula channel is panned by where its owner is on
     /// screen (the original hard-wires channels 0,3 left and 1,2 right). Default off: with it off the
     /// buses, gains and the mix are byte-identical to before.</summary>
     public static bool SoundPosition
@@ -586,7 +580,7 @@ public static class Settings
         set => Set("sound_position", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: an effect still sounding when its channel is taken
+    /// <summary>an effect still sounding when its channel is taken
     /// again fades out over 80 ms on a spare player (the original cuts it dead). Default off: with
     /// it off a new start stops the old stream exactly as before.</summary>
     public static bool SoundTails
@@ -595,7 +589,7 @@ public static class Settings
         set => Set("sound_tails", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original (row SOUND VOICES; owner 2026-11-02): what the four channels leave out
+    /// <summary>(row SOUND VOICES): what the four channels leave out
     /// plays on spare voices (Channels.Spare, Audio.OnSpare) - the game's channels untouched. Default off.</summary>
     public static bool SoundVoices
     {
@@ -603,7 +597,7 @@ public static class Settings
         set => Set("sound_voices", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: music keeps playing during a hunt at 12 dB below the
+    /// <summary>music keeps playing during a hunt at 12 dB below the
     /// menu level (the original stops it the moment play starts). Default off: with it off play
     /// starts with Music(-1), exactly as before.</summary>
     public static bool MusicInPlay
@@ -650,7 +644,7 @@ public static class Settings
 
     // ---- players (the two-player screen split, mp_godot_head) ----
 
-    /// <summary>ENHANCEMENT, not the original (multiplayer piece 3c, layout only): how many player
+    /// <summary>(multiplayer piece 3c, layout only): how many player
     /// halves the window shows while a game runs - 1 (default: today's single screen, byte for
     /// byte - nothing of the split runs) or 2 (two 320 x 200 halves plus a thin divider; the
     /// second view itself is a later piece, mp_views: both halves show player 1's frame for
@@ -683,9 +677,9 @@ public static class Settings
         set => Set("brightness", System.Math.Round((double)System.Math.Clamp(value, 0.8f, 1.4f), 1));
     }
 
-    // ---- the options that ride a save (owner 2026-10-29) ----
+    // ---- the options that ride a save ----
 
-    /// <summary>The PC's own rows: a loaded game leaves these as they are (owner 2026-10-29); every other key goes with a save.</summary>
+    /// <summary>The PC's own rows: a loaded game leaves these as they are; every other key goes with a save.</summary>
     static readonly string[] PcKeys = ["brightness", "easy_saves", "fullscreen", "gpu_scale", "look", "manual_button", "pause_on_focus_loss",
         "players", "quit_button", "split_layout", "start_choice", "text_size",
         "renderer", "wide_view", "demo_camera", "demo_world"];   // 11-11: the rest of the setup page and the attract demo's world - a load switched the 3D world or the screen shape (both need a restart) to the save's

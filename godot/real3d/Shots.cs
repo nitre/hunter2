@@ -40,7 +40,7 @@ public sealed class Shots
             case Kind.Chase:
             {
                 follow = fresh ? turn : follow + Wrap(turn - follow) * 0.06;   // a cut starts behind; then it swings round with a lag
-                ex = x + Math.Sin(follow) * 300;                    // behind the facing (the facing itself is (-sin, cos)); owner 2026-10-29: closer (520 -> 300, 150 -> 100)
+                ex = x + Math.Sin(follow) * 300;                    // Behind the facing (the facing itself is (-sin, cos)) closer (520 -> 300, 150 -> 100)
                 ez = z - Math.Cos(follow) * 300;
                 ey = y + 100;
                 ly = y + 70;
@@ -51,7 +51,7 @@ public sealed class Shots
             case Kind.FlyBy:
             case Kind.Roadside:                                     // still cameras: stand once at the cut, then only pan
             {
-                var far = Playing == Kind.FlyBy ? 500 : 150;        // the fly-by parks far ahead on the path, the roadside near the side; owner 2026-10-29: closer (900 -> 500, 260/320 -> 150/160)
+                var far = Playing == Kind.FlyBy ? 500 : 150;        // The fly-by parks far ahead on the path, the roadside near the side closer (900 -> 500, 260/320 -> 150/160)
                 var side = Playing == Kind.FlyBy ? 140 : 160;
                 if (fresh)
                 {
@@ -64,13 +64,13 @@ public sealed class Shots
                 ly = y + (Playing == Kind.FlyBy ? 60 : 55);
                 zoomT = Playing == Kind.FlyBy
                     ? 1f + 0.6f * (1f - (float)frames / ShotFrames)     // a long lens waiting, pulling back as it closes
-                    : 1f + 0.8f * ((float)frames / ShotFrames);         // leaning in as it goes off down the road, to 1.8 (owner 2026-10-29)
+                    : 1f + 0.8f * ((float)frames / ShotFrames);         // leaning in as it goes off down the road, to 1.8
                 break;
             }
             default:                                                // ORBIT
             {
                 orbitAt += Tau / (50 * 20);                         // a full circle in 20 s: 108 degrees inside one shot
-                ex = x + Math.Sin(orbitAt) * 380;                   // owner 2026-10-29: closer (650 -> 380, 110 -> 80)
+                ex = x + Math.Sin(orbitAt) * 380;                   // Closer (650 -> 380, 110 -> 80)
                 ez = z + Math.Cos(orbitAt) * 380;
                 ey = y + 80;
                 ly = y + 60;

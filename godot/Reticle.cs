@@ -2,7 +2,7 @@ using Godot;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (AIMING: RETICLE): the free reticle, a small cross of single game pixels with a gap in the
+/// <summary>(AIMING: RETICLE): the free reticle, a small cross of single game pixels with a gap in the
 /// middle, in the pointer's own colour (a 12-bit Amiga colour). A child of the game view, so it sits in game pixels over the picture
 /// whether the plain drawer or the card draws it. Hidden unless Place is called each frame.</summary>
 public partial class Reticle : Node2D

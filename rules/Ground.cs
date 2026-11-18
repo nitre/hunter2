@@ -30,7 +30,7 @@ public sealed class Camera
     public short Height0E;
     /// <summary>$10(a5): screen x of the view centre ($A0, set at $2432).</summary>
     public short CentreX = 0xA0;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (multiplayer piece mp_view_angle): the view's
+    /// <summary>(multiplayer piece mp_view_angle): the view's
     /// camera angle, set by Place - 0 the original (facing north), $80 a half turn (facing
     /// south; sin $80 = 0, cos $80 = -1, so every rotation is an exact negation). Objects.Place
     /// reads it to negate the +$56/+$5A deltas.</summary>
@@ -44,7 +44,7 @@ public sealed class Ground
     public Ground(MapMemory map) => _map = map;
 
     bool _farView;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.FarView): the grid grows - four more point
+    /// <summary>(Play.FarView): the grid grows - four more point
     /// rows beyond the far row ($1D00-$2900, one $400 depth step each) and 7 -> 11 cell rows,
     /// Row153E covering the taller grid (Place's +7 -> +11 for $153E only; MapOffset1550 keeps the +7, so the
     /// original 8 point rows do not move). Off (the default),
@@ -52,12 +52,12 @@ public sealed class Ground
     public bool FarView { get => _farView; set => _farView = value; }
     /// <summary>ENHANCEMENT (FarView, wide): the cells per row - the original's 7, 15 with far view, so the
     /// far rows reach the screen's edges (at depth $2900 a column is ~25 pixels wide; 7 left hills cut off
-    /// at the patch's side as floating slabs, owner 2026-10-24). Pts = the grid points per row; Extra = the
+    /// at the patch's side as floating slabs). Pts = the grid points per row; Extra = the
     /// columns added on each side.</summary>
     public int Cols => FarView ? WideCols : 7;
     public const int WideCols = 39;
     /// <summary>ENHANCEMENT (FarView): the cell rows added beyond the original's 7 - as deep as the 16-bit depth
-    /// maths allows (the far row at $1900 + 24 x $400 = $7900, under $7FFF), not a notch (owner 2026-10-24).
+    /// maths allows (the far row at $1900 + 24 x $400 = $7900, under $7FFF), not a notch.
     /// 39 columns fill the screen at that depth (~8.5 pixels a column there).</summary>
     public const int AddRows = 24;
     int Rows => FarView ? 7 + AddRows : 7;
@@ -65,7 +65,7 @@ public sealed class Ground
     int Extra => (Cols - 7) / 2;
 
     bool _maths32;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.Maths32, owner 2026-10-26 "32 it is"): the height
+    /// <summary>(Play.Maths32): the height
     /// lerp ($3710-$371A) in plain 32-bit integers - no 16-bit wrap, no divs overflow. Off, the
     /// original's word maths byte for byte. Set by Play.Maths32's setter. The shipped maps never
     /// overflow the divide (jobs/wrap16), so their heights are identical either way; it matters for
@@ -73,13 +73,13 @@ public sealed class Ground
     public bool Maths32 { get => _maths32; set => _maths32 = value; }
 
     FineGround? _fine;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND): the finer, taller height store. Set, Height reads it
+    /// <summary>(FINER GROUND): the finer, taller height store. Set, Height reads it
     /// (in 32-bit maths, whatever Maths32 says), and the flat drawer's far and near rows take their points from it;
     /// null (the default), the map bytes and the original's word maths, bit for bit.</summary>
     public FineGround? Fine { get => _fine; set => _fine = value; }
 
     FineGround? _smooth;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, the second lookup): the smooth ground - the original's
+    /// <summary>(FINER GROUND, the second lookup): the smooth ground - the original's
     /// bilinear of its points times the factor, risen from the sea (FineGround.Smooth), for the readers where the original's behaviour
     /// should hold (the camera, shots, flight heights; docs/data/height-readers.md). Null: SmoothHeight is Height.</summary>
     public FineGround? Smooth { get => _smooth; set => _smooth = value; }

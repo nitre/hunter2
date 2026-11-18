@@ -5,7 +5,7 @@ using Hunter.Rules;
 namespace Hunter;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (options design B, owner 2026-11-01): the in-game options as one menu over the paused
+/// (options design B): the in-game options as one menu over the paused
 /// game - rules/OptionsPanel.cs is the menu (its levels, keys, values, help, picture); this lays it over the window.
 /// The picture underneath is the last frame of play, taken as Esc was pressed (the original fades play out before its
 /// options screen; that fade still runs, unseen, under this), dimmed. The menu sits at the largest whole scale that

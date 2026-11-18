@@ -15,17 +15,17 @@ int _ew(sampler2D ent, int row, int off) { return _wrap16(_eb(ent, row, off) * 2
 int _euw(sampler2D ent, int row, int off) { return _eb(ent, row, off) * 256 + _eb(ent, row, off + 1); }
 int _ab(sampler2D anim, int arow, int i) { return int(round(texelFetch(anim, ivec2(i, arow), 0).r)); }   // arow: 0 in play, 1 one step back
 
-// SMOOTH PARTS (owner 2026-10-29): how far into the step's blanks the game is, 0 just after a step to
+// SMOOTH PARTS: how far into the step's blanks the game is, 0 just after a step to
 // nearly 1 at the next (Play.AnimFraction). 0 when the caller sets nothing: the held step, no slide.
 uniform float anim_frac = 0.0;
 
-// FAST ROTORS (owner 2026-10-31: "they turn very slowly"): the helicopters' objfile offsets (GpuWorld); their
+// FAST ROTORS: the helicopters' objfile offsets (GpuWorld); their
 // wrapping channels (main and tail rotor) are drawn rotor_times as far round - 1/8 turn a step x 8 is about 7
 // turns a second, a real rotor of that size. The game's own counter is untouched; 1 = the original.
 uniform ivec2 rotor_models = ivec2(-1);
 uniform int rotor_times = 1;
 
-// STEERING WHEEL (CarInside, owner 2026-11-03): the card's cars and cabs carry a wheel part, the aircraft a stick, on channel 2, a table channel their set
+// STEERING WHEEL (CarInside): the card's cars and cabs carry a wheel part, the aircraft a stick, on channel 2, a table channel their set
 // leaves at 0. Its angle is the record's steering byte +$18 (signed; -1, 0, +1 today) times its model's steer_turns, capped at one full
 // lock (256ths of a turn; +1 turns the top of the wheel to the right, clockwise from the driver's seat), slid from
 // the byte one step back (SMOOTH PARTS, GpuWorld holds +$18 with the part bytes). A finer (analog) byte later needs only another
@@ -42,7 +42,7 @@ uniform int steer_lean_row = 0;   // the player's record (slot 0); a check may p
 // one step back; pent = the record's own part bytes one step back (record-shaped, like ent). pent = ent
 // and prow = arow hold the step still (checks, frozen records). The slid angles stay whole numbers: the
 // trig table is indexed by whole 256ths of a turn.
-// TANK TRACKS (TankTracks, owner 2026-11-12): the tanks' wheels and belt links turn on channel 0 by the tank's own rolling -
+// TANK TRACKS (TankTracks): the tanks' wheels and belt links turn on channel 0 by the tank's own rolling -
 // the 256ths of a wheel turn its record has moved along its heading, added up by GpuWorld (TrackRoll) in roll_tex, a texel
 // a record row (x = row & 255, y = row >> 8). Their models have no animation set, so nothing else drives the channel. Kept
 // when the tank stops (the table's parts rest at 0 then, $56D0), so the wheels do not jump. track_models = the objfile

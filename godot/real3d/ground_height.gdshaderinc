@@ -56,7 +56,7 @@ int ground_height(sampler2D map, int x, int z)
 	return ground_height_lerp68(a, b, fxx);
 }
 
-// ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, the second lookup - rules/Ground.cs SmoothHeight, FineGround.Smooth):
+// (FINER GROUND, the second lookup - rules/Ground.cs SmoothHeight, FineGround.Smooth):
 // the original's bilinear of its points times the factor (the byte wrap undone), in 32 bits; off, ground_height itself.
 int ground_height_smooth(sampler2D map, int x, int z)
 {

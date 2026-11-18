@@ -1,7 +1,7 @@
 ﻿namespace Hunter.Rules;
 
 /// <summary>objfile as the program holds it: the 64 KB buffer $83CA and the offset table $49F0.
-/// ENHANCEMENT, NOT THE ORIGINAL - THE EXTENDED MODEL ("OW", owner 2026-11-12: "we can make an extended file format"): the card
+/// THE EXTENDED MODEL ("OW"): the card
 /// builds models past the file's format (more than 255 corners or edges, faces of more than 15 edges, corners off the scale's
 /// steps - godot/real3d/CardModels.cs ToObjfile). So the checks can still read them through the rules, a model may start "OW":
 ///   +$00 "OW", +$02 size word, +$04..+$0F as an "OB" model, +$10 set, +$11 shift, +$12 corner count word,
@@ -76,7 +76,7 @@ public sealed class Objects
 
     List<int>[] _rows = MakeRows(7);
 
-    /// <summary>The bucket rows, far (0) first. ENHANCEMENT, NOT THE ORIGINAL (Play.FarView):
+    /// <summary>The bucket rows, far (0) first. (Play.FarView):
     /// 11 rows with far view on, so entities out to $2800 still land in one - the original's
     /// bound $1800 gives 7 ($4216's cmp: 1 + (bound + $3FE) >> 10). Setting it rebuilds the
     /// lists, so a flip never leaves entities queued under the other depth.</summary>
@@ -85,7 +85,7 @@ public sealed class Objects
     static List<int>[] MakeRows(int n) => Enumerable.Range(0, n).Select(_ => new List<int>()).ToArray();
 
     bool _farView;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.FarView): the in-view box grows with the ground -
+    /// <summary>(Play.FarView): the in-view box grows with the ground -
     /// depth $1800 -> $1800 + Ground.AddRows x $400 ($4216's cmp.w #0x1800 at Place), the bucket rows
     /// to Ground's 7 + AddRows, and the side bound +-$800 by $400 per added column each side, so nothing
     /// pops at the sides of the wide ground. Off (the default), every constant is the original's literal.</summary>
@@ -98,7 +98,7 @@ public sealed class Objects
     static int FarSide => 0x800 + (Ground.WideCols - 7) / 2 * 0x400;   // the columns far view adds on each side
 
     bool _moreObjects;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.MoreObjects): the live window around the
+    /// <summary>(Play.MoreObjects): the live window around the
     /// camera's cells grows 2 x 2 -> 4 x 4 (Window) and the table grows 30 -> 395 live records
     /// (EntityTable.Count, the last slot of each still reserved). Off (the default), every
     /// constant is the original's literal.</summary>
@@ -246,7 +246,7 @@ public sealed class Objects
     /// <summary>WriteBack ($8298): the record back into a free record of its grid cell, its slot
     /// freed; d7 bit 2 stops its sound channel (d7 = the record's +$06 from $826E, WriteBackAllIfOnFoot's
     /// loop counter from $33FE). +$20 (the player's building): nothing.
-    /// ENHANCEMENT, NOT THE ORIGINAL (Play.RoomyMemory): on, the fuel's low byte (+$35) is kept
+    /// (Play.RoomyMemory): on, the fuel's low byte (+$35) is kept
     /// beside the record ($82E6 stores only the high byte at +$0D; $8246 restores it << 8), and a
     /// full cell ($830E leaves the thing live for ever) takes the record in an overflow list beside
     /// the grid - the thing is freed and spawns again when its cell comes into play.</summary>
@@ -306,7 +306,7 @@ public sealed class Objects
 
     /// <summary>$42CC move.b: the pitch byte = the height here less the height one step ahead, cut to a byte - an
     /// angle, 256 a turn (Rotation, Movement.Vector and StartState.Ahead read it x 4 into the 1024 sine table; Smooth,
-    /// Blank's hover and Behaviour's climb read it as a signed byte). ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, fine
+    /// Blank's hover and Behaviour's climb read it as a signed byte). (FINER GROUND, fine
     /// on): taller and finer ground makes the difference pass 127 and wrap (the thing tips over backwards, arcs and
     /// climbs bend the wrong way, docs/data/byte-limits.md row 2), so it is held to +-63 instead: under a quarter turn
     /// (64 = upright), so no two tilts are half a turn apart (Smooth's sbyte difference would go the long way). No user
@@ -314,7 +314,7 @@ public sealed class Objects
     /// pitch word's low byte for flying things, Movement $2A16/$2A24/$2A8A, StartState's spawns). Off: the original's cut.</summary>
     public static byte TiltAngle(int y, int h, bool fine) => (byte)(fine ? Math.Clamp(y - h, -63, 63) : y - h);
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINE ANGLES, WorldState.FineTilt; owner 11-12 "nyquist"): $42A6's pitch from
+    /// <summary>(FINE ANGLES, WorldState.FineTilt): $42A6's pitch from
     /// the exact heading, not one of 16. The original looks ahead to a point of a square (AheadX / AheadZ: 30 along the
     /// axes, 30 + 30 on the diagonals) picked by the heading's top 4 bits, at a whole height: a turning thing's pitch jumped
     /// at each of the 16 headings. Here the point slides round the same square with the fine heading (Entity.HeadingFine,
@@ -346,7 +346,7 @@ public sealed class Objects
 
     // ---------------------------------------------------------------- $4EA2: one entity
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL: every object casts a half-bright (EHB) shadow from
+    /// <summary>every object casts a half-bright (EHB) shadow from
     /// its own main model, where the original squashes a flat model onto the ground for its 13
     /// shadow types only (faces of colour 0, $4EC4-$4EF6). On, each drawn object first draws its
     /// shadow - with the sun up, every one (the 13 too) its main model (+$25) through Rotation /
@@ -357,8 +357,8 @@ public sealed class Objects
     /// original's path changes.</summary>
     public bool OwnShadows;
 
-    /// <summary>The sun from the game clock ($1B2 hour, $1B0 minute; SunPath - since 2026-11-12 carried on to SunLowest, ~05:15-20:50,
-    /// owner: shadows until sunset; before, up 06:00-20:00): elevation
+    /// <summary>The sun from the game clock ($1B2 hour, $1B0 minute; SunPath - carried on to SunLowest, ~05:15-20:50,
+    /// so shadows last until sunset; before, up 06:00-20:00): elevation
     /// 10 degrees at 06:00/20:00 to 60 at 13:00 (a sine over the 14 daylight hours; the light
     /// table $C4A4 peaks 10:00-15:00, highest at 13:00). The azimuth sweeps east -> south ->
     /// west over those hours: 0 = due east, pi = due west, due south at 13:00. Axes from the
@@ -386,8 +386,7 @@ public sealed class Objects
         _sunAt = new SunAt(minutes, sun);                   // one object, swapped whole: safe if two worlds run at once
         return sun;
     }
-    /// <summary>The sun's lowest height in degrees that still lights and throws shadows (owner 2026-11-12: shadows until
-    /// sunset): under it the light is too weak and a shadow would run 30 heights and more.</summary>
+    /// <summary>The sun's lowest height in degrees that still lights and throws shadows: under it the light is too weak and a shadow would run 30 heights and more.</summary>
     public const double SunLowest = 2.0;
 
     /// <summary>The sun's height in degrees and its direction (0 due east, pi due west, as SunOffset) at any time: by day
@@ -492,7 +491,7 @@ public sealed class Objects
         Rows[row].Clear();                                  // $4E88: clr.w (a1)+
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (split-draw, docs\split-draw.md): the row's game work
+    /// <summary>(split-draw, docs\split-draw.md): the row's game work
     /// alone, for a pass that paints nothing (Play.PaintView off - the card-built world draws the
     /// view). The same walk as DrawRow, in the same order, making every state write Draw makes:
     /// Lookup's +$9C, the animation step ($566E), the gun ports +$62/+$68 and the ground lift +$7A
@@ -511,7 +510,7 @@ public sealed class Objects
         var b24 = (sbyte)e.B[0x24];
         if (b24 < 0) { DrawDebrisSpin(v, c, e, slot); return; }       // $4F22: an explosion's debris
         // own shadows with the sun up come first: the 14 kinds' flat shadow models (+$24) are the original's fake
-        // ones and go (owner 2026-10-30); at night and indoors they stay
+        // ones and go; at night and indoors they stay
         if (OwnShadows && e.B[0x25] != 0 && !InsideView && SunOffset(World) is { } sun)
         {                                                   // the enhancement: the main model squashed
             var m = StepModel(e, e.B[0x25]);                // flat, drawn as EHB marks before the model,
@@ -693,7 +692,7 @@ public sealed class Objects
         public short MinY;
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d, godot/real3d): handed every face of
+    /// <summary>(renderer = 3d, godot/real3d): handed every face of
     /// every model drawn, hidden or not (the 3D view's depth buffer decides), with the model's
     /// world vertices in m.W.
     /// Null = the faithful path.</summary>
@@ -820,8 +819,7 @@ public sealed class Objects
         }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (SMOOTH ANIMATION, owner 2026-11-02: the animation itself smoother, not
-    /// drawn in between): this share of a whole step (256ths) every pass instead of the whole step every 7th blank -
+    /// <summary>(SMOOTH ANIMATION): this share of a whole step (256ths) every pass instead of the whole step every 7th blank -
     /// Play sets it from the pass's blanks (AnimEveryBlanks), so the joints keep the original's rhythm, reach and
     /// turning-back points, moving every pass. 0 = the original's whole steps.</summary>
     public int AnimShare;

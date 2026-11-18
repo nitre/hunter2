@@ -1,4 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, rules/FineGround.cs): the finer, taller height store as the card reads
+// (FINER GROUND, rules/FineGround.cs): the finer, taller height store as the card reads
 // it - fine_n points a map cell side ((128 fine_n + 1)^2 texels, each a height in world units, exact in a float), the
 // extra column/row the points the original's memory walk reads past the map's east/south edges. fine_n 0 (the
 // default, and every check harness) leaves ground_height and ground_point on the map bytes, bit for bit.

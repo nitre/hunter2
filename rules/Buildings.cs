@@ -65,7 +65,7 @@ public static class Buildings
     }
 
     /// <summary>PlaceAtDoor ($432A): the player put outside the building's door, heading $7F;
-    /// $99 bit 0 clear. Multiplayer: n = which player (ENHANCEMENT, NOT THE ORIGINAL); 0 is the
+    /// $99 bit 0 clear. Multiplayer: n = which player; 0 is the
     /// original; the record leaving the room passes its own slot (KeepInside).</summary>
     public static void PlaceAtDoor(WorldState s, int n = 0)
     {

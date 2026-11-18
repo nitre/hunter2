@@ -15,7 +15,7 @@ stencil_mode read, write, compare_not_equal, 1;
 // ENHANCEMENT (row HAZE): the ground under the shadow fades toward the far sea's colour with depth (world_hazed),
 // so the shadow fades with it - the half mixes up to no darkening at all at the far edge (haze_amount of the same
 // POSITION.w depth the card's colours haze by), in full colour. Haze off, or indoors: the half.
-// ENHANCEMENT (owner 2026-11-01: sea shadows lighter, "not nothing", broken up as the sea is): on a sea square (type 0)
+// ENHANCEMENT: on a sea square (type 0)
 // the darkening is SEA_SHADOW of the land's, times the water's own brightness against SEA_BRIGHT - a lit patch
 // shows the shadow, a dark one hardly - so the shadow breaks up with the sea's own pattern.
 

@@ -19,7 +19,7 @@ public static class Keys
 
     /// <summary>KeyDown ($B214). shift / ctrl: the key table's $60/$61 and $63 held ($B224, $B24A).
     /// d7: the interrupted code's d7, which FireShot reads (only the flare and the drone).
-    /// Multiplayer: n = whose key (ENHANCEMENT, NOT THE ORIGINAL); 0 is the original.</summary>
+    /// Multiplayer: n = whose key; 0 is the original.</summary>
     public static void Down(Play play, byte raw, bool shift, bool ctrl, int d7, int n = 0)
     {
         var s = play.State;

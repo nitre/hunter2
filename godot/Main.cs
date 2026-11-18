@@ -164,7 +164,7 @@ public partial class Main : Node2D
         }
     }
 
-    /// <summary>ENHANCEMENT (owner 2026-10-23): the window's icon is the loading screen's picture, logo and all
+    /// <summary>ENHANCEMENT: the window's icon is the loading screen's picture, logo and all
     /// (rules/GameIcon.Loading) when game_data/pics/loadpic2.json exists, else the soldier screen's face - from
     /// the player's own game data, the largest whole scale that fits a 256 x 256 square, nearest neighbour.</summary>
     void SetWindowIcon(string dir)
@@ -305,7 +305,7 @@ public partial class Main : Node2D
         // HUNTER_STATS on a window run: wall time from the first window draw to the last - the step, the card's draw and
         // the read back (which waits for the card); Godot's own viewport timer reads 0 for the 3D SubViewport
         var drawn = System.Diagnostics.Stopwatch.StartNew(); var draws = 0;
-        if (shots.Count(s => s.Window) > 1)   // a recording (owner: faster recording runs only): no wait for the screen's refresh
+        if (shots.Count(s => s.Window) > 1)   // a recording (faster recording runs only): no wait for the screen's refresh
             DisplayServer.WindowSetVsyncMode(DisplayServer.VSyncMode.Disabled);
         if (Settings.Renderer == "3d")   // the card's bake of the models needs engine frames; a scripted run would step every game frame before any
             for (var w = 0; w < 6; w++) await ToSignal(GetTree(), "process_frame");

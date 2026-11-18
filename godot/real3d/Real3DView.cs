@@ -15,7 +15,7 @@ public readonly record struct RawPalette(int[] View, int[] Sky, int Fade, int Sk
 /// zoom (1 = the game's 256-pixel focal length). The view only: the rules never see it.</summary>
 public readonly record struct FreeCamera((double X, double Y, double Z) Eye, float Yaw, float Pitch, float Zoom = 1f);
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (setting renderer = 3d, owner 2026-10-24): the view as a real 3D scene on the
+/// <summary>(setting renderer = 3d): the view as a real 3D scene on the
 /// graphics card - the card-built world (GpuWorld: the ground and the things from the game's own data), the sea as a
 /// plane to the horizon, the sky as a backdrop, a real camera, the GPU's depth buffer. The game's rules are untouched:
 /// the card's shaders follow the game's own camera each frame (view.gdshaderinc).
@@ -34,7 +34,7 @@ public sealed partial class Real3DView : Node
     internal const int LowCloudCount = 64;                               // clouds.gdshaderinc LOW_CLOUD_N
     ImageTexture shoreTex;                                       // SEA: LIVING's shallows (ShoreDistance)
     readonly Camera3D camera;
-    /// <summary>NEW, NOT THE ORIGINAL (owner 2026-10-24): the 3D camera's look turn round the player, radians
+    /// <summary>NEW, NOT THE ORIGINAL: the 3D camera's look turn round the player, radians
     /// (0 = north, the original's only view). The view only: the game's own camera and rules never see it.</summary>
     public float Yaw;
     /// <summary>DEMO CAMERA's car close-up: the eye at this share of the game's distance from him (1 = the game's).</summary>

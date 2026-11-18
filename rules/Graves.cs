@@ -15,7 +15,7 @@ public sealed class Grave
 }
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (Play.Graves, docs/extras.md "graves"): each paid death - not the
+/// (Play.Graves, docs/extras.md "graves"): each paid death - not the
 /// last - leaves a grave holding what the soldier carried, taken out of play so no free resources,
 /// and the next soldier starts at the mode's home record with the normal starting kit. The life bar,
 /// 4 a death and the last death (the original's own grave, 250 blanks, debrief) are untouched;
@@ -33,7 +33,7 @@ public static class Graves
     /// of play (the counts zeroed); e is the ended record at the death spot (End rebuilt it where it
     /// stood). place = false: the last death's entry only - its grave record is the original's own
     /// ($2EE0 -> $2E28), byte for byte.
-    /// ENHANCEMENT, NOT THE ORIGINAL (graves_2): a death at sea - a drowning ($216 bit 2, $B072)
+    /// (graves_2): a death at sea - a drowning ($216 bit 2, $B072)
     /// or water under the spot - leaves NO grave and NO store entry: the kit is simply lost. A death
     /// inside a building leaves the grave outside at the door spot PlaceAtDoor computes.</summary>
     public static void Capture(WorldState s, Entity e, bool place = true, int player = 0)

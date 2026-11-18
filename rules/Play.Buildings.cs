@@ -24,7 +24,7 @@ public sealed partial class Play
     View? _backdrop;
     static bool Bit(int v, int n) => (v >> n & 1) != 0;
 
-    /// <summary>The player visiting the building (ENHANCEMENT, NOT THE ORIGINAL): whose record
+    /// <summary>The player visiting the building: whose record
     /// EnterInteriorAndSetBounds ($47E6) marks, whose panel InteriorBegin ($47CE) draws, whose marks the way
     /// out ($478C) clears, whose weapon LeaveStore ($87DC) reloads. 0 is the original.</summary>
     public int VisitPlayer;

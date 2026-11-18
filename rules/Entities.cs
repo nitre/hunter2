@@ -19,36 +19,36 @@ public sealed class Entity
 
     public bool Alive => B[0] != 0;
     public int Flags => L(6);
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (more objects): held out past the original's wake area (Behaviour.Steer);
+    /// <summary>(more objects): held out past the original's wake area (Behaviour.Steer);
     /// on coming in it is woken afresh (StartState.SpawnNearCamera). Not saved: after a load it just walks on.</summary>
     public bool HeldFar;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIVING WORLD): who last hurt it (Collisions $454E), for its kill's score
+    /// <summary>(LIVING WORLD): who last hurt it (Collisions $454E), for its kill's score
     /// (Vehicles.End). Not saved.</summary>
     public LivingWorld.Side HurtBy;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL, picture only (EXPLOSIONS: PIECES, the card): where the last shell, missile,
+    /// <summary>picture only (EXPLOSIONS: PIECES, the card): where the last shell, missile,
     /// mine or blast that hurt it was at the touch (Collisions $454E) - its pieces fly from there, not from its own
     /// middle. Cleared by any other hurt (a bullet, a ram) and by the slot's rebuild. Nothing in the game reads it; not saved.</summary>
     public bool BlastHit;
     public ushort BlastX, BlastZ;
     public short BlastY;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIMB DAMAGE, rules/Limbs.cs): which limbs a bullet has hurt (Limbs.LegL ..
+    /// <summary>(LIMB DAMAGE, rules/Limbs.cs): which limbs a bullet has hurt (Limbs.LegL ..
     /// ArmR bits). No free record byte is proven, so it sits beside the record: not saved, a save/load resets it.</summary>
     public byte Limbs;
     /// <summary>LIMB DAMAGE: the part of a step a limp has not walked yet (Limbs.Pace), carried to the next pass. Not saved.</summary>
     public int PaceCarry;
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (a pass per blank): a shot still in its shooter's box since it left his hand -
+    /// <summary>(a pass per blank): a shot still in its shooter's box since it left his hand -
     /// the two do not bump (Collisions.Check). The A500's ~7 blanks a pass took its first step clear of him; at one
     /// blank a grenade (a mover, no owner check on a bump) went off on the thrower. Not saved.</summary>
     public bool InHand;
     /// <summary>ENHANCEMENT (A500 PACE, WorldState.A500Pace): its height (+$4C) at the last A500 pass, int.MinValue for none -
     /// a landing's drop is measured from there (Movement.Settle). Not saved.</summary>
     public int PaceY = int.MinValue;
-    /// <summary>ENHANCEMENT (FINE POSITIONS, WorldState.FinePositions, owner 11-12 "nyquist"): the part of a unit each axis
+    /// <summary>ENHANCEMENT (FINE POSITIONS, WorldState.FinePositions): the part of a unit each axis
     /// of a step left over (0 <= f < 1, above the record's word), and the words it belongs to - set from anywhere else, it
     /// starts again at 0. Not saved.</summary>
     public double FracX, FracY, FracZ;
     public (short X, short Y, short Z) FracAt = (short.MinValue, short.MinValue, short.MinValue);
-    /// <summary>ENHANCEMENT (FINE ANGLES, owner 11-12 "nyquist" - the first of the fine variables): the pitch, heading and roll
+    /// <summary>ENHANCEMENT (FINE ANGLES): the pitch, heading and roll
     /// at 65536 a turn, beside the record's bytes (+$7C, +$7E, +$80: 256 a turn). Filled where the game has the finer value
     /// itself - its own angle words where its code keeps them whole (a turn, Movement $29FA / $2A50; a flier's climb) and
     /// the smooth picture's in-between poses - so nothing in play reads them and the original's maths is untouched. Only

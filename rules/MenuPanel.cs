@@ -18,12 +18,11 @@ public interface IMenuPanel
 
 /// <summary>
 /// ENHANCEMENT (options design B, part 2): the first start's question - AS IT (KIND OF) WAS or AS IT COULD BE
-/// (owner 2026-11-02, SettingsMenu.DrawStartChoice) - as B's menu.
+/// - as B's menu.
 ///
 /// First the QUESTION: the question and its two answers as the original's bars on the left; beside them, in B's box,
 /// what the picked answer gives, setting by setting (the original's marked *). AS IT (KIND OF) WAS answers at once.
-/// AS IT COULD BE goes on to its own settings (owner 2026-11-01: "As it could be still needs its own subs"; the
-/// question is not needed as the left column once chosen): the TUNE screen - the settings' pages as the left column,
+/// AS IT COULD BE goes on to its own settings (the question is not needed as the left column once chosen): the TUNE screen - the settings' pages as the left column,
 /// with START at its foot, and the picked page's rows in the box beside them, already set to the extras, each changed
 /// with < >. Esc steps back: out of a page to the column, and from the column back to the question.
 ///
@@ -34,7 +33,7 @@ public interface IMenuPanel
 public sealed class StartChoicePanel : IMenuPanel
 {
     public const string Title = "How would you like it?";
-    public static readonly IReadOnlyList<string> Answers = ["As it (kind of) was", "New"];   // was "As it could be": the game as we play it (owner 2026-11-03)
+    public static readonly IReadOnlyList<string> Answers = ["As it (kind of) was", "New"];   // was "As it could be": the game as we play it
     public const string StartBar = "Start";
     public const int ListStep = 10;                                  // the question's list, closer than B's pages so all fit (8-high letters; 13 held 21 rows, 12 held 23, GLASS and LEAVING made 25, 11 held 25, LIMB DAMAGE made 26)
 

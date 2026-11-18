@@ -1,7 +1,7 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
-// ENHANCEMENT, NOT THE ORIGINAL (setting renderer = 3d, godot/real3d/Real3DView.cs): the sky backdrop and the sea
+// (setting renderer = 3d, godot/real3d/Real3DView.cs): the sky backdrop and the sea
 // plane, each one colour of the game's (world_colour.gdshaderinc): force_idx 15 the sky's bands, 16 the sea.
 
 #include "res://real3d/world_colour.gdshaderinc"

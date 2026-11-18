@@ -1,7 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (WorldState.BoatsAlongShore; owner 2026-11-17: "Every boat you find is in
-/// parallel to the shore"). The maps park most boats bow-in to the shore (64 of the 104 sea-only boats have land within
+/// <summary>(WorldState.BoatsAlongShore). The maps park most boats bow-in to the shore (64 of the 104 sea-only boats have land within
 /// 128 ahead; 29 within 32), so a boat boarded from the beach goes nowhere until it is steered round. A parked boat that
 /// comes to life (Builder.Spawn, $81EE) is turned along the shore instead: of the two headings square to the way the
 /// land lies, the one with more open water ahead, the nearer to its own heading on a tie. No land near: left as it is.

@@ -63,8 +63,7 @@ void _subrotate(inout ivec3 v, ivec3 piv, ivec3 art, sampler2D trig) {
 // the four channel angle bytes.
 struct _Walk { ivec3 piv; ivec3 off; ivec3 art; int mode; };   // art = (pitch, yaw, roll) bytes
 
-// TankTracks' clods (kind 5, owner 2026-11-17: "they should come off back of tread in a small arc behind it.. think of the
-// physics"): let go at the top of the track's rear where it wraps round the last wheel, a small hop up, then down to the
+// TankTracks' clods (kind 5): let go at the top of the track's rear where it wraps round the last wheel, a small hop up, then down to the
 // ground; the tank drives on, so in its own frame the clod falls back by the tank's speed over the flight (channel 1 = the
 // speed +$3E: at 5 the tank covers ~4 world units a blank, ~6.7 model units - so 32 model units a speed step over a throw).
 // Was a fixed arc riding on the tank (readback 11-17: every clod stayed 64-131 behind its middle, never left behind).

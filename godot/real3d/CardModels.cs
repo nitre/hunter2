@@ -23,7 +23,7 @@ namespace Hunter;
 /// A model's Offset is its key (the rules' objfile offset): it stays what it was when the model grows.</summary>
 public sealed partial class CardModels
 {
-    public const int Width = 1024, Height = 1024;                    // the cap (2026-sized, owner): 1M texels = 16 MB
+    public const int Width = 1024, Height = 1024;                    // the cap: 1M texels = 16 MB
     public const int MaxCorners = 1024, MaxEdges = 4096, MaxFaces = 2048;   // a model's cap
     /// <summary>The most corners a face may have: slots.gdshaderinc FACE_MAX, the bake's width (GpuWorld) and CheckSlots' follow it.
     /// An array size on the card, not the objfile's 15 edges (an open loop has a corner more than its edges).</summary>
@@ -68,8 +68,7 @@ public sealed partial class CardModels
         public Corner RawCorner(int flag, int x, int y, int z) => new(flag, Wrap16((sbyte)x << Shift), Wrap16((sbyte)y << Shift), Wrap16((sbyte)z << Shift));
 
         /// <summary>A corner at these full units (no scale steps, no byte range): the card's own builders place their corners so -
-        /// the 4-unit steps and the byte's reach are the objfile's format, not the card's (owner 2026-11-12: "technical limits we
-        /// remove"). Such a model no longer fits the objfile's bytes (FitsBytes).</summary>
+        /// the 4-unit steps and the byte's reach are the objfile's format, not the card's. Such a model no longer fits the objfile's bytes (FitsBytes).</summary>
         public Corner FullCorner(int flag, int x, int y, int z) => new(flag, Wrap16(x), Wrap16(y), Wrap16(z));
 
         /// <summary>Swap the model's corners, edges and faces (and its header bytes, when given) for these: nothing changes if the

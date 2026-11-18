@@ -4,12 +4,11 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-12: "the helicopter models don't have a rotor. The blades are not
-/// connected to the craft"): in the objfile both flying helicopters' main rotor hub (the turning corner, flag $14) stands
+/// <summary>in the objfile both flying helicopters' main rotor hub (the turning corner, flag $14) stands
 /// 32 units above the roof, joined to it only by an edge no face lists (model $19 edge 65, corners 41-42; model $17
 /// edge 48, corners 24-25) - the original draws edges through faces alone, so the blades hang in the air. The card's copy
 /// gets a MAST: a round post from the roof up into the rotor head, a wider drum round the hub that the blade roots come
-/// out of (owner: "Square?? Post" - round, then): the post a 12-sided ring of radius 12, the head a 16-sided ring of radius
+/// out of: the post a 12-sided ring of radius 12, the head a 16-sided ring of radius
 /// 16, in whole units (the objfile's 4-unit steps and its 15-edge faces are its format, lifted on the card: "technical limits
 /// we remove", 2026-11-12). The corners go after the last part
 /// (fixed, the mast does not turn); grey 8 like the blades, a machine part that keeps its paint (GpuWorld MODEL COLOURS).
@@ -35,7 +34,7 @@ public static class RotorMast
         (0x19, 0, -4, 100, 108, 140),                                // helicopter 2 (kind $06, the one with the tail rotor): roof corner 41, hub corner 42
     ];
 
-    // EVEN BLADES (owner 2026-11-12: "do we still need to have the blades be triangles? I doubt it"): with the head round the hub
+    // EVEN BLADES: with the head round the hub
     // the blades no longer have to meet at the turning corner, so each is an even-width rectangle from inside the head out to
     // its tip, centred on the line through the hub (was: a spike pinched to the hub - the straight blades of 2026-10-31,
     // before that the original's kinked wedge). The hub corner is the part's pivot and the blade faces used it, so each rotor

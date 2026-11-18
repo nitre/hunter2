@@ -13,8 +13,8 @@ public static class Talk
     public const int Table = 0x892E, TableEnd = 0x8E98;
     const int SpeakerText = 0x8F28, AloneText = 0x8F0F, ThanksText = 0x8F32, RefuseText = 0x8EFA, NowhereText = 0x8FEE;
 
-    /// <summary>Speak ($8F82). Multiplayer: n = the speaking player (ENHANCEMENT, NOT THE
-    /// ORIGINAL); 0 is the original. Piece 4: n's own goodwill table (NewPack's copy) and n's
+    /// <summary>Speak ($8F82). Multiplayer: n = the speaking player;
+    /// 0 is the original. Piece 4: n's own goodwill table (NewPack's copy) and n's
     /// own item table for the item words.</summary>
     public static void Speak(WorldState s, int n = 0)
     {

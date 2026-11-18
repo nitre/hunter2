@@ -236,7 +236,7 @@ public sealed class LogBook
 
     /// <summary>The map marks over the view ($3FFE, MainLoop $25A4 with $99 bit 2): frame 0 =
     /// the bitmap, BlitFrame mode 0 at (0, 0) (only where the mask is set); then the player at
-    /// (x >> 9, 128 - (z >> 9)) in colour 4 ($400C, $4020). ENHANCEMENT, NOT THE ORIGINAL
+    /// (x >> 9, 128 - (z >> 9)) in colour 4 ($400C, $4020).
     /// (Play.Graves): graves not null - after them, one mark per grave not taken - placed or
     /// still waiting in the store - at its X/Z through the same mapping ($4076 Spot), a
     /// five-pixel plus in colour 6. Every mark the original draws is a single pixel (a noted
@@ -299,7 +299,7 @@ public sealed class Screens
     /// <summary>The screen routine showing ($3CFA MapScreen), 0 in play.</summary>
     public int Routine { get; private set; }
 
-    /// <summary>The player the screen shows (ENHANCEMENT, NOT THE ORIGINAL): whose marks LogMarks
+    /// <summary>The player the screen shows: whose marks LogMarks
     /// ($3FFE) draws and whose position DrawMap ($3DE4) centres on. 0 is the original.</summary>
     public int ScreenPlayer;
     List<Menus.Button> _buttons = [];

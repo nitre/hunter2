@@ -43,13 +43,11 @@ public sealed class Sky
         return rows;
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the card's SKY: SMOOTH, owner 2026-10-30: "Six bands is obviously
-    /// better"): the original's six bands, each line moved halfway toward an even spread from the top of the view to
+    /// <summary>(the card's SKY: SMOOTH): the original's six bands, each line moved halfway toward an even spread from the top of the view to
     /// the horizon, so the sky lightens all the way down instead of only in the last rows. The horizon's line stays.</summary>
     public static int[] SmoothBands(short height0E) => Smooth(Bands(height0E));
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (the card's SKY: SMOOTH sky itself, owner 2026-11-01 picked 10 bands from a
-    /// mock-up): view row 0 down to the horizon row h (Bands[5]) in 10 bands, each 0.8 the height of the one above. Returns the
+    /// <summary>(the card's SKY: SMOOTH sky itself): view row 0 down to the horizon row h (Bands[5]) in 10 bands, each 0.8 the height of the one above. Returns the
     /// 9 rows where bands 1..9 begin (band 0 begins at row 0), rounded to whole game rows.</summary>
     public static int[] TenEdges(int h)
     {
@@ -57,7 +55,7 @@ public sealed class Sky
         return Array.ConvertAll(share, s => ((h + 1) * s + 32768) >> 16);
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (see TenEdges): the 10 band colours, 0..255 a channel, evenly in OKLab from
+    /// <summary>(see TenEdges): the 10 band colours, 0..255 a channel, evenly in OKLab from
     /// top to a paler horizon (band 5 (the last sky band) colour mixed 0.25 toward its brightest channel), each channel rounded to a multiple of 17.</summary>
     public static int[][] TenColours(double[] top, double[] last) => Array.ConvertAll(TenLevels(top, last), c => Array.ConvertAll(c, v => (int)Math.Clamp(Math.Floor(v + 0.5), 0, 15) * 17));
 
@@ -107,7 +105,7 @@ public sealed class Sky
         return rows;
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Play.SkySteps): with Steps on, each band's interior
+    /// <summary>(Play.SkySteps): with Steps on, each band's interior
     /// (the rows where a band's colour shows, from the row after the copper's line down to the next
     /// band's row) steps through the in-between 12-bit colours of its two band colours - only such
     /// colours as the Amiga can show, so there are as many steps as the biggest channel difference

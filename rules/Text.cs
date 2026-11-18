@@ -30,7 +30,7 @@ public sealed class Text
     /// ($C1B2 -> FormatText $B794) restores d0, so the callee sees this value when it returns.</summary>
     public int LeftInD0 { get; private set; }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (MessageLog): while on, every line the window
+    /// <summary>(MessageLog): while on, every line the window
     /// scrolls off its top is recorded - its width x line height of plane bits, oldest first, the
     /// last MessageHistoryLines kept. Recording only, and it lives in Scroll because Scroll alone
     /// holds the window's geometry and is the one place a line leaves ($C300/$C340): nothing of

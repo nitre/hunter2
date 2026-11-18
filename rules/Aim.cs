@@ -1,8 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (AIMING: RETICLE, owner 2026-11-03, WorldState.AimReticle, off by default; play input, never the
-/// demo or a film; jobs/limb_damage). On foot the player's soldier turns to the point under a free reticle and his shots go there.
+/// (AIMING: RETICLE; play input, never the demo or a film; jobs/limb_damage). On foot the player's soldier turns to the point under a free reticle and his shots go there.
 /// The reticle is a game pixel (ReticleX, ReticleY) over the view. The camera is the original's: it looks north only, so the
 /// picture's projection is Objects.Persp ($52A2: screen x = cx * 256 / (cz + $100) + CentreX, screen y = (Height0E - y) * 256 /
 /// (cz + $100) + $2E, with cx = 2x - G1548 and cz = 2z - G1544, Objects.Place $41FC). The ray from the eye (cz = -$100, y = Height0E)

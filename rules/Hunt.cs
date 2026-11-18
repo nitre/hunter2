@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT step 3, docs/bot-plan.md): the brain that plays a mission's destroy
+/// <summary>(the BOT step 3, docs/bot-plan.md): the brain that plays a mission's destroy
 /// objectives. It reads what a player reads - the log book's unlocked places (NoteObjectives $D0CA notes every target there)
 /// and the briefing's kill list (the mission record's objective words, $9A08) against the kills so far ($9288, as MissionCheck
 /// $9978 counts them) - and what a soldier would see at a place: the live things there. Nearest open place first; walks there
@@ -8,7 +8,7 @@ namespace Hunter.Rules;
 /// the view turn added), so it walks to a standoff point straight down the nearest of them from the target, Reach plus the
 /// target's half width short of it, taps the way to face it and holds fire (the shot leaves along +$7E, Weapons.Fire) until it
 /// ends. A place with no open target left is done. All objectives met: back to the HQ ($AA), where the game is handed in.
-/// WEAPONS (owner 11-07: "depends what weapon they choose", "also finding weapons"): each target gets the weapon Arms.Choose
+/// WEAPONS: each target gets the weapon Arms.Choose
 /// picks for its energy left (+$2A), changed to with the Return key (NextWeaponKey $3538, round the carried ones) as a player
 /// does; the standoff grows with a blast weapon's reach. When what is carried cannot finish every open objective (Arms.Enough)
 /// it goes to the stores first ($95, the log book's locked place): in through the door on the south side (the door box +$62,
@@ -62,7 +62,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
     readonly HashSet<byte> failedAims = [];                                  // ways that gave no end on this target
     void FailAim() { if (aim is { } h) failedAims.Add(h); aim = null; lined = false; sidesFailed++; }
     void NewAim() { aim = null; failedAims.Clear(); lined = false; sidesFailed = 0; }
-    // NO GOOD (owner 11-09: "he should know when he keeps shooting and it doesn't help"): sides tried on this one with it
+    // NO GOOD: sides tried on this one with it
     // none the worse; at SidesToTry he gives it up as one he cannot hurt (on foot, as he is) and remembers where it stands
     int sidesFailed, sidesFrom = -1;
     Entity? sidesOn;
@@ -133,11 +133,11 @@ public sealed class Hunt(int seed = 1107) : IBrain
     public Senses Senses { get; } = new();
 
     /// <summary>A new brain with what the same player learnt of the world in the last mission of this game (the Missions
-    /// mode goes on in one world - owner 11-09 E2).</summary>
+    /// mode goes on in one world - E2).</summary>
     public Hunt(Senses memory, int seed = 1107) : this(seed) => Senses = memory;
 
     /// <summary>The brain for the next mission of this game: the same player - what he knows of the world, and that he has
-    /// stocked up and what the store's drones came to (the stores are not filled again between missions; owner 11-09 E2).
+    /// stocked up and what the store's drones came to (the stores are not filled again between missions).
     /// Out of rounds, or down to his kept drone, sends him back as in any mission. M4 in one game 11-09: a fresh brain went
     /// "to the stores" again at every mission's start - a 152 s trip with a swim, 9 energy to 6, then no way.</summary>
     public Hunt NextMission() => new(Senses) { stocked = stocked, droneStoreGave = droneStoreGave };
@@ -188,7 +188,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         var me = play.State.Entities.All[0];
         TurnView(play.State, me);
         if (w.Go && Body.Flies(me) && !me.Bit(0x08, 15) && MissileComing(play.State, me) is not null)
-        {                                                                    // UNDER IT (owner 11-09; DodgeProbe, 6 ways tried at once on M10's
+        {                                                                    // UNDER IT (DodgeProbe, 6 ways tried at once on M10's
             Ducks++; Doing += ", under a missile";                           // guard tower: down low his own way, alive 600 passes untouched - backing,
             w = w with { Alt = me.W(0x74) + MissileLow };                    // hovering, climbing: shot down or stuck dodging). A tower's missiles come
         }                                                                    // from its top and sink slowly; a turn takes 120 passes, a drop a few
@@ -197,7 +197,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         int mx = me.UW(0x4A), mz = me.UW(0x4E);
         if (Navigate.Shore(play.State, mx, mz, sea: false, skip: badShores.Contains) is not var (lx, lz)) return w;
         if (shoreFor != (lx, lz) || Dist(mx, mz, shoreFrom.X, shoreFrom.Z) > 48) { shoreFor = (lx, lz); shoreFrom = (mx, mz); shoreTries = 0; }
-        else if (++shoreTries > ShorePatience)                               // NO GOOD (owner 11-09, as the shooting): swum at it all this while
+        else if (++shoreTries > ShorePatience)                               // NO GOOD: swum at it all this while
         {                                                                    // and not moved - a bank he cannot climb (M10 tough: 165,889 passes
             badShores.Add((lx, lz)); shoreFor = null;                         // on one spot): crossed off, the next nearest
             GaveUpWhy = $"gave up on the shore at {lx},{lz}: {ShorePatience} passes swimming at it, not moved - the next nearest";
@@ -229,8 +229,8 @@ public sealed class Hunt(int seed = 1107) : IBrain
             if (Riding && trip.Current is { Kind: Trip.Kind.Board, Vehicle: { } bv } && bv.Type != me.W(4) && ++wrongBoard >= 2)
             { Senses.GiveUp(bv.X, bv.Z); wrongBoard = 0; }                  // on the way to board one, put in another twice (parked against it - M2 11-08): that one given up
             if (Riding) { Rides++; Senses.GotIn(me.W(4), mx, mz); rideHealth0 = rideLast = me.W(0x2A); vfoe = null; flee = 0; rideFrom = (passes, mx, mz); }
-            else if (leftIn is var (lt, lx, lz))                             // parked where he left it, its gauge as he last saw it (round trip, owner 11-08);
-                Senses.GotOut(lt, lx, lz, leftLasts,                           // THE IN/OUT FAMILY (owner 11-08: one rule, not a fix per spot): a ride that went
+            else if (leftIn is var (lt, lx, lz))                             // parked where he left it, its gauge as he last saw it (round trip);
+                Senses.GotOut(lt, lx, lz, leftLasts,                           // THE IN/OUT FAMILY: a ride that went
                     passes - rideFrom.P < NowhereRide && Dist(lx, lz, rideFrom.X, rideFrom.Z) < 256);   // nowhere - out where he got in - is no use from here, so the
                                                                              // plan on foot and the plan in it can no longer send him back and forth (M4, M5 11-08)
         }
@@ -272,7 +272,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         {                                                                    // AUTO fills each item to the most he carries from what it has ($9BF0)
             droneStoreGave = Drones(s); stocked = false; forDrones = true;   // a store that gave none is not tried again till one more is spent
         }
-        if (!stocked)                                                        // a player stocks up before he sets out (owner 11-07)
+        if (!stocked)                                                        // a player stocks up before he sets out
         {
             if (onFoot)
             {
@@ -317,7 +317,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         return Shoot(play, me, target);
     }
 
-    // ---- THE DIRECTOR'S ORDERS (recording only, owner 11-08: the bot as the film's actor) ----
+    // ---- THE DIRECTOR'S ORDERS (recording only) ----
     /// <summary>One order: board the vehicle of Type nearest (X, Z); go to (X, Z) by whatever way he finds; destroy a thing
     /// of Type near (X, Z) with what he is in or carries; get out; land near (X, Z).</summary>
     public readonly record struct Order(string Kind, int Type, int X, int Z);
@@ -707,7 +707,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         keyWait = KeyGap;
     }
 
-    // ---- THE DRONE (owner 11-08, docs/bot-brain.md): launched for real, its map read, RESUME ----
+    // ---- THE DRONE: launched for real, its map read, RESUME ----
     bool wantDrone, onMap, mapRead;
     int mapWait;
 
@@ -777,7 +777,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
     /// box its middle must be for him to see it (Senses.Update's InView).</summary>
     static int HalfDepth(WorldState s, int type) => s.Models.U(s.Models.Offsets[s.Data.KindByte(type, 5)] + 8) >> 1;
 
-    /// <summary>THE VIEW (owner 11-08: no going round to the south - he turns the view with Q / E): the screen shows the
+    /// <summary>THE VIEW: the screen shows the
     /// original's box ahead of the view (Senses.InView), so he keeps it on what matters - the target he fights, else the target
     /// place when within NearTarget, else the way he is facing - turning at most a key press a blank (ViewAngle1, which
     /// his stick on foot follows as a player's does).</summary>
@@ -1194,7 +1194,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         return o;
     }
 
-    // ---- SCOUTING (owner 11-09: when stuck, and on long ways on foot) ----
+    // ---- SCOUTING ----
     /// <summary>The unseen land he is going to look over first, for which goal, and the vehicles he knew of then (one more
     /// known ends it: the goal is planned again with it); spots he found no way to.</summary>
     (int X, int Z)? scout;
@@ -1231,7 +1231,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         return null;
     }
 
-    // ---- GUNS FIRST (owner 11-08: yes) ----
+    // ---- GUNS FIRST ----
     /// <summary>The gun he went to end before a flight: its type and where he knows it; and those he gave up on.</summary>
     (int Type, int X, int Z)? gunFirst;
     readonly List<(int X, int Z)> gunsLeft = [];
@@ -1350,7 +1350,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         var known = KnownRides(s, me);
         if (!air) known.RemoveAll(r => r.E != me && Trip.ModeOf(Trip.FlagsOf(s, r)) == Trip.Mode.Air);   // no aircraft (to a gun that fires at them)
         if (!trip.For(gx, gz)) trip.Drop("another goal");                    // held only while followed (something else steered between) and while he knows
-        else if (travelled != passes - 1) trip.Drop("something else steered");   // of no new gun nor a new ride (owner 11-08: never locked into a walk or swim)
+        else if (travelled != passes - 1) trip.Drop("something else steered");   // of no new gun nor a new ride
         else if (dangers.Count != trip.Dangers.Count) trip.Drop("guns known changed");
         else if (known.Count > trip.RidesKnown) trip.Drop("a new vehicle known");
         travelled = passes;
@@ -1371,9 +1371,9 @@ public sealed class Hunt(int seed = 1107) : IBrain
             var ask = (gx, gz, Square: (mx >> 9, mz >> 9), Type: me.W(4), Rides: rides.Count, Dangers: dangers.Count, (int)s.Energy, looked);
             if (ask != noWayAsked)                                           // a "no way" is asked again only when something it rests on changed
             {
-                var home = why.StartsWith("home") ? null : Known(s, 0xAA);   // a trip out must leave him a way back (round trip, owner 11-08)
+                var home = why.StartsWith("home") ? null : Known(s, 0xAA);   // a trip out must leave him a way back (round trip)
                 trip.Plan(s, me, rides, dangers, Arms.Kind(s, 0x1E, 0x12), gx, gz, near, home: home);
-                if (home is not null)                                        // ONE WAY (owner 11-08: allow): far quicker without a way back
+                if (home is not null)                                        // ONE WAY: far quicker without a way back
                 {                                                            // known (M5: a helicopter 53 s off, a wind surfer 350 s round trip) -
                     var safe = trip.Legs?.Sum(l => l.Time);                  // there, the way home is planned from what is found
                     trip.Plan(s, me, rides, dangers, Arms.Kind(s, 0x1E, 0x12), gx, gz, near);
@@ -1811,7 +1811,7 @@ public sealed class Hunt(int seed = 1107) : IBrain
         return null;
     }
 
-    // ---- THE DEATH LOG (owner 11-07: "each time he dies we have a new rule") ----
+    // ---- THE DEATH LOG ----
     /// <summary>What it was about when a death came (set as it decides).</summary>
     public string Doing { get; private set; } = "starting";
 

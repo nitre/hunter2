@@ -177,7 +177,7 @@ public partial class StartSequence : Node2D
 
     IEnumerable<string> Sequence()
     {
-        // a new player's first start (Settings.FirstStart, owner 2026-11-02): AS IT (KIND OF) WAS or AS IT COULD BE,
+        // a new player's first start (Settings.FirstStart): AS IT (KIND OF) WAS or AS IT COULD BE,
         // asked once before anything else - the sound is built after it, so its extras are in from the first note
         if (askStart)
         {
@@ -245,7 +245,7 @@ public partial class StartSequence : Node2D
                 for (var i = 0; i < 50; i++) yield return "title";
             else if (entry == StartEntry.Boot)
             {
-                // ENHANCEMENT (owner 2026-10-23, playtest note 21): the boot title waits for a click. The original
+                // ENHANCEMENT: the boot title waits for a click. The original
                 // showed it while LoadGameFiles ($1F28) read the floppy - seconds - and then held 50 frames more;
                 // with no loading only those 50 frames (1 s) were left. Scripted runs keep the original's 50 frames,
                 // so recorded inputs line up as before.
@@ -276,7 +276,7 @@ public partial class StartSequence : Node2D
                 mainButtons.Add(menus.ManualButton(screen, mainButtons));       // (off: the menu is byte-identical to before)
             if (Settings.QuitButton)                                            // the shell's QUIT, at the foot (playtest note 2)
                 mainButtons.Add(menus.QuitButton(screen, mainButtons));
-            foreach (var f in Menu(mainButtons, "main_menu", h => handler = h, timeout: Recording ? 1 : 1500)) yield return f;   // $1F78-$1F80; a recording starts the demo at once (owner 2026-10-30: "it could just start")
+            foreach (var f in Menu(mainButtons, "main_menu", h => handler = h, timeout: Recording ? 1 : 1500)) yield return f;   // $1F78-$1F80; a recording starts the demo at once
             switch (handler)
             {
                 case 0x875A:                                                    // View soldier

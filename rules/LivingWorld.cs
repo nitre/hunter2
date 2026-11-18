@@ -1,13 +1,13 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (LIVING WORLD, owner 2026-11-01, docs/living-world.md): people and animals
+/// <summary>(LIVING WORLD): people and animals
 /// notice each other, not only the player. In the original every planner's target is the player (PlanEntity $270E:
 /// +$16 = slot 0). Here a planner may take another awake thing as its target, chosen by the original's own data:
 /// - the side, from the kind's kill score (+$32): above 0 an enemy, below 0 a friend; the animals $14-$1C are wild;
 /// - what it notices, its concern mask (+$0F) against the target's status (the player's $219, or for anyone else the
 ///   same bits made from its flags, as PlayerSetUpOrDie $2E72 makes $219);
 /// - attack or run, by strength (+$0E), as for the player ($2792).
-/// Enemies go for armed friends (civilians are not shot: they run, owner 2026-11-01), friends for enemies, and
+/// Enemies go for armed friends (civilians are not shot: they run), friends for enemies, and
 /// wild things on the ground for any person or vehicle. The player stays the enemy's first target: a friend is
 /// chosen only when nearer. Flyers (gulls, vultures) and anything noticing nothing keep the original's ways.
 /// Off (WorldState.LivingWorld false): nothing here runs.</summary>
@@ -112,7 +112,7 @@ public static class LivingWorld
         return own;
     }
 
-    /// <summary>Owner 2026-11-01: a wild thing only stares at what can't reach it - anything not on the ground in its
+    /// <summary> a wild thing only stares at what can't reach it - anything not on the ground in its
     /// own region (a boat seen from land, an aircraft, a jeep on another island; for a fish, anything not in its
     /// water): it turns to watch and stands still (Behaviour.Steer), neither charging nor running.</summary>
     public static bool Stares(WorldState s, Entity e, Entity t)
@@ -201,6 +201,6 @@ public static class LivingWorld
 
     /// <summary>A kill that does not score for the player: done by an enemy or a wild thing (an enemy shooting your
     /// comrade must not cost you; an enemy's loss to a bull earns you nothing). Counted for objectives either way
-    /// (owner 2026-11-01: a friend's kill counts; the original counts every end, $9288).</summary>
+    /// (the original counts every end, $9288).</summary>
     public static bool ScoresNothing(Entity e) => e.HurtBy is Side.Enemy or Side.Wild;
 }

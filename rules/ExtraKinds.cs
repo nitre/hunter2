@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL: room for types past the original's 175. The program holds $00-$AE at
+/// <summary>room for types past the original's 175. The program holds $00-$AE at
 /// $D45E + type * $34 (re/kind_fields.txt); right after it, where $AF's record would be, is the copy-protection code. So
 /// the port keeps its own copy of the table (GameData.Kinds): the original's 175 records byte for byte, then any of ours
 /// (none in this build). Every kind read goes through it (Arms.Kind, LivingWorld, Games, Pregame, Hunt, StartState's builder).

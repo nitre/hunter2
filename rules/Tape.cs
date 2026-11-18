@@ -2,7 +2,7 @@ using System.IO.Compression;
 
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's TAPES, docs/bot-plan.md): a run kept as what the pilot gave the game, blank by
+/// <summary>(the BOT's TAPES, docs/bot-plan.md): a run kept as what the pilot gave the game, blank by
 /// blank - the stick, the keys and clicks, and the view angle (Hunt.TurnView writes ViewAngle1 as Q / E would). The game is
 /// the same film for the same input, so a tape played back rebuilds every moment of the run exactly, whatever the bot's code
 /// has become since: a SITUATION is a tape and a blank, a fresh bot handed the game there (rules/tests/Situations.cs).

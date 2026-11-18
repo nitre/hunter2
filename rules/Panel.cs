@@ -106,7 +106,7 @@ public sealed class Panel
     }
 
     /// <summary>UpdatePanel ($9A60), once a pass after the draw. Multiplayer: n = whose panel
-    /// (ENHANCEMENT, NOT THE ORIGINAL); 0 is the original.</summary>
+    ///; 0 is the original.</summary>
     public void Update(WorldState s, Entity p, int n = 0)
     {
         FuelGauge(s, p, n);                                                  // $9A60 $A3C6
@@ -327,7 +327,7 @@ public sealed class Panel
             if (!e.Alive || (e.B[0x06] & 0x08) == 0) continue;               // $A508 btst.b #$1B -> bit 3 of +$06
             RadarDot(s, d5, d6, e.UW(0x4A), e.UW(0x4E));
         }
-        if (s.Graves)                                                        // ENHANCEMENT, NOT THE ORIGINAL (Play.Graves):
+        if (s.Graves)                                                        // (Play.Graves):
             foreach (var g in s.GraveStore)                                  // one dot per grave not taken, mapped exactly
                 if (!g.Taken) RadarDot(s, d5, d6, (ushort)g.X, (ushort)g.Z);    // like a live thing. A grave live as a $7C entity
     }                                                                        // gets no second dot: the kind-table entry its

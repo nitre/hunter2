@@ -1,4 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (setting sun_shading): the sun lights every face and ground square from its own angle
+// (setting sun_shading): the sun lights every face and ground square from its own angle
 // to it - the card's twin of rules/SunShade.cs (Pick, GroundLight), checked against it number for number (CheckSun.cs).
 // A face's shade comes back as a TAG for world_albedo: the palette index, + 32 for its Extra Half-Brite copy. A ground
 // square keeps its own colour and gets a light to multiply it by (world_lit_hazed). Needs world_colour.gdshaderinc (pal_raw).
@@ -63,7 +63,7 @@ int sun_pick_painted(int colour, float k, float kp) {
     return _sun_choose(colour, sun_luma(pal_raw[colour]) * sun_light64(k) * 64 / sun_light64(kp));
 }
 
-// ENHANCEMENT (SunShade.Over, owner 2026-11-02): when the sun asks for more than the ramp's lightest paint, sun_pick gives
+// ENHANCEMENT (SunShade.Over): when the sun asks for more than the ramp's lightest paint, sun_pick gives
 // that paint and this is what to multiply it by in full colour (world_lit_hazed), at most sun_light64(1) / 64; else 1.
 float _sun_over(int colour, int target64) {
     if (colour < 0 || colour > 15 || SUN_FAMILY_LEN[colour] == 0) return 1.0;
@@ -78,7 +78,7 @@ float sun_over_painted(int colour, float k, float kp) {
     return colour < 0 || colour > 15 ? 1.0 : _sun_over(colour, sun_luma(pal_raw[colour]) * sun_light64(k) * 64 / sun_light64(kp));
 }
 
-// A ground square in the sun (SunShade.GroundLight; owner 2026-10-28: "Sun is an effect not a ground changer"): what its
+// A ground square in the sun (SunShade.GroundLight): what its
 // own colour is multiplied by, in full colour - the sun's light (sun_light64 / 64). Light is per ground point
 // (ground_point_k), so neighbouring squares share it along their edge and the checker's colour step always shows there.
 // (GROUND: RELIEF and GROUND VARIETY, a step on top of it, were retired 2026-11-01 - finer ground, island rise, the
@@ -91,6 +91,6 @@ float sun_over_painted(int colour, float k, float kp) {
 // (hl / hr west / east, hb / hf at z - 512 / z + 512), in the picture's own units (x and z doubled).
 float ground_point_k(int hl, int hr, int hb, int hf) { return dot(normalize(vec3(float(hl - hr), 2048.0, float(hb - hf))), sun_dir); }
 float ground_sun_light(float k) { return float(sun_light64(k)) / 64.0; }
-// What the ground is drawn with (SunShade.GroundLevel, owner 11-08): its light over flat ground's, so flat land is the
+// What the ground is drawn with (SunShade.GroundLevel): its light over flat ground's, so flat land is the
 // original's own colour and only slopes go lighter or darker - ground faces up, so the bare light never fell below 1.
 float ground_sun_level(float k) { return ground_sun_light(k) / ground_sun_light(sun_dir.y); }

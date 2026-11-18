@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-01, mock-up B, docs/playtest.md "the options screen"): the in-game
+/// the in-game
 /// options as one menu over the paused game. Left, the original's own bars (IN GAME OPTIONS, Resume Game, Re-brief,
 /// Disk Operation, then Settings and Quit Game) in the original's bar art and lettering; picking Settings opens the
 /// settings beside them, in a box with the same bevel - first the pages, then a page's rows. The four original
@@ -12,7 +12,7 @@ namespace Hunter.Rules;
 /// the key page). The picked bar or row is a lighter olive (note 19); rows are in mixed case (note 16); the
 /// original's choice is marked *; one help line says what the picked thing does.
 ///
-/// Drawn at 640 x 400, the original's art one pixel a pixel (owner: not limited to 320 x 200), over the paused
+/// Drawn at 640 x 400, the original's art one pixel a pixel (not limited to 320 x 200), over the paused
 /// game's 320 x 200 picture, as $0RGB words. The settings themselves are SettingsMenu's (pages, values, Next).
 /// </summary>
 public sealed class OptionsPanel : IMenuPanel
@@ -236,7 +236,7 @@ public sealed class OptionsPanel : IMenuPanel
     };
 
     /// <summary>Values whose meaning differs from the row's others: their own help line, said instead of the row's
-    /// while that value is on (the cloud brief: "every value where the value matters").</summary>
+    /// while that value is on.</summary>
     public static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> ValueHelp =
         new Dictionary<string, IReadOnlyDictionary<string, string>>
     {
@@ -409,7 +409,7 @@ public sealed class OptionsPanel : IMenuPanel
     public const ushort Clear = 0x8000;
 
     /// <summary>How big the window shows the menu: the largest whole number of times 640 x 400 fits (at least 1),
-    /// so its pixels stay even and sharp; centred. Nothing ties it to 320 x 200 (owner 2026-11-01).</summary>
+    /// so its pixels stay even and sharp; centred. Nothing ties it to 320 x 200.</summary>
     public static int ScaleFor(int windowW, int windowH) => Math.Max(1, Math.Min(windowW / Width, windowH / Height));
 
     /// <summary>Where the scaled menu's top-left corner sits in the window (centred).</summary>
@@ -439,7 +439,7 @@ public sealed class OptionsPanel : IMenuPanel
     }
 
     /// <summary>The menu over a paused 320 x 200 picture ($0RGB, Play.Screen), drawn twice the size and dimmed to
-    /// 3/10 - the pictures for the owner and the tests; the window uses DrawLayer over its own picture.</summary>
+    /// 3/10 - the pictures for checking and the tests; the window uses DrawLayer over its own picture.</summary>
     public ushort[] Draw(ushort[] paused, IndexedScreen bars, IReadOnlyList<ushort> bank5, Ui ui)
     {
         var px = DrawLayer(bars, bank5, ui);

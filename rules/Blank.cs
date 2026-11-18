@@ -34,7 +34,7 @@ public static class Blank
         SpeedControl(player, ref d6, ref d4);                                // $35F6
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (mp_two_soldiers): the same SpeedControl ($35F6)
+    /// <summary>(mp_two_soldiers): the same SpeedControl ($35F6)
     /// on another player's record with HIS joystick, so his walk flag (and his vehicle throttle,
     /// fire press) reach HIS speed. The clock, the zoom and the camera distance stay the
     /// original's single shared work - only $35F6 is per player.</summary>

@@ -20,7 +20,7 @@ int _turn(ivec2 a, ivec2 b, ivec2 c) {           // twice the signed area of a, 
 
 // FACE_MAX: the most corners a face may have here (CardModels.MaxFaceCorners, the same number - it says so when a builder passes
 // it). Was 16, the objfile's own most (a face's edge count is 4 bits, an open loop one corner more); the card's own builders are
-// not held to the file's format (owner 2026-11-12: "technical limits we remove"), so it is a size for the arrays below, kept
+// not held to the file's format, so it is a size for the arrays below, kept
 // generous - the loops stop at the face's own corner count, so a small face costs what it did.
 const int FACE_MAX = 64;
 

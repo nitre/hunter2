@@ -1,12 +1,12 @@
 shader_type spatial;
 render_mode unshaded, cull_disabled;
 
-// ENHANCEMENT, NOT THE ORIGINAL (setting clouds, CLOUDS, the card-drawn 3D view): the LOW cloud layer - fair-weather
-// cumulus (owner 2026-10-30, from the cloud atlas; docs/extras.md): LOW_CLOUD_N heaps at fixed places over the map, all
+// (setting clouds, CLOUDS, the card-drawn 3D view): the LOW cloud layer - fair-weather
+// cumulus (docs/extras.md): LOW_CLOUD_N heaps at fixed places over the map, all
 // with their flat base at low_cloud_y, so near ones slide past fast and far ones slow as you move (parallax). Each is a
 // flat card standing upright and turned to face the eye, its shape drawn here (clouds.gdshaderinc low_cloud_*).
 // The mesh is LOW_CLOUD_N x 6 empty corners (GpuWorld.Empty); each six make one cloud's card. Each heap is shaded as a
-// rounded lump lit from the sun's side (clouds.gdshaderinc low_cloud_level; owner 2026-11-11: they were "very flat").
+// rounded lump lit from the sun's side (clouds.gdshaderinc low_cloud_level).
 
 #include "res://real3d/world_colour.gdshaderinc"
 #include "res://real3d/view.gdshaderinc"

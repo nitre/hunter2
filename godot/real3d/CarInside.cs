@@ -5,7 +5,7 @@ using Hunter.Rules;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-03): a basic interior in the card's copy of the car ($13), the
+/// <summary>a basic interior in the card's copy of the car ($13), the
 /// jeep ($22) and the cabs (truck $12, ambulance $14, scanner van $20, amphibious car $29) - two seats, a dash across under the windscreen and a steering wheel in front of the driver's seat - seen only
 /// through the glass with GLASS: SEE-THROUGH (GpuWorld.Bake gives the new faces Glass.Sunk | Bit: ORIGINAL never draws them,
 /// they throw no shadow and break into no piece). The wheel is a part on animation channel 2 (a plain table channel the
@@ -16,7 +16,7 @@ public static class CarInside
     /// <summary>Triangle meta bit 16: the triangle is part of this interior (with Glass.Sunk, bit 13: drawn only with SEE-THROUGH).</summary>
     public const int Bit = 65536;
 
-    /// <summary>Which side the driver sits on: -1 left (x &lt; 0), 1 right. Not known from the original - the owner may swap it.</summary>
+    /// <summary>Which side the driver sits on: -1 left (x &lt; 0), 1 right. Not known from the original.</summary>
     public const int DriverSide = -1;
 
     public const int Car = 0x13, Jeep = 0x22, Truck = 0x12, Ambulance = 0x14, Van = 0x20, Amphibious = 0x29,

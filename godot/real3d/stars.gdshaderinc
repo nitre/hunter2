@@ -1,5 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (part of CLOUDS, the card-drawn 3D view; owner 2026-11-12: "for night time can we add a
-// moon and basic stars", "phases over days. steady. added" - added to the CLOUDS row, not a row of its own): steady
+// (part of CLOUDS, the card-drawn 3D view): steady
 // single-pixel STARS and a blocky MOON going through its phases, on the sky backdrop only, so land, sea, things and the
 // clouds are all in front of them. Fixed to world directions like the cirrus (they slide with the Q / E turn, never with
 // walking). Stars come out as the hour's light falls (night_amount: none at level 12 and up, all at 8 and below - the

@@ -5,7 +5,7 @@ using Hunter.Rules;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-10-29: "Wheels 16"): the card's copy of the objfile with the
+/// <summary>the card's copy of the objfile with the
 /// vehicles' wheels round. The original's wheel rims are 6 or 8 sided; here each rim is 16 corners on the same pivot,
 /// axis and plane, its radius the old rim's reach below the pivot (so the wheel's lowest point stays), placed in whole units
 /// (not on the model's scale steps: the objfile's format, lifted on the card 2026-11-12), and every face,
@@ -50,8 +50,8 @@ public static class RoundWheels
     static void Rebuild(CardModels.Model md, int model, List<string>? notes, Dictionary<int, int[]>? origins)
     {
         var nv = md.Corners.Length;
-        var corners = new List<int[]>();                         // flag, x, y, z: full units (owner 2026-11-12: "remove the RoundWheels byte limit
-        for (var k = 0; k < nv; k++) corners.Add([md.Corners[k].Flag, md.Corners[k].X, md.Corners[k].Y, md.Corners[k].Z]);   // too" - no 4-unit grid)
+        var corners = new List<int[]>();                         // flag, x, y, z: full units, no 4-unit grid
+        for (var k = 0; k < nv; k++) corners.Add([md.Corners[k].Flag, md.Corners[k].X, md.Corners[k].Y, md.Corners[k].Z]);
         var edges = md.Edges.Select(e => (e.A, e.B)).ToList();
         var faces = md.Faces.Select(f => (f.Colour, f.Flags, f.Edges)).ToList();
 

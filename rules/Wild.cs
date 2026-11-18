@@ -1,7 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL, recordings only (fuller world 4 = WILD, run_game --wild; owner 2026-11-01: "a
-/// wild attract", "flotillas of boats etc go wild", "Tanks,.. planes??"): on top of the fullest fill, every boat,
+/// <summary>recordings only (fuller world 4 = WILD, run_game --wild): on top of the fullest fill, every boat,
 /// helicopter, tank, armoured car, jeep, gun, cow, duck and rabbit of today's map gets a group of copies beside it - flotillas,
 /// squadrons, columns, gun nests, herds. A copy is the original's own 16-byte record with x, y and z changed; some
 /// copies take a cut kind instead (the light aircraft on a squadron's wings, Mad Bill in a herd - built and armed, on no
@@ -78,7 +77,7 @@ public static class Wild
                 added.Add(rec);
             }
         }
-        // ducks like ponds (owner 2026-11-01): a raft on every small inland pool - a region of sea cells, not touching the
+        // ducks like ponds: a raft on every small inland pool - a region of sea cells, not touching the
         // map's edge, of at most PondMost cells - round its middle cell, a copy of the first duck's record each
         var duck = sources.FirstOrDefault(r => (r[0] | r[1]) != 0 && r[0] + typeTable[r[1]] == 0x17);
         if (duck is not null)
@@ -96,7 +95,7 @@ public static class Wild
         return added;
     }
 
-    /// <summary>The wild attract (owner 2026-11-02: "the player doesn't go to wild town"; "not many trees or rocks"):
+    /// <summary>The wild attract (not many trees or rocks):
     /// groups beside the demo's own route (DemoRoute) - every Step of his travel a group RouteSide off to one side,
     /// sides taking turns: on land a stand of trees and rocks, a herd of cows (Mad Bill among it) or a rabbit warren;
     /// on the sea a flotilla of rocket boats or a raft of ducks. Animals and boats copy today's first record of their

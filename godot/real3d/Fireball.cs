@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (BETTER EXPLOSIONS step 0, with EXPLOSIONS: PIECES; docs/better-explosions-plan.md):
+/// <summary>(BETTER EXPLOSIONS step 0, with EXPLOSIONS: PIECES; docs/better-explosions-plan.md):
 /// the blasts' star models ($6E-$74, the fire $61-$67 draws - re/formats/weapons.md 3c) get a faceted fireball core in the
 /// card's copy: an icosahedron (12 corners, 20 flat faces) round the star's own centre corner, half the spikes'
 /// reach across. Its faces carry meta bit 22 (Bit): drawn only with PIECES, when the spikes also burst, burn and fade by

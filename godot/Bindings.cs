@@ -10,8 +10,8 @@ namespace Hunter;
 /// What the player's keys and gamepad do, as one small remappable table (shell only: the rules still
 /// see the original's joystick bits and raw key codes, nothing else).
 ///
-/// Every action has one key and one gamepad button, either may be none. The defaults: the arrow keys move (owner
-/// 2026-11-01: a keyboard without a keypad - 85% and smaller - could not walk), right Ctrl fires, PageUp / PageDown
+/// Every action has one key and one gamepad button, either may be none. The defaults: the arrow keys move (a
+/// keyboard without a keypad - 85% and smaller - could not walk), right Ctrl fires, PageUp / PageDown
 /// zoom (as two-player already had), the table's letters; plus a gamepad (A fire, shoulders zoom, B leave vehicle,
 /// X next weapon, Y hover, Start options, Back pause). Two keys held give a diagonal.
 /// Not remappable, always on: the keypad - 8 2 4 6, its diagonals 7 9 1 3 and 0 to fire (the original's keys as
@@ -146,7 +146,7 @@ public static class Bindings
 
     /// <summary>With two players the arrow keys are player 2's (ReadJoystick2), so player 1's actions skip one bound
     /// there; player 1 then moves with the keypad or a pad. Two players on one keyboard without a keypad: not needed
-    /// for now (owner 2026-11-01).</summary>
+    /// for now.</summary>
     static int Own(int key) => Settings.Players == 2 && key is (int)Key.Up or (int)Key.Down or (int)Key.Left or (int)Key.Right ? None : key;
 
     /// <summary>The joystick bits for the game (port 2). Always on besides the table: the keypad (8 2 4 6, the

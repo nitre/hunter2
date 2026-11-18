@@ -5,7 +5,7 @@ namespace Hunter;
 
 /// <summary>The joystick in port 2 and the zoom keys, as the player's bindings say (Bindings: the arrow keys move,
 /// right Ctrl fires, PageUp / PageDown zoom by default, the keypad always works as the original's joystick, plus a
-/// gamepad). The original zoomed on cursor up / down (manual 5); since 2026-11-01 (owner, a keyboard without a keypad)
+/// gamepad). The original zoomed on cursor up / down (manual 5); for keyboards without a keypad
 /// the arrows move by default and zoom is on PageUp / PageDown - the original's keys are one rebind away (F2).</summary>
 public static class JoystickInput
 {

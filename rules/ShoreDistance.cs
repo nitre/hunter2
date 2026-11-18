@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (setting sea, the card's living sea): how far each map cell lies from the
+/// <summary>(setting sea, the card's living sea): how far each map cell lies from the
 /// nearest land, so the sea is pale in the shallows by the coast and deep out at sea. The game never reads it. Land =
 /// any cell the ground draws (type != 0, coast cells included); a sea cell's distance runs from its centre to the
 /// nearest land cell's edge (centre to centre less half a cell), capped at Far.</summary>
@@ -30,7 +30,7 @@ public static class ShoreDistance
     /// <summary>Samples a cell each way in BuildFromCoast.</summary>
     public const int FinePerCell = 8;
 
-    /// <summary>GROUND COLOURS: BANDS' shore (owner 2026-11-01: the beach did odd things at the coast): how far each
+    /// <summary>GROUND COLOURS: BANDS' shore: how far each
     /// sample is from the sea as the ground draws it - a sea cell's square and a coast cell's cut-off triangle
     /// (GroundMesh.Water's shapes), measured to the shapes themselves, so the beach follows the diagonals in straight
     /// lines (one value a cell put 40% of the beach in the wrong place; a grid of water spots left scallops along

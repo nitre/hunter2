@@ -231,7 +231,7 @@ public partial class Audio : Node
             return;
         }
         if (sound >= _fx.Length || _fx[sound] is not { } wav) { p.Stop(); _playing[ch] = -1; SoundLog?.WriteLine($"{Frame} stop {ch}"); return; }
-        if (sound == HighWind) gain = -80f;           // muted for now (owner 2026-10-31): a 1428-byte noise loop at 1.7 kHz, an odd pulsing whoosh; the channel still runs as the game's
+        if (sound == HighWind) gain = -80f;           // muted for now: a 1428-byte noise loop at 1.7 kHz, an odd pulsing whoosh; the channel still runs as the game's
 
         // sound_tails: the channel's sound was still sounding (the countdown has not run out - a
         // -2 already reset _playing - and it is not muted at volume 0): let it fade on a spare

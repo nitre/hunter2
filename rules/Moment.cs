@@ -4,8 +4,7 @@ using System.Runtime.CompilerServices;
 
 namespace Hunter.Rules;
 
-/// <summary>DEV TOOL, NOT THE ORIGINAL (owner 11-09: "the game is deterministic and so is our code ... we should be able to
-/// test with CODE"; "we can easily keep track of every byte"): a moment of play kept whole - the game and whatever plays it
+/// <summary>DEV TOOL, NOT THE ORIGINAL (the game and its code are deterministic, so every byte can be tracked): a moment of play kept whole - the game and whatever plays it
 /// (Play.Pilot: the bot and its memory) - copied between passes, every object and byte, so a test starts at any moment of a
 /// run instead of playing up to it. The game data (GameData: read only) is shared, not copied. Diff lists where two moments
 /// differ, byte by byte, by path - the proof that a copy runs on as the original does, and where two runs part.

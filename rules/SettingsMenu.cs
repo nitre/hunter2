@@ -6,11 +6,10 @@ namespace Hunter.Rules;
 /// and the caller supplies the values: Draw takes key -&gt; display text, the shell reads its own
 /// Settings, a test reads its own stand-in. Clicking a row is the caller's job too: the button
 /// handler is the row's index in the page (Menus.Button.Handler), BACK is Menus.CancelHandler.
-/// Rows are the owner's groups 2026-10-23; smooth_demo's row is gone - the demo is always
-/// smooth (owner 2026-10-23; the cfg key stays in Settings.cs, unused). A row is named by its
-/// TOPIC, the values name the CHOICES, and the original's word is always FIRST (owner 2026-10-23,
-/// docs\playtest.md notes 11, 13, 15) - so every page shows what the original did. Window
-/// rows show RESTART but fullscreen applies at once (owner 2026-10-23); the new-game settings
+/// Rows are grouped by page; smooth_demo's row is gone - the demo is always
+/// smooth (the cfg key stays in Settings.cs, unused). A row is named by its
+/// TOPIC, the values name the CHOICES, and the original's word is always FIRST - so every page shows what the original did. Window
+/// rows show RESTART but fullscreen applies at once; the new-game settings
 /// say so in play only.</summary>
 public sealed class SettingsMenu
 {
@@ -30,7 +29,7 @@ public sealed class SettingsMenu
 
     /// <summary>The pages, in order. Every shell setting appears on exactly one page; only the
     /// key bindings are absent (the KEYS row stands for them).</summary>
-    /// Regrouped 2026-11-02 (owner: sensible and plain): the screen, the land and sky, the models, the world, sound,
+    /// Grouped: the screen, the land and sky, the models, the world, sound,
     /// controls. The SETUP button's own row went (switched off, nothing opened this screen again).
     static readonly (string Group, Row[] Rows)[] Pages =
     [
@@ -38,7 +37,7 @@ public sealed class SettingsMenu
         [
             new Row("look", "TV LOOK", Effect.Restart),                 // pal / centred / stretched
             new Row("brightness", "BRIGHTNESS", Effect.Now),            // 0.8 - 1.4, F7 live
-            new Row("fullscreen", "FULLSCREEN", Effect.Now),            // applies at once (owner)
+            new Row("fullscreen", "FULLSCREEN", Effect.Now),            // applies at once
             new Row("text_size", "TEXT SIZE", Effect.Now),              // F8 live
             new Row("renderer", "3D WORLD", Effect.Restart),            // off (the original's flat picture) / on (the card draws the world, godot/real3d)
             new Row("gpu_scale", "PIXEL SIZE", Effect.Now),             // auto (the window's own scale) / 1 / 2 / 4
@@ -98,12 +97,11 @@ public sealed class SettingsMenu
         "living_sea", "own_colours", "glass", "sea_bodies", "card_pieces",
     };   // SKY is not: its smooth sky shows in the flat picture too (clouds and haze only on the card)
 
-    /// <summary>MERGED ROWS (owner 2026-11-08 "a bunch of settings that should probably be mergers", the grouping and the
-    /// steps agreed 2026-11-11): one row moves several settings together in steps. The settings behind it stay as they
+    /// <summary>MERGED ROWS: one row moves several settings together in steps. The settings behind it stay as they
     /// were, each in the settings file under its own key (and still settable there by hand), so the game reads them as
     /// before; the row shows the step they all match, or CUSTOM. FINER GROUND stays its own row: it changes the heights
     /// you drive and land on, a rules change as BULLET BOX. GROUND's ORIGINAL keeps the 4X shape: the original's flat
-    /// triangles disagree with the height the rules use (owner 2026-10-26, Settings.GroundCuts' default).
+    /// triangles disagree with the height the rules use.
     /// Every step's parts are words of the part's own list in Parts.</summary>
     public static readonly IReadOnlyDictionary<string, (string Word, IReadOnlyDictionary<string, string> Parts)[]> Merged =
         new Dictionary<string, (string, IReadOnlyDictionary<string, string>)[]>
@@ -203,7 +201,7 @@ public sealed class SettingsMenu
         ["players"] = ["1", "2"],
         ["split_layout"] = ["SIDE", "STACKED"],
         ["own_shadows"] = ["ORIGINAL", "MORE"],
-        ["finer_ground"] = ["ORIGINAL", "2X", "HILLS", "CLIFFS"],   // owner 2026-11-01: "2 for now" (the store takes any power of two); 11-11: "more height and cliffs" (FineGround.Reliefs)
+        ["finer_ground"] = ["ORIGINAL", "2X", "HILLS", "CLIFFS"],   // (the store takes any power of two; FineGround.Reliefs)
         ["ground_seed"] = ["WORLD", "RANDOM", "LAST"],
         ["leave_behind"] = ["ORIGINAL", "BEHIND"],
         ["analog_steering"] = ["ORIGINAL", "ANALOG"],
@@ -218,8 +216,7 @@ public sealed class SettingsMenu
         ["sound"] = ["ORIGINAL", "ENHANCED"],
     };
 
-    /// <summary>What every recording (film, video) runs with (owner 2026-10-30: "Can we make sure if we make a video
-    /// they're on"; "Every non vestigial option"): each extra row's word. A new row must go here or in NotRecorded
+    /// <summary>What every recording (film, video) runs with: each extra row's word. A new row must go here or in NotRecorded
     /// (SettingsMenuTests), so a new extra can't be left out of the films unnoticed.</summary>
     public static readonly IReadOnlyDictionary<string, string> Recorded = new Dictionary<string, string>
     {
@@ -227,31 +224,31 @@ public sealed class SettingsMenu
         ["gpu_scale"] = "4",
         ["sky"] = "FULL",                        // smooth sky, clouds, fine haze (as the films had them row by row)
         ["own_shadows"] = "MORE",
-        ["view_distance"] = "11",                // owner: the shorter distance with fine haze, not the longest
+        ["view_distance"] = "11",                // the shorter distance with fine haze, not the longest
         ["ground"] = "FULL",                     // lit, bands, specks, 32X
         ["card_pieces"] = "PIECES",
         ["own_colours"] = "AGA",
-        ["glass"] = "SEE-THROUGH",              // owner 2026-11-03: in films too
+        ["glass"] = "SEE-THROUGH",              // In films too
         ["sea_bodies"] = "WHOLE",
-        ["leave_behind"] = "BEHIND",            // owner 2026-11-03: in films too (the attract demo itself never takes it - GameView)
+        ["leave_behind"] = "BEHIND",            // In films too (the attract demo itself never takes it - GameView)
         ["bullet_box"] = "SMALL",
         ["a500_pace"] = "ON",
         ["smooth_animation"] = "SMOOTH",
         ["living_sea"] = "CYCLING",
-        ["world"] = "MORE",                      // fuller world MORE (owner's pick for films, not LOTS), more objects, living world
+        ["world"] = "MORE",                      // fuller world MORE (not LOTS), more objects, living world
                                                  // (the player's games; never the attract demo), graves with vultures
         ["finer_ground"] = "2X",                 // new games; the attract demo in the picture alone (GpuWorld.PictureLift)
         ["sound"] = "ENHANCED",                  // extras, voices
-        ["demo_camera"] = "MOVING",              // the attract's own camera moves (owner 2026-11-02); run_game --sway / --spin still override it
+        ["demo_camera"] = "MOVING",              // the attract's own camera moves; run_game --sway / --spin still override it
     };
 
-    /// <summary>AS IT COULD BE, the first start's second answer (owner 2026-11-02): the films' extras, but the
+    /// <summary>AS IT COULD BE, the first start's second answer: the films' extras, but the
     /// pixel size follows the player's own window.
     /// AS IT (KIND OF) WAS sets nothing: a fresh file is the original already, its always-on fixes aside.</summary>
     public static readonly IReadOnlyDictionary<string, string> AsItCouldBe = Recorded
         .Where(r => r.Key != "sea_bodies")                               // the first start's box is full at 27 rows (StartChoicePanel.ListStep): set it on the MODELS page
         .Select(r => r.Key switch { "gpu_scale" => new KeyValuePair<string, string>(r.Key, "AUTO"), _ => r })
-        .Append(new KeyValuePair<string, string>("analog_steering", "ANALOG"))   // play input, so not in films; NEW is the game as we play it (owner 2026-11-03)
+        .Append(new KeyValuePair<string, string>("analog_steering", "ANALOG"))   // play input, so not in films; NEW is the game as we play it
         .Append(new KeyValuePair<string, string>("aiming", "RETICLE"))   // play input too
         .ToDictionary(r => r.Key, r => r.Value);
 
@@ -350,7 +347,7 @@ public sealed class SettingsMenu
         return Place(s, items);
     }
 
-    /// <summary>The first start's question (owner 2026-11-02), drawn as a settings page: AS IT (KIND OF) WAS is
+    /// <summary>The first start's question, drawn as a settings page: AS IT (KIND OF) WAS is
     /// handler 1, AS IT COULD BE handler 2.</summary>
     public List<Menus.Button> DrawStartChoice(IndexedScreen s) => Place(s,
     [
@@ -360,7 +357,7 @@ public sealed class SettingsMenu
         (new Ui.MenuItem(0, 0, "CHANGE IT: ESC, SETUP"), 0),
     ]);
 
-    public const string StartAsItWas = "AS IT (KIND OF) WAS", StartAsItCouldBe = "NEW";   // the game as we play it (owner 2026-11-03; was AS IT COULD BE)
+    public const string StartAsItWas = "AS IT (KIND OF) WAS", StartAsItCouldBe = "NEW";   // the game as we play it (was AS IT COULD BE)
 
     /// <summary>Draws the items centred on 160, one under the other - starting low enough that the
     /// last one ends on 200 when the page would run past it (the menus start at 40, Menus.Draw's

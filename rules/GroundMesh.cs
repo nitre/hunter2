@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer 3d): the map as the card-built world reads it (Terrain.Map):
+/// <summary>(renderer 3d): the map as the card-built world reads it (Terrain.Map):
 /// a map point (col, row) is 2 bytes at (row * 128 + col) * 2 - its height (above the sea, Terrain.Point $CEC2
 /// clamps the sea to 0; world y = height << 4) then the type byte of the cell whose near-left corner it is
 /// (Ground.Draw's a4 = MapOffset1550 - $101: the odd byte of that corner). The point sits at world

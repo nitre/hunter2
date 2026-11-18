@@ -67,8 +67,8 @@ public static class Behaviour
         Nothing(ref d6, ref d4, ref d7);                                     // $27B4
     }
 
-    /// <summary>The player slot an animal/soldier plans against ($2732 writes d4). ENHANCEMENT,
-    /// NOT THE ORIGINAL: one player is always slot 0 - even when slot 0 holds another record
+    /// <summary>The player slot an animal/soldier plans against ($2732 writes d4).
+    /// One player is always slot 0 - even when slot 0 holds another record
     /// after the player died, the original's quirk ($2732 writes slot 0 unconditionally). More
     /// players: the nearest LIVE player (a player slot whose record is alive and not the grave
     /// type $7C, Play.cs $33EC) by FindNearestInRange's measure ($340E/$3454: max of |dx| and
@@ -136,7 +136,7 @@ public static class Behaviour
             if (s.PaceTick) e.B[0x7E] = (byte)(e.B[0x7E] + (byte)((e.B[0x18] | 1) << 2));   // A500 PACE: a turn an A500 pass
             return d6;
         }
-        // ENHANCEMENT (more objects, owner 2026-11-01): a thing awake only in the bigger window stands until it is
+        // ENHANCEMENT (more objects): a thing awake only in the bigger window stands until it is
         // inside the original's - so nothing comes for the player from farther than the original wakes things
         if (s.MoreObjects && e.W(2) != 0 && !Bit(d6, 14) && !Objects.InWindow(s, e, false))   // +2: a map thing (shots have none)
         {
@@ -212,7 +212,7 @@ public static class Behaviour
         d6 &= ~(1 << 30);
         if (d3 <= e.W(0x10) && d5 <= e.W(0x14)) d6 |= 1 << 30;               // $28EC: within range
         if (s.LivingWorld && !Bit(d6, 14) && LivingWorld.Stares(s, e, t))   // ENHANCEMENT (LIVING WORLD): out of its reach -
-        {                                                                    // it turns to watch and stands (owner 2026-11-01)
+        {                                                                    // it turns to watch and stands
             e.SetW(0x3E, 0);
             return d6;
         }
@@ -230,7 +230,7 @@ public static class Behaviour
             var rounds = e.W(0x32);
             e.B[0x1D] = (byte)(rounds > 0 ? 0xFF : 0);
             if (rounds <= 0) d6 |= 1 << 13;                                  // out of rounds: flee
-            // ENHANCEMENT (LIMB DAMAGE + LIVING WORLD, owner): both arms hurt, it cannot fire (FireTimer) - so it flees as
+            // ENHANCEMENT (LIMB DAMAGE + LIVING WORLD): both arms hurt, it cannot fire (FireTimer) - so it flees as
             // one out of rounds does
             else if (s.LimbDamage && s.LivingWorld && Limbs.HurtArms(e) == 2) d6 |= 1 << 13;
         }

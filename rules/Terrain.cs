@@ -62,7 +62,7 @@ public sealed class Terrain
         }
     }
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND): $CB3C's heights before its byte cut - each point's 16-bit
+    /// <summary>(FINER GROUND): $CB3C's heights before its byte cut - each point's 16-bit
     /// sum asr 4, signed. Where it is outside 0..255 the map's byte wrapped (Missions' spikes, byte-limits.md row 1).</summary>
     public static short[] TrueHeights(ushort seed)
     {

@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT step 2, docs/bot-plan.md): a way on foot across the map's 128 x 128 squares
+/// <summary>(the BOT step 2, docs/bot-plan.md): a way on foot across the map's 128 x 128 squares
 /// (512 units each, Terrain.Type 0 = sea), round the sea and up the gentler slopes. A* over the squares, 8 ways, the map's
 /// wrap at 16 bits; a step costs its length plus Climb for each unit of height between the squares' middles
 /// (Ground.Height); he walks up anything, as the game lets him. Blocked squares (type byte bit 7, Settle $2B14) are never
@@ -297,7 +297,7 @@ public static class NearSight
     const double Wet = 20;                // a swum cell costs this many walked: energy goes only in the water (Swimming $B05C)
     /// <summary>Switch for tries (MissionTry sets it by reflection): a swimmer's corners and straight lines through the sea.</summary>
     public static bool SwimStraight = true;    // right by its mechanism (M7's bank, controlled from the old run's pass 35700); the whole
-                                                // runs it re-times are judged by what fails in them, not by the count (owner 11-09)
+                                                // runs it re-times are judged by what fails in them, not by the count
 
     /// <summary>Would the game stop `me` on `e`, board him or take him in (Collisions.Respond for a pair with `me`)?</summary>
     public static bool InTheWay(Entity me, Entity e)

@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND, owner 2026-11-01): a finer, taller height store behind the one
+/// <summary>(FINER GROUND): a finer, taller height store behind the one
 /// sampler Ground.Height ($36AA). N points a map cell side (any power of two, 1..512), so (128 N + 1)^2 points, each a
 /// height in world units as an int (the map byte &lt;&lt; 4 is the original's; here any 0..32767). Point (i, j) sits at
 /// world (i * 512 / N, j * 512 / N); the original's map point (col, row) is (col N, row N).
@@ -92,28 +92,28 @@ public sealed class FineGround
 
     // ------------------------------------------------------------------ growing the points between (FINER GROUND step 3)
 
-    /// <summary>The owner's height factor to start with (2026-11-01: "1.5 was a start"), as a ratio of whole numbers.</summary>
+    /// <summary>The height factor to start with, as a ratio of whole numbers.</summary>
     public const int FactorNum = 3, FactorDen = 2;
     /// <summary>Vista Pro's fractal dimension at its unit scale: "dim 32 = factor 1" (RandomNudge $73CF0-$73CF6 asr 5,
-    /// vistapro-port method_build_land.md 3.6) - its default 100 is three times as rough; the owner wants it gentle.</summary>
+    /// vistapro-port method_build_land.md 3.6) - its default 100 is three times as rough; this keeps it gentle.</summary>
     public const int Dimension = 32;
     /// <summary>Vista's point spacing in its height units: 30 m a point, heights in metres ($19296 LoadVistaDEMHeights
     /// "/30 m per cell", ShowLandscapeInfo's size x 30, WritePNTSChunk's x = col * 30 beside z = the height word). Hunter's
     /// heights and positions share one world unit, so a step of s world units is s / 30 of Vista's points.</summary>
     public const int VistaSpacing = 30;
-    /// <summary>GENTLE (owner: nothing that slows, stops or tips a vehicle): the detail - the fine height less the smooth
+    /// <summary>GENTLE (nothing that slows, stops or tips a vehicle): the detail - the fine height less the smooth
     /// one - stays within +-Gentle world units, a range of 14: under 15, the least hard-landing drop (+$78 = gravity / 2
     /// + 8, ConstructEntity $3230) of anything on land that can land hard (d7 bits 14 and 22: type $02), so not even a
     /// fall from a bump's top into the next hollow lands hard ($2B9C). Points on the squares' edges keep +-EdgeGentle,
     /// even numbers, so each square's detail can sum to exactly zero (EvenOut).</summary>
     public const int Gentle = 7, EdgeGentle = 2;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (RELIEF, owner 2026-11-11: "more height and cliffs"): what the FINER GROUND
+    /// <summary>(RELIEF): what the FINER GROUND
     /// row's words grow - the height factor on the whole, Vista's dimension and the detail's hold. 0 = 2X, today's gentle
-    /// store exactly (every number the owner's of 2026-11-01). HILLS and CLIFFS: taller (2x, 3x - under the 4x the limit
+    /// store exactly (every number of 2026-11-01). HILLS and CLIFFS: taller (2x, 3x - under the 4x the limit
     /// tests prove, FinerGroundLimitTests), rougher (Vista's own default is 100; the nudge's spread on flat ground is about
     /// 0.7 x dim / 4 world units at 2 points, so the dimension follows the hold) and held wider. Past Gentle the detail
-    /// CAN land a thing hard or tip it (the hold is more than the least hard-landing drop, 15): the owner's call. The tilt
+    /// CAN land a thing hard or tip it (the hold is more than the least hard-landing drop, 15). The tilt
     /// byte never wraps at any of them (Objects.TiltAngle holds +-63; Hold stays under 64).</summary>
     public static readonly IReadOnlyList<(string Name, int Num, int Den, int Dim, int Hold)> Reliefs =
     [
@@ -154,7 +154,7 @@ public sealed class FineGround
         return f;
     }
 
-    /// <summary>The map with the byte wrap undone (32 bits, owner 2026-11-01: "that's what 32 bit has been about"): a
+    /// <summary>The map with the byte wrap undone (32 bits): a
     /// point whose true height ($CB3C's 16-bit sum asr 4, Terrain.TrueHeights) is below 0 wrapped past 255 in the byte
     /// cut and stands as a spike (Missions' 12, byte-limits.md row 1) - it is below every sea level, so 0 here. A true
     /// height past 255 would need the sea's sums redone; the three worlds have none (FineGroundGrowTests). The type
@@ -183,15 +183,14 @@ public sealed class FineGround
     // ------------------------------------------------------------------ the land's rise from the sea
 
     /// <summary>The rise's full height: a third of the world's tallest land (1 land point in 100 above it, times the
-    /// factor) - well under its real hills (owner 2026-11-01: "in general yes").</summary>
+    /// factor) - well under its real hills.</summary>
     public const int RiseShare = 3;
     /// <summary>Map cells from the sea at which the rise is half its full height.</summary>
     public const int RiseHalfCells = 6;
     /// <summary>How far the distance is looked for, map cells; past it a point counts as this far.</summary>
     public const int RiseReach = 32;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-01: "all islands have a natural gradient ... if they were
-    /// really flat at sea level they'd be gone"): measured, 40-50% of the land is flat at the sea's level. Each of the
+    /// <summary>measured, 40-50% of the land is flat at the sea's level. Each of the
     /// original's points rises by its distance d from the sea, R d / (d + RiseHalfCells): 0 on the coast, half way
     /// RiseHalfCells cells in, easing towards R = the tallest land / RiseShare - so a small island stays low and a big one
     /// climbs. d: from the point to the nearest point that touches a sea square (type 0) or the map's edge, straight

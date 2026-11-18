@@ -16,8 +16,8 @@ public static class Items
     /// <summary>Multiplayer piece 4: every table access is the touching player's own pack.</summary>
     static byte[] T(WorldState s, int n) => s.PlayerAt(n).Items;
 
-    /// <summary>TouchItem ($A240). Multiplayer: n = the touching player (ENHANCEMENT, NOT THE
-    /// ORIGINAL; its $A37C LoadWeapon); 0 is the original.</summary>
+    /// <summary>TouchItem ($A240). Multiplayer: n = the touching player
+    /// (its $A37C LoadWeapon); 0 is the original.</summary>
     public static void Touch(WorldState s, Entity e, int n = 0)
     {
         var was = s.Flags0A5 & 2;                                            // $34F6: once per contact

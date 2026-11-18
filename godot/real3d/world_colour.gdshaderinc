@@ -57,8 +57,7 @@ vec3 view_nib_fire(int i) {
     return nibbles(death_step > 0 ? death_faded(c, death_step) : c);
 }
 
-// ENHANCEMENT, NOT THE ORIGINAL (SKY: SMOOTH's time of day, owner 2026-11-12: "proper golden/blue hour data", "simple
-// maths"; docs/sky-reference.md): the sky's six colours (sky_raw 0..5, top to the horizon) worked out from the sun's HEIGHT
+// (SKY: SMOOTH's time of day; docs/sky-reference.md): the sky's six colours (sky_raw 0..5, top to the horizon) worked out from the sun's HEIGHT
 // (tod_elev, degrees: the game's sun curve carried on past 06:00 and 20:00, Real3DView.SunPath) and the pixel column's
 // DIRECTION from it (tod_d) - day (10 degrees up and more) exactly the original's; golden hour (10 .. 0) the sun's side
 // warming to red-orange at the horizon; civil twilight (0 .. -6, the blue hour at -4 .. -6) a deeper blue (ozone's
@@ -114,7 +113,7 @@ vec3 tod_lit(vec3 n) {
     return nibbles(death_step > 0 ? death_faded(f, death_step) : f);
 }
 
-// The water's own colour lit by the sky (owner: "influenced intelligently by the sky but not be a coarse gimmick"): the
+// The water's own colour lit by the sky: the
 // original sea colour (sky_raw 6 at full light) times the whole sky's light now over its light by day - mostly how bright,
 // a quarter of its hue. The whole sky: every band toward, across and away from the sun.
 vec3 tod_sea_nib() {
@@ -134,8 +133,8 @@ vec3 sky_nib_x(int k, float fx) {
     return k >= 6 ? tod_sea_nib() : tod_lit(tod_band(k, tod_d(fx)));
 }
 
-// ENHANCEMENT, NOT THE ORIGINAL (SKY: SMOOTH on the card, full colour): the original's six bands, no steps between
-// (owner 2026-10-30: "Six bands is obviously better" - sub-bands looked unintended), each line halfway between the
+// (SKY: SMOOTH on the card, full colour): the original's six bands, no steps between
+// - each line halfway between the
 // original's and an even spread from the view's top to the horizon (rules/Sky.cs SmoothBands), so the sky lightens
 // all the way down. The horizon's line stays. 0..255 a channel; CheckSky.AgaRef is the same.
 int sky_smooth_row(int height, int k) { int h = sky_band_row(height, 5); return (sky_band_row(height, k) + h * k / 5) / 2; }
@@ -146,7 +145,7 @@ vec3 sky_six_at(int y, int height, float fx) {                      // the livin
     return c;
 }
 
-// ENHANCEMENT, NOT THE ORIGINAL (SKY: SMOOTH, the sky itself): owner 2026-11-01 picked 10 bands from a mock-up. View row 0
+// (SKY: SMOOTH, the sky itself): picked 10 bands from a mock-up. View row 0
 // down to the horizon line; each band 0.8 the height of the one above (edges on whole game rows); colours evenly in OKLab
 // from the top colour to the horizon's paler one (band 5 (the last sky band) colour mixed 0.25 toward its brightest channel), each
 // channel rounded to the Amiga's 12-bit (a multiple of 17). Below the horizon the sea's colour. rules/Sky.cs TenEdges, TenColours.
@@ -208,11 +207,10 @@ vec3 sky_sea_rgb8(float y, float fx) { return sky_steps ? sky_six_at(int(floor(y
 
 vec3 world_albedo(int idx, vec4 fragcoord) { return to_linear(world_rgb8(idx, fragcoord) / 255.0); }
 
-// ENHANCEMENT, NOT THE ORIGINAL (row HAZE, the card-drawn 3D view): a thing depth world units ahead of the eye fades
-// toward the light sky just above the horizon (sky_nib(5); owner 2026-10-30: the sea's dark blue made the far half
-// much darker than the original), over the last quarter before the view's far edge (haze_far, Real3DView: the chosen
+// (row HAZE, the card-drawn 3D view): a thing depth world units ahead of the eye fades
+// toward the light sky just above the horizon (sky_nib(5)), over the last quarter before the view's far edge (haze_far, Real3DView: the chosen
 // 3D VIEW DISTANCE's last row) to all the way there - only enough to hide things coming in; nearer, things keep their
-// own colours (owner 2026-11-01; was from halfway).
+// own colours (was from halfway).
 // BANDS: 4 clear steps; FINE: every step the colours allow - the A500's 16 levels a channel, the A1200's 256
 // (COLOURS). Off (haze_mode 0) and indoors: the colour as it is.
 uniform int haze_mode = 0;                       // 0 off, 1 bands, 2 fine
@@ -229,7 +227,7 @@ vec3 world_hazed8(int idx, vec4 fragcoord, float depth) {        // 0..255 a cha
     float f = haze_amount(depth);
     if (f <= 0.0) return c;
     vec3 m = mix(c, sky_nib_x(5, fragcoord.x) * 17.0, f);
-    return floor(m + 0.5);                                         // full colour (owner 2026-10-28)
+    return floor(m + 0.5);                                         // full colour
 }
 
 vec3 world_hazed(int idx, vec4 fragcoord, float depth) { return to_linear(world_hazed8(idx, fragcoord, depth) / 255.0); }
@@ -240,13 +238,12 @@ vec3 world_lit_hazed(int idx, vec4 fragcoord, float depth, float lit_light) {
     return to_linear(floor(mix(lit_rgb, sky_nib_x(5, fragcoord.x) * 17.0, haze_amount(depth)) + 0.5) / 255.0);
 }
 
-// ENHANCEMENT, NOT THE ORIGINAL (setting SEA: LIVING, the card's sea, owner's picks 2, 3 and 4 of the eight sea ideas,
-// 2026-10-27; rethought 2026-10-28): the sea was ONE flat colour - index 16, the last sky band, the same everywhere.
+// Setting SEA: LIVING, the card's sea (ideas 2, 3 and 4 of the eight sea ideas): the sea was ONE flat colour - index 16, the last sky band, the same everywhere.
 // Now each pixel's colour is worked out from the hour's own sea colour, so it darkens with the daylight: out at sea
 // the original's colour, lighter in the shallows by the coast (2), two slow crossing waves lighten and darken it,
 // quiet, not a storm (3), and near the horizon the water mirrors the sky actually drawn about the eye line, so dawn
 // water looks like dawn (4); the haze takes the result as every other colour. Full colour, 256 levels a channel,
-// (owner 2026-10-28: the card is never held to the A500's levels; SEA: ORIGINAL is the original).
+// (SEA: ORIGINAL is the original).
 // world.gdshader passes the pixel's world x and z (at: the map's x and minus its z, as the ground mesh); fragcoord
 // as everywhere here (world_rgb8).
 uniform bool sea_living = false;      // SEA: ORIGINAL (index 16, flat) / LIVING / CYCLING (also true for CYCLING)
@@ -256,7 +253,7 @@ uniform float sea_deep = 1200.0;      // (2) world units from the coast: the sha
 uniform float sea_shallow_lift = 1.6; // (2) the shallows: the sea's colour times this at the coast
 uniform float sea_wave_depth = 0.10;  // (3) the waves lighten / darken the colour by up to this share
 uniform float sea_mirror = 62.0;      // (4) game rows below the eye line over which the sky mirrors (its own 62)
-uniform float sea_mirror_share = 0.8; // (4) how much of the sky it mirrors at the eye line (owner 2026-11-01: the bands a little less)
+uniform float sea_mirror_share = 0.8; // (4) how much of the sky it mirrors at the eye line
 uniform float sea_mirror_wobble = 6.0; // (4) CYCLING: game rows the ripple moves the mirrored row up or down
 uniform sampler2D shore_tex : filter_linear, repeat_disable;   // (2) rules/ShoreDistance per cell, 0..1 of shore_far
 uniform float shore_far = 2048.0;     // ShoreDistance.Far
@@ -284,7 +281,7 @@ vec3 sea_rgb8(vec4 fragcoord, vec2 at, float depth) {
     } else
     sea_rgb = mix(min(sea_open * sea_shallow_lift, vec3(255.0)), sea_open, clamp(sea_shore / sea_deep, 0.0, 1.0));   // (2) pale by the coast, the original's out at sea
     float sea_down = clamp((sea_row - sea_eye) / (sea_mirror * gpu_px), 0.0, 1.0);                                  // (4) 0 at the eye line, 1 at sea_mirror rows down
-    // the ripple breaks the mirror by the shore (owner 2026-11-01: "ripples close to shore"): clean horizontal bands on
+    // the ripple breaks the mirror by the shore: clean horizontal bands on
     // the open sea, its strength and its row wobbling with the ripple in the shallows
     float sea_near = 1.0 - clamp(sea_shore / sea_deep, 0.0, 1.0);
     float sea_mirror_amount = sea_mirror_share * (1.0 - sea_down) * mix(1.0, 0.6 + 0.2 * (sea_ripple + 1.0), sea_near);

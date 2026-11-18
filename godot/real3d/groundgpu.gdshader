@@ -93,7 +93,7 @@ void vertex() {
         POSITION = vec4(2.0, 2.0, 2.0, 1.0);          // nothing drawn: outside the window, an empty slot, or flat water past its one piece
         tag = 0.0;
     } else if (water) {
-        // ENHANCEMENT (the 3D view's coast, owner 2026-10-27): the water DrawView never draws - a type-0 cell whole,
+        // ENHANCEMENT (the 3D view's coast): the water DrawView never draws - a type-0 cell whole,
         // a coast shape's other half - flat at the sea's level (Terrain's clamp, always 0) in the sea's own tag 16
         // (world_colour idx 16 = sky_nib(6), the sea plane's Real3DView force_idx), no sun on it and no cutting:
         // piece 0 draws the whole slot however many cuts.

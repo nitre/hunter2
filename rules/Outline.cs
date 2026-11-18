@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): a face's corners in order round it. A face lists
+/// <summary>(renderer = 3d): a face's corners in order round it. A face lists
 /// EDGE numbers; each edge is a pair of corner numbers at edgesAt + 2. From edge 0, take the next unused edge
 /// that shares the end corner, until back at the start. A repeated edge is never walked twice. 12 of objfile's
 /// 2584 filled faces are open chains (8 of them a single edge): the 3D view closes the gap / draws the line;

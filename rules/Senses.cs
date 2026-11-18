@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT's senses and memory, docs/bot-brain.md 1 and its step 1 plan): everything
+/// <summary>(the BOT's senses and memory, docs/bot-brain.md 1 and its step 1 plan): everything
 /// the brain knows comes through here, and only what a player could know - what is in sight (on the original's screen,
 /// InView, and not behind a wall, Arms.Sees), the message line (WorldState.Heard, understood by template), the log book's
 /// places, the drone's map (OnDroneMap), and his own memory. One NOTE per thing he has seen (Thief's sense links, Halo 2's
@@ -52,7 +52,7 @@ public sealed class Senses
     public List<Line> Lines { get; } = [];
     public IEnumerable<Note> Notes => notes.Values;
 
-    // ---- VEHICLE MEMORY (owner 11-08: flag them, never forget them - docs/bot-brain.md "VEHICLE MEMORY PLAN") ----
+    // ---- VEHICLE MEMORY ----
     public enum CarState { Parked, Mine, NoUse, Gone }
 
     /// <summary>One vehicle he knows of, kept for good: its type, where he last knew it, its slot when last seen (the game
@@ -103,12 +103,12 @@ public sealed class Senses
         c.State = nowhere ? CarState.NoUse : CarState.Parked;
     }
 
-    /// <summary>The drone's looks (owner 11-08: he launches it for real, docs/bot-brain.md): where each was launched from,
+    /// <summary>The drone's looks: where each was launched from,
     /// and the guns and targets its map showed then (vehicles go to Cars) - known only after a look, held as he saw them.</summary>
     public List<(int X, int Z)> Looks { get; } = [];
     public List<(int Type, int X, int Z)> Looked { get; } = [];
 
-    /// <summary>The map squares he has seen (SCOUTING, owner 11-09): each whose middle was on his screen (InView), and each a
+    /// <summary>The map squares he has seen (SCOUTING): each whose middle was on his screen (InView), and each a
     /// drone look showed - what he has looked over for vehicles.</summary>
     readonly bool[] seen = new bool[Navigate.Size * Navigate.Size];
     static int Sq(int x, int z) => ((ushort)z >> 9 & (Navigate.Size - 1)) * Navigate.Size + ((ushort)x >> 9 & (Navigate.Size - 1));
@@ -200,10 +200,10 @@ public sealed class Senses
             }
     }
 
-    /// <summary>On his screen as the ORIGINAL shows it (owner 11-08: the original's, not the card's view distance): Place's
+    /// <summary>On his screen as the ORIGINAL shows it: Place's
     /// box ($4216, the +$1C mark - ViewDistance.InView at 7 rows equals it, ViewDistanceTests): 1024 either side of the
     /// camera, out to 3072 north of it, nothing behind - the camera sits south of him ($374C). The port's view turns round him
-    /// (Q / E, ViewAngle1, owner 11-08): the point is turned back by it about him, then the original's box.</summary>
+    /// (Q / E, ViewAngle1): the point is turned back by it about him, then the original's box.</summary>
     public static bool InView(WorldState s, int x, int z, int near72)
     {
         if (s.ViewAngle1 != 0)

@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (LIMB DAMAGE, owner 2026-11-03, WorldState.LimbDamage, off by default; jobs/limb_damage).
+/// (LIMB DAMAGE; jobs/limb_damage).
 /// A bullet ($52, tracer $5F) hitting a person ($1E-$2F) picks the part hit by where it is on the victim's box, which the
 /// original's test gives (Collisions.Overlap: y from +$4C to +$4C + 2 * +$70; the shot's own +$4C is its height, clamped):
 ///   height 0 - 0.45 legs, 0.45 - 0.8 body, above that the head;

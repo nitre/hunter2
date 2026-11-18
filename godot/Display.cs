@@ -6,7 +6,7 @@ namespace Hunter;
 /// <summary>How the 320 x 200 game picture fills the window. "pal" draws it as the original sat
 /// on a PAL TV: the picture at the top of a 320 x 256 frame (the 56 spare lines black below), the
 /// whole frame shown 4:3, so one game pixel is 4/3 / (320/256) = 16/15 times as wide as tall.
-/// "centred", the default (owner 2026-10-28): the same 16/15 pixels without the spare lines, the
+/// "centred", the default: the same 16/15 pixels without the spare lines, the
 /// 320 x 200 picture alone in the middle. "stretched": square pixels, 320 x 200 at the largest
 /// whole scale. Nearest-neighbour in every look; each places the picture itself (Apply), so the
 /// window renders at its own resolution and the F1 key list (HelpOverlay) can be crisp over it.

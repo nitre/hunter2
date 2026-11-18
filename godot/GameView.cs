@@ -54,7 +54,7 @@ public partial class GameView : Node2D
     // the in-game options screen ($2164, Esc) and Quit Game's confirm ($21F2); not null while shown
     OptionsScreen? options;
 
-    /// <summary>ENHANCEMENT (options design B, owner 2026-11-01): the in-game options as one menu over the paused game
+    /// <summary>ENHANCEMENT (options design B): the in-game options as one menu over the paused game
     /// (OptionsOverlay over rules/OptionsPanel.cs); pausedShot is the window's picture as Esc stopped play. Scripted
     /// runs keep the original's options screen (their clicks are at its buttons).</summary>
     OptionsOverlay? optionsB;
@@ -143,11 +143,11 @@ public partial class GameView : Node2D
     {
         data = d;
         ui = Ui.Load(d.Directory);
-        // ENHANCEMENT (DEMO WORLD: WILD, or a recording's HUNTER_WILD / run_game --wild; owner 2026-11-01/02): the demo plays the
+        // ENHANCEMENT (DEMO WORLD: WILD, or a recording's HUNTER_WILD / run_game --wild): the demo plays the
         // fullest world, groups beside its own route and the way kept clear (Wild, DemoRoute) - its route holds to pass 13782
-        // of 16054 (DemoRouteTests), then the last part plays out its own way (owner: accepted)
+        // of 16054 (DemoRouteTests), then the last part plays out its own way
         var fuller = demo ? (Settings.WildDemo || System.Environment.GetEnvironmentVariable("HUNTER_WILD") is not null ? 4 : 0) : Settings.FullerWorld;
-        // ENHANCEMENT (GROUND SEED, owner 2026-11-11): a new game with finer ground grows its detail from the world's own seed
+        // ENHANCEMENT (GROUND SEED): a new game with finer ground grows its detail from the world's own seed
         // (WORLD), a fresh one (RANDOM: drawn here, remembered for LAST, printed so it can be typed back) or the last one
         // (LAST; none yet: the world's). Never the demo (its own ground is the original's). The relief (2X / HILLS / CLIFFS)
         // rides with it; a loaded game's save carries both.
@@ -161,14 +161,14 @@ public partial class GameView : Node2D
         play = loaded is null ? new Play(d, mode, soldier: soldier, fullerWorld: fuller, players: Settings.Players, maths32: Settings.Maths32, finerGround: demo ? 0 : Settings.FinerGround, fixSpikes: Settings.FixSpikes, groundSeed: groundSeed, relief: Settings.GroundRelief) { AnimEveryBlanks = A500PassBlanks }   // ENHANCEMENT: the fuller world, the player's new games only - a demo is a new game too and plays its authored world; a loaded game's grid is the saved one; players = 2 spawns the second soldier (mp_two_soldiers)
                               : new Play(d, loaded) { AnimEveryBlanks = A500PassBlanks };
         if (demo) Rules.Demo.Start(play.State);                                        // RunDemo $22D6
-        // ENHANCEMENT (owner 2026-11-12: "no reason to be tethered"): the demo follows the plain demo's route (rules/DemoFollow.cs)
+        // ENHANCEMENT: the demo follows the plain demo's route (rules/DemoFollow.cs)
         // - the recording's own input while he is exactly where it had him (nothing changed: the original, blank for blank), the
         // bot's body back onto the route and the key moments waited for once an extra moves him
         if (demo) play.Follow = new DemoFollow.Follower(DemoFollow.Plain(d));
-        // ENHANCEMENT (recordings, HUNTER_HOUR / run_game --hour, owner 2026-11-02: long shadows): a new game or the demo
+        // ENHANCEMENT (recordings, HUNTER_HOUR / run_game --hour): a new game or the demo
         // starts at this hour, not the world file's 09:00; Panel.Hour sets the hour's light as an hour tick does. In play the
         // clock feeds only the mission deadline and the brightness, so the demo keeps its route (docs/promo.md)
-        // ENHANCEMENT (DEMO AFTERNOON, owner 2026-11-18: "For lighting forget fast day just set it in the afternoon"): the attract
+        // ENHANCEMENT (DEMO AFTERNOON): the attract
         // demo starts at 13:00, not 09:00; its ~4 h 40 of game time ends near 17:40, still in the table's full or near-full light
         // ($C4A4: hours 10-15 at 15, 16 at 14, 17 at 13). The clock runs at the original's pace.
         if (demo && loaded is null && Settings.DemoAfternoon)
@@ -183,7 +183,7 @@ public partial class GameView : Node2D
         }
         if (demo && System.Environment.GetEnvironmentVariable("HUNTER_ORIGINAL_PACE") is null)   // recordings only: the original's own pace
         {
-            play.Smooth = true;                                                  // ENHANCEMENT: in-between pictures (Play.Smooth.cs); always on now - smooth_demo's row is gone (owner 2026-10-23)
+            play.Smooth = true;                                                  // ENHANCEMENT: in-between pictures (Play.Smooth.cs); always on now - smooth_demo's row is gone
         }
         ApplySettings(play, demo, fuller);
         // Verification only (headless runs, never in a settings file): HUNTER_START=x:z carries
@@ -238,17 +238,17 @@ public partial class GameView : Node2D
         play.SkySteps = Settings.SkySteps;                                       // ENHANCEMENT: the stepped sky gradient, every play (game and demo)
         play.AnalogSteering = !demo && Settings.AnalogSteering;                 // ENHANCEMENT: a stick's lean turns a vehicle by as much; never the attract demo
         play.AimReticle = !demo && Settings.AimReticle;                       // ENHANCEMENT: on foot the soldier turns to the reticle, the shot goes under it; never the attract demo
-        play.LimbDamage = false;                                                 // LIMB DAMAGE amputated for now (owner 11-08: "we aren't at that level") - its code (rules/Limbs.cs) kept, off everywhere, a saved "on" ignored
-        // The attract demo is the recording exactly (owner 2026-11-18: "The attract has a set run"): the four extras that change
+        play.LimbDamage = false;                                                 // LIMB DAMAGE amputated for now - its code (rules/Limbs.cs) kept, off everywhere, a saved "on" ignored
+        // The attract demo is the recording exactly: the four extras that change
         // play (bullet box, fine tilt, A500 pace, straight moves) are never in it - each loses the recording its way and the
         // follower then steers a different world (the wiggle, the shed's items missed, the tank lost). Picture extras stay on.
         play.BulletBox = !demo && Settings.BulletBox;                          // ENHANCEMENT (BULLET BOX): a small bullet box; never the attract demo
         play.FineTilt = !demo && Settings.FineAngles;                          // ENHANCEMENT (FINE ANGLES): the ground tilt from the exact heading; never the attract demo (its picture's fine angles stay, Gpu.FineAngles)
         play.A500Pace = !demo && Settings.A500Pace;                            // ENHANCEMENT (A500 PACE): once-a-pass rules at the A500's pace; never the attract demo
         play.FarView = !demo && Settings.FarView && Settings.Renderer != "3d";   // ENHANCEMENT: the farther ground and object view - never in the demo (it keeps far things live: the recording lost its way at pass 2432, DemoTests); the flat picture's row only - with the 3D world its row is hidden (SettingsMenu.Shown), so a saved FAR no longer changes the game unseen (it widens the in-view box, Objects $4216, and so what is written back)
-        play.Maths32 = Settings.Maths32; play.StraightMoves = !demo && Settings.StraightMoves; play.LeaveBehind = !demo && Settings.LeaveBehind; play.EarlyHqBack = Settings.EarlyHqBack; play.BoatsAlongShore = !demo && Settings.BoatsAlongShore;                             // ENHANCEMENT: the upgrade's 32-bit maths, every play (game and demo - owner 2026-10-27: the demo has the latest)
-        play.RoomyMemory = Settings.RoomyMemory || Settings.MoreObjects || (fuller > 0);   // more objects needs it too: without it a full cell's records are freed unstored at a save or quit (WriteBackAllIfOnFoot)   // ENHANCEMENT: the lifted memory squeezes, every play (game and demo - owner 2026-10-27: the demo has the latest); a fuller world needs them - its full cells would keep far things live for ever (owner 2026-10-28: "Yes seems logical")
-        play.MoreObjects = Settings.MoreObjects || fuller > 0;   // ENHANCEMENT: more live things and a bigger live area; a fuller world needs the room (its busiest 2x2 holds up to 32 records, the original has 29 free slots). The demo too since far-held things wake afresh (owner 2026-11-01; DemoTests keeps it on course)
+        play.Maths32 = Settings.Maths32; play.StraightMoves = !demo && Settings.StraightMoves; play.LeaveBehind = !demo && Settings.LeaveBehind; play.EarlyHqBack = Settings.EarlyHqBack; play.BoatsAlongShore = !demo && Settings.BoatsAlongShore;                             // ENHANCEMENT: the upgrade's 32-bit maths, every play (game and demo)
+        play.RoomyMemory = Settings.RoomyMemory || Settings.MoreObjects || (fuller > 0);   // more objects needs it too: without it a full cell's records are freed unstored at a save or quit (WriteBackAllIfOnFoot)   // ENHANCEMENT: the lifted memory squeezes, every play (game and demo); a fuller world needs them - its full cells would keep far things live for ever
+        play.MoreObjects = Settings.MoreObjects || fuller > 0;   // ENHANCEMENT: more live things and a bigger live area; a fuller world needs the room (its busiest 2x2 holds up to 32 records, the original has 29 free slots). The demo too since far-held things wake afresh (DemoTests keeps it on course)
         play.LivingWorld = demo ? fuller >= 4 : Settings.LivingWorld;           // ENHANCEMENT: LIVING WORLD - the player's games (new or loaded); the demo only in the wild cut (its recorded steering would lose the way)
         play.MessageLog = Settings.MessageLog;                                   // ENHANCEMENT: the scroll-back message window, every play (game and demo)
         play.Graves = Settings.Graves;                                           // ENHANCEMENT: graves on paid deaths, every play (game and demo)
@@ -286,8 +286,7 @@ public partial class GameView : Node2D
     Real3DView? real3d;
     /// <summary>Recording only (HUNTER_SPIN, radians a frame): the 3D view turns by itself for a demo clip.</summary>
     /// <summary>Recording only (HUNTER_SWAY "turn:seconds", e.g. "0.6:40"): the 3D view swings slowly up to turn radians
-    /// to each side of the game's camera and back, once every seconds of game time (owner 2026-10-31: slow camera
-    /// angle changes in the attract video). The view only: the demo's input and the game's camera are untouched.</summary>
+    /// to each side of the game's camera and back, once every seconds of game time. The view only: the demo's input and the game's camera are untouched.</summary>
     readonly (float Turn, float Seconds) sway3d = System.Environment.GetEnvironmentVariable("HUNTER_SWAY") is { } sw
         && sw.Split(':') is [var a, var b]
         && float.TryParse(a, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var turn)
@@ -318,7 +317,7 @@ public partial class GameView : Node2D
             var lvl = FineGround.Reliefs[Math.Clamp(Settings.GroundRelief, 0, FineGround.Reliefs.Count - 1)];
             fine = FineGround.Grow(play.State.Terrain, seed, Settings.FinerGround, lvl.Num, lvl.Den, seed, lvl.Dim, lvl.Hold);
         }
-        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies)));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
+        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
         var card = real3d.Gpu;
         if (pictureOnly) card.PictureLift = (x, z) => fine!.Height(x, z) - play.State.Ground.Height(x, z);
         Objects.Exploded = (record, from) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
@@ -345,8 +344,7 @@ public partial class GameView : Node2D
     /// <summary>Recording only (HUNTER_SHOWCASE, with renderer = 3d): the demo as a showcase that moves on a step
     /// each time the player gets in or out of something (his record's type changes): 0 the original flat
     /// picture, 1 the 3D view, 2 the 3D view opening to the window's width like curtains (3 s), 3 the camera
-    /// circling (a step also comes after 3 s with no change, so a quiet stretch still moves on; owner: the
-    /// camera waited too long to turn). Prints each step with its frame (HUNTER_SOUND_LOG's clock), so the clip can start at play.</summary>
+    /// circling (a step also comes after 3 s with no change, so a quiet stretch still moves on). Prints each step with its frame (HUNTER_SOUND_LOG's clock), so the clip can start at play.</summary>
     readonly bool showcase = System.Environment.GetEnvironmentVariable("HUNTER_SHOWCASE") is not null;
     int showStep = -1, showType, showAt;
     float showWide;
@@ -394,7 +392,7 @@ public partial class GameView : Node2D
     readonly bool checkFeed = System.Environment.GetEnvironmentVariable("HUNTER_CHECK_FEED") is not null;
     int feedFrames, feedBad, feedFirstBad = -1;
     string feedFirstLine = "";
-    const bool ShowcaseWidens = false;                                       // owner 2026-10-25: no widescreen for now; true brings the curtains back
+    const bool ShowcaseWidens = false;                                       // No widescreen for now; true brings the curtains back
 
     void ShowcaseStep()
     {
@@ -574,7 +572,7 @@ public partial class GameView : Node2D
         gpuSky.Steps = play.SkySteps;
         rawView ??= System.Array.ConvertAll(data.PaletteBanks[2], c => (int)c);       // made once: the bank and the sky's colours never change
         rawSky ??= System.Array.ConvertAll(gpuSky.Colours, c => (int)c);
-        // ENHANCEMENT (owner 2026-11-01: the fades made simple): the 3D view's own fade - the game's fade level dims the
+        // ENHANCEMENT: the 3D view's own fade - the game's fade level dims the
         // whole picture; on the way down the last picture is held (nothing new drawn), on the way up the new scene shows
         var fade = play.ScreenFade;
         if (fade < fadeWas) { if (!hold3d) heldAt = fadeWas; hold3d = true; }   // held only while it falls: a single step down that stays (the
@@ -1370,7 +1368,7 @@ public partial class GameView : Node2D
     /// table at once ($34C0). So while play runs the window holds the cursor (captured) and the pointer moves by the
     /// movement, in game pixels; leaving play puts the Windows cursor where the game's pointer is.</summary>
     /// <summary>The screen row the pointer is drawn at: in play the panel's (140 + its row), on a screen the mouse's.
-    /// ENHANCEMENT (owner 2026-11-01): in the attract demo it is drawn at the screen's bottom edge, out of the way - the
+    /// ENHANCEMENT: in the attract demo it is drawn at the screen's bottom edge, out of the way - the
     /// picture only, the game's own pointer is untouched.</summary>
     int PointerRowDrawn() => play.Mode != PlayMode.Play ? mouseY : Demo ? 199 : Math.Max(mouseY, Play.PanelTop);
 
@@ -1616,7 +1614,7 @@ public partial class GameView : Node2D
     /// itself); -1 = the row is not shown (no Playtest: not a play-test session).</summary>
     int settingsDebugRow = -1;
 
-    /// <summary>The DEBUG page's kinds, in click order (owner 2026-10-29).</summary>
+    /// <summary>The DEBUG page's kinds, in click order.</summary>
     static readonly string[] DebugKinds = ["BUG (GAMEPLAY)", "BUG (LOOKS)", "SOUND", "IDEA", "NOTE"];
 
     /// <summary>The words' length (keystrokes) and how many letters the page shows: the last part when long, all kept.</summary>
@@ -1721,7 +1719,7 @@ public partial class GameView : Node2D
 
     /// <summary>A click's chosen display word, applied onto the shell's own Settings - whose
     /// setters save the cfg file as they set (godot/Settings.cs). The words are the rules table's
-    /// (SettingsMenu.Values, which the click wrapped to); fullscreen applies at once (owner).</summary>
+    /// (SettingsMenu.Values, which the click wrapped to); fullscreen applies at once.</summary>
     void SettingsApply(string key, string label)
     {
         ApplySetting(key, label, play);
@@ -1747,8 +1745,7 @@ public partial class GameView : Node2D
         foreach (var (key, word) in SettingsMenu.AsItCouldBe) ApplySetting(key, word, null);
     }
 
-    /// <summary>The Windows test release's first start (export feature "modern_default", owner 2026-11-12: "Full modern
-    /// default"): no question - AS IT COULD BE (the pixel size following the window, safest on another machine's card),
+    /// <summary>The Windows test release's first start (export feature "modern_default"): no question - AS IT COULD BE (the pixel size following the window, safest on another machine's card),
     /// with the sharks and subs whole too (left out of it only for the first start's box).</summary>
     public static void ApplyModernDefault()
     {
@@ -1824,7 +1821,7 @@ public partial class GameView : Node2D
             case "pause_on_focus_loss": Settings.PauseOnFocusLoss = label == "ON"; break;
             case "manual_button": Settings.ManualButton = label == "ON"; break;
             case "quit_button": Settings.QuitButton = label == "ON"; break;
-            case "fullscreen":                                        // applies at once (owner)
+            case "fullscreen":                                        // applies at once
                 Settings.Fullscreen = label == "ON";
                 DisplayServer.WindowSetMode(label == "ON" ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
                 break;

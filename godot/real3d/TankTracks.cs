@@ -4,9 +4,7 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (owner 2026-11-12: "add tracks to tanks"; the parked idea of 2026-11-01: "the two tank
-/// models' black track panels drawn as a track - link lines moving with the speed, round road wheels - easy enough without
-/// over engineering"): the card's copy of both tanks ($15 kind $03, $16 kind $04) gets, on each black track panel,
+/// <summary>the card's copy of both tanks ($15 kind $03, $16 kind $04) gets, on each black track panel,
 ///   ROAD WHEELS - a row of grey discs proud of the panel, each its own spin-x part on channel 0 (a pivot flagged $10 at the
 ///     disc's centre, the disc both ways round and a black bowtie from the hub that shows the turn), their
 ///     lowest point 12 over the hull's bottom, so the ground fit (fixed corners within 3 of the lowest) is the original's;
@@ -15,8 +13,7 @@ namespace Hunter;
 ///     flagged $30 | (L - 1) << 2, the next B = A + D is the run's pitch, and every corner after slides by
 ///     D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - the links repeat every pitch, so the pattern
 ///     moves without end. L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
-///   CLODS (owner 2026-11-12: "flick tiny pieces of ground up off the back of the tracks", for now in place of the marks
-///     left on the ground; 11-17: "they should come off back of tread in a small arc behind it.. think of the physics"):
+///   CLODS:
 ///     three small brown triangles a track, each a CLOD part (kind 5, card only): let go at the top of the track's rear where
 ///     it wraps round the last wheel, a small hop, then down to the ground and left behind by the tank's speed (channel 1),
 ///     each at its own share of a throw that takes FLING_BLANKS of the game's clock; still, at rest just inside the track's top
@@ -92,8 +89,8 @@ public static class TankTracks
                 var (h, w) = (t.Sides / 2, Math.Max(1, t.Sides / 8));       // a wedge spans an eighth of the rim
                 pile.Face(Wheel, ring);
                 pile.Face(Wheel, ring.Reverse().ToArray(), 0x80);
-                pile.Face(Band, [hub, .. Enumerable.Range(1, w + 1).Select(k => ring[k])], 0x80);       // the BOWTIE (owner 2026-11-12: "bow tie look beats
-                pile.Face(Band, [hub, .. Enumerable.Range(h + 1, w + 1).Select(k => ring[k])], 0x80);   // band"): two opposite black wedges from the hub
+                pile.Face(Band, [hub, .. Enumerable.Range(1, w + 1).Select(k => ring[k])], 0x80);       // the BOWTIE: two opposite black wedges
+                pile.Face(Band, [hub, .. Enumerable.Range(h + 1, w + 1).Select(k => ring[k])], 0x80);   // from the hub
             }
         // the links: a belt part a run, a side
         foreach (var side in new[] { 1, -1 })
@@ -149,7 +146,7 @@ public static class TankTracks
             origins[t.Model] = (origins.TryGetValue(t.Model, out var old) ? old : Enumerable.Range(0, nf).ToArray()).Concat(pile.Faces.Select(_ => Origin)).ToArray();
     }
 
-    // THE BICYCLE'S CHAIN (owner 2026-11-12: "small tank tread can also work for bicycle chain"): the same belt part, on channel 2 -
+    // THE BICYCLE'S CHAIN: the same belt part, on channel 2 -
     // the channel the ridden bicycle's wheels spin on (set 11: a steady eighth of a turn a step while it moves, at rest when it
     // stops, $56D0). A dashed black line on the right side (x 3) round the rear sprocket (hub z -45, radius 4) and the chainring
     // (the bottom bracket z 17, radius 8): the top run moves forward to the chainring, the bottom run back, a dash 3 long every 6.

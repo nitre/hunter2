@@ -20,8 +20,8 @@ uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (R
 uniform bool glass = false;                       // GLASS: see-through windows (GpuWorld sets it; meta bit 12 marks the faces)
 const float GLASS_SEE = 0.35;                     // how much of the glass's own colour shows (the rest is what is behind it)
 const vec3 GLASS_TINT = vec3(0.85, 0.93, 1.1);    // the pane's light grey, a little blue
-const float GLASS_MILITARY = 0.5;                 // a military machine's panes (MODEL COLOURS machines) twice as dark
-varying flat float glass_dark;
+varying flat float glass_dark;                    // a military machine's panes: their brightness (GpuWorld.OwnTints Glass; 1 the pale glass)
+varying flat float glass_see;                     // ...and how much of the pane shows (OwnTints Opaque; GLASS_SEE otherwise)
 
 varying flat float tag;
 varying float depth_;                             // HAZE: how far ahead of the eye (POSITION.w)
@@ -90,7 +90,9 @@ void vertex() {
         // of grey; the sun alone shades the faces apart
         bool military = texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 0), 0).a > 0.75;
         if (tinted && military) { col = int(texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 1), 0).r + 0.5); painted = false; }   // its Base (GpuWorld.OwnTints)
-        glass_dark = military ? GLASS_MILITARY : 1.0;              // GLASS: a military machine's panes twice as dark
+        vec4 own1 = texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 1), 0);
+        glass_dark = military ? own1.g : 1.0;                      // GLASS: a military machine's window tint (GpuWorld.OwnTints)
+        glass_see = military ? own1.b : GLASS_SEE;
         own_light = 1.0;
         if (!fire && sun_shading && sun_up && !inside_view && row != shell_row) {
             // the sun on this face (rules/SunShade.cs Pick): its direction from its own three corners, outward = away
@@ -106,9 +108,10 @@ void vertex() {
                 float kp = dot(copied ? -n : n, painter_dir);
                 if (tinted) own_light = float(sun_light64(dot(n, sun_dir))) / float(painted ? sun_light64(kp) : 64);
                 else {
+                    // its own paint times the sun's light, smooth as the ground's and the tinted machines' - the nearest shade of its
+                    // palette family (SunShade.Pick) jumped from shade to shade as a car turned
                     float k = dot(n, sun_dir);
-                    own_light = painted ? sun_over_painted(col, k, kp) : sun_over(col, k);   // past the ramp's lightest (SunShade.Over)
-                    col = painted ? sun_pick_painted(col, k, kp) : sun_pick(col, k);
+                    if (col >= 1 && col <= 14) own_light = float(sun_light64(k)) / float(painted ? sun_light64(kp) : 64);
                 }
             }
         }
@@ -132,7 +135,7 @@ void vertex() {
             float h = abs(t);
             if (h < gpu_px && !stays_thin(first)) {                                       // a sheet's side and resting copy stay as thin as they are
                 // one game pixel across, widened evenly about the triangle's own line: an edge-on face's two
-                // triangles then widen alike (owner 2026-10-31: each out to its own far corner, they stepped - wavy blades)
+                // triangles then widen alike
                 vec2 out_ = n * (t >= 0.0 ? 1.0 : -1.0) * (gpu_px - h) * 0.5;
                 if (corner == k) mine_px += out_;                                     // the far corner out half the shortfall
                 else if (corner == i) mine_px += -out_ - d * 0.5 * gpu_px;            // the long edge back the other half,
@@ -157,6 +160,6 @@ void fragment() {
     // like holes. A pane is the palette's light grey (8, faded with the day and hazed as any face) with a little blue:
     // pale glass, the inside still showing through
     ALBEDO = world_hazed(8, FRAGCOORD, d) * GLASS_TINT * glass_dark;
-    ALPHA = GLASS_SEE;
+    ALPHA = glass_see;
 #endif
 }

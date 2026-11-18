@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (setting ground_colours, GROUND COLOURS: BANDS, the 3D view; owner 2026-11-01):
+/// <summary>(setting ground_colours, GROUND COLOURS: BANDS, the 3D view):
 /// the land shaded by height and slope after Vista Pro's method (vistapro-port docs/method_colour_light.md 1-2:
 /// CalculateColors $13C4E, CalculateCliffs $136FA) - adapted to Hunter: each square keeps the original map's own kind of
 /// land, green (colours 12-14) or brown (9-11), and Vista's height steps run inside it, along a ramp of the original's own
@@ -16,8 +16,7 @@ public static class GroundBands
     /// <summary>The ramps up each kind of land: (percent of that land below, $0RGB) - the original's own ground colours
     /// (docs/original-tricks.md: low land dark green 0130 / 0251 / light 0372, high land brown 0521 / 0732 / 0A53).
     /// Between two keys four even steps, each rounded to the Amiga's 4 bits a channel. The green ramp starts at the
-    /// middle green (owner 11-08: from the darkest, 0130, the low land - coasts, HQ, roads - was far darker than the
-    /// original; "darker green can be seen in shadows"): 0251, halfway 0362, 0372.</summary>
+    /// middle green (the darker green is left for the shadows): 0251, halfway 0362, 0372.</summary>
     public static readonly int[] GreenKeys = [0, 0x251, 50, 0x362, 100, 0x372], BrownKeys = [0, 0x521, 50, 0x732, 100, 0xA53];
 
     /// <summary>Sand at the shore, dark (wet) to light; the rock of steep sides, low (dark) to high (light).</summary>
@@ -120,8 +119,8 @@ public static class GroundBands
         return ((s00 * (512 - fx) + s10 * fx) * (512 - fz) + (s01 * (512 - fx) + s11 * fx) * fz) >> 18;
     }
 
-    /// <summary>What the bands' colours are multiplied by so the land is as bright as the original's on average (owner
-    /// 11-08: the remake was much darker - the ramps start at their darkest key, and 40-50% of the land is flat at sea
+    /// <summary>What the bands' colours are multiplied by so the land is as bright as the original's on average (the
+    /// remake was much darker - the ramps start at their darkest key, and 40-50% of the land is flat at sea
     /// level). Over the map's banded land above the beach: the brightness of each square's own colour in the original's
     /// palette (view: bank 2's $0RGB words), over the bands' colour there with the checker's average; 1 at the least.</summary>
     public static double Gain(byte[] map, IReadOnlyList<int> view)

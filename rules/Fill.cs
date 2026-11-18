@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (the fuller world, default off - the setting is build job 2;
+/// (the fuller world, default off - the setting is build job 2;
 /// fuller_world_plan + the lead's CHECKED 2026-10-22): Fill.Plan works out, from the map's own
 /// seed and terrain, the extra grid records a fuller world adds - ordinary 16-byte records in
 /// the consumer's layout ($81EE / StartState.cs:495-505: x = bytes 6-7, y = 8-9, z = 10-11,
@@ -25,9 +25,9 @@ namespace Hunter.Rules;
 /// height bytes (Ground.cs:99-110) - which is what the spawner reads into +$74 at spawn
 /// (StartState.cs:575) and the draw uses (Objects.cs:1046); Graves.cs:57 places its records the
 /// same way. Sea kinds carry y = 0 like today's records do.
-/// Keep-clear (owner: about 450 at the fullest is fine): 800 units around every building, gun
+/// Keep-clear (about 450 at the fullest is fine): 800 units around every building, gun
 /// and start; 300 around any existing or just-added record; cells already holding 6+ records
-/// left alone; up to 32 records in a cell (owner 2026-10-28: lift the 8): the first 8 go in the
+/// left alone; up to 32 records in a cell: the first 8 go in the
 /// cell's grid slots, the rest in roomy memory's overflow list for that cell (StartState), which
 /// the fuller world always has on.
 /// </summary>
@@ -54,7 +54,7 @@ public static class Fill
     static bool IsFarm(int t) => Array.IndexOf(FarmTypes, t) >= 0;
     static bool IsGraveSpot(int t) => Array.IndexOf(GraveSpotTypes, t) >= 0;
 
-    /// <summary>Level 1/2/3 - the plan's light ~150, medium ~400, dense ~800 (owner: ~450 at
+    /// <summary>Level 1/2/3 - the plan's light ~150, medium ~400, dense ~800 (~450 at
     /// the fullest is fine, so level 3 places what the keep-clear leaves room for).</summary>
     public static int Budget(int level) => level switch { 1 => 150, 2 => 400, 3 => 800, _ => 0 };
 
@@ -186,7 +186,7 @@ public static class Fill
             return true;
         }
 
-        // vultures first (the owner's rule): pairs circle each crypt/tomb/grave spot on the map,
+        // vultures first: pairs circle each crypt/tomb/grave spot on the map,
         // 600+ up, never over open sea. Some spots sit right on the beach (the missions crypt's
         // own point is water), so draw the circle centre over the points within 2 of the spot's
         // point and keep trying - ring 0 (the spot's own point) can be water, and 3 draws missed
@@ -220,7 +220,7 @@ public static class Fill
                 }
         }
 
-        // SHARK SIGNS (owner 2026-10-28 "Yes put sharks near signs"): a sign today's world leaves
+        // SHARK SIGNS: a sign today's world leaves
         // without a shark within 4 points gets 1-2 in the nearest water deep enough for a shark
         // (dl >= 3; the open sea's dl >= 8 is 2.8-19.7 points from the signs, so it would guard
         // nothing). 8 of the 11 signs start unguarded, nearest qualifying water 0-2.2 points off.
@@ -256,7 +256,7 @@ public static class Fill
         // random stream and only its quota INCREMENT over the tier before - tier 1's records
         // come out identical at every level, so counts can only grow.
         int[] tiers = { 0, Budget(1), Budget(2), Budget(3) };
-        // Level caps (lead, 2026-10-28): the owner's fullness setting is the level, not more
+        // Level caps: the fullness setting is the level, not more
         // trees. Today's totals sit under the quota because the old narrow gate starved it, so
         // each level is capped at what today's code actually placed: trees at the old gate's
         // ground x 0.072 / 0.0765 (measured against today's 106/90/118 and 108/97/139), flowers
@@ -278,10 +278,9 @@ public static class Fill
             ["cow"] = Animal(t, Cow) - Animal(t - 1, Cow),
             ["vulture"] = Animal(t, Vulture) - Animal(t - 1, Vulture),
         };
-        // The animals (owner 2026-10-28: "List sounds ok"): 34% of a tier's budget, as before, but in the
+        // The animals: 34% of a tier's budget, as before, but in the
         // map's OWN mix - each kind by how many of it the original map holds - except ducks (15%) and fish
-        // (11%), which the original has only a handful of (owner: 96 ducks too many, fish "try 30"; Hunter
-        // level 3: about 40 ducks, 30 fish, 87 gulls, 62 rabbits, 27 sharks, 11 cows, 14 vultures).
+        // (11%), which the original has only a handful of (Hunter level 3: about 40 ducks, 30 fish, 87 gulls, 62 rabbits, 27 sharks, 11 cows, 14 vultures).
         // The crypt and grave vulture pairs above come on top.
         int Animal(int t, int type)
         {
@@ -309,7 +308,7 @@ public static class Fill
                  + Math.Abs(hgt[Math.Min(r + 1, Points - 1) * Points + c] - hgt[p]);
         }
 
-        /// <summary>A single tree's size by its ground (the owner's pick): larger on lower,
+        /// <summary>A single tree's size by its ground: larger on lower,
         /// sheltered ground, smaller higher up and near the coast. Bands are thirds of this
         /// map's own dry-land height range.</summary>
         int TreeSize(int p) =>

@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the BOT, docs/bot-plan.md "finding weapons"): what the bot knows of its weapons, read
+/// <summary>(the BOT, docs/bot-plan.md "finding weapons"): what the bot knows of its weapons, read
 /// from the game's own tables as a player learns it by playing. A hit costs both sides the other's energy (Collisions $455C), so a
 /// weapon's damage is its shot's energy (kind +$0A, $D45E + type * $34) - or, for a shot with none, the blast it ends as (kind +$08,
 /// EndsAs: bazooka $53 -> $61 21, grenade $54 -> $64 21, ...). A thing ends when its energy goes below 0 ($2646), so it takes

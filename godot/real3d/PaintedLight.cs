@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (SUN SHADING, owner 2026-11-01): light painted into the models. About 70 model
+/// <summary>(SUN SHADING): light painted into the models. About 70 model
 /// colour groups paint each wall direction its own shade of one paint, lit from the south-east (the east wall the lighter
 /// shade 28 times, the west 8; faces judged outward from the model's middle, as the sun shader does). The sun picks a
 /// face's shade by its angle starting from the painted shade, so those walls were lit twice. Found from the data alone:

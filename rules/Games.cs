@@ -32,7 +32,7 @@ public static class Games
     /// <summary>GameOver ($3514): $A5 bit 5, then QuitKey's bit 7: MainLoop leaves at $2586.</summary>
     public static void GameOver(WorldState s) => s.Flags0A5 |= 0xA0;
 
-    // NOT THE GAME - copy protection, left out (owner 2026-10-17). StopMusicAndCheck ($B00A) stops
+    // NOT THE GAME - copy protection, left out. StopMusicAndCheck ($B00A) stops
     // the music (here the shell's Audio.Music(-1)), but its tail ($B028-$B032) is an anti-piracy
     // check: the word at $7E92E against $68, and $23C6 adds 2 to the disk wiper's counter $161A
     // when it fails (docs/cut-content.md "the disk wiper").

@@ -6,7 +6,7 @@ using Hunter.Rules;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): the world drawn by the card from the
+/// <summary>(renderer = 3d): the world drawn by the card from the
 /// game's own data. The ground comes from the map and its type bytes (groundgpu.gdshader), every thing's model and
 /// ground shadow from the entity records, the animation table and the objfile (gpumodels.gdshader,
 /// gpushadow.gdshader). Nothing is built per frame on the processor: Update only uploads the raw bytes the rules
@@ -57,7 +57,7 @@ public sealed partial class GpuWorld : Node3D
     ShaderMaterial[]? materials, things, sunLit;  // made once: the lists Update sets uniforms on every frame
     readonly float[] animFloats = new float[320 * 2], dposFloats = new float[30];   // SMOOTH PARTS: anim row 1 = the table one step back
     readonly byte[] animBytes = new byte[320 * 2 * 4], dposBytes = new byte[30 * 4];
-    // SMOOTH PARTS (owner 2026-10-29): the animation table and the record part bytes (+$84.., +$18) as they were one
+    // SMOOTH PARTS: the animation table and the record part bytes (+$84.., +$18) as they were one
     // step back, so the card can slide the moving parts between the steps (place.gdshaderinc entity_artic)
     readonly byte[] animHeld = new byte[320], animHeldPrev = new byte[320];
     const int Held = 9;                                                  // a record's held bytes: +$84..+$8B, then the steering byte +$18 (CarInside's wheel)
@@ -91,7 +91,7 @@ public sealed partial class GpuWorld : Node3D
     int blastNext;
     bool blastsChanged;
 
-    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (FINER GROUND in the attract demo): the game runs on the original ground so
+    /// <summary>(FINER GROUND in the attract demo): the game runs on the original ground so
     /// the recording keeps its way; the picture draws the finer ground and every thing raised by the gap between the two
     /// at its place (x, z) - set, the uploaded height (+$4C) and ground under it (+$74) take it. Null: as the game's.</summary>
     public Func<ushort, ushort, int>? PictureLift;
@@ -186,6 +186,13 @@ public sealed partial class GpuWorld : Node3D
     public int[] GlassSunkTris { get; private set; } = [];
     public int[] GlassFrameTris { get; private set; } = [];
     public int[] GlassFrameOwn { get; private set; } = [];
+    /// <summary>Per model: the window borders baked as flat lines (pane on the outer edge, GlassInset 0) - one a window edge, a
+    /// post two windows share counted once.</summary>
+    public int[] GlassBorders { get; private set; } = [];
+    readonly IReadOnlyList<ushort>? viewPalette;
+    /// <summary>A view palette colour's brightness ($0RGB, the usual 299 / 587 / 114 weights); 0 without the palette.</summary>
+    int Brightness(int colour) => viewPalette is { } p && colour < p.Count
+        ? 299 * (p[colour] >> 8 & 15) + 587 * (p[colour] >> 4 & 15) + 114 * (p[colour] & 15) : 0;
     public List<(int Model, int Face, string Why)> GlassSkipped { get; } = [];
     /// <summary>GLASS: SEE-THROUGH's holed walls (GlassWalls): each wall of a window painted flat on it with its outline, the windows'
     /// outlines and its triangles' place in the table; the windows with no wall to hole, by model, glass number and reason; per model the
@@ -196,11 +203,8 @@ public sealed partial class GpuWorld : Node3D
     public int[] GlassWallTris { get; private set; } = [];
     public int GlassWallFrames { get; private set; }
     /// <summary>How deep GLASS: SEE-THROUGH sinks a glass face, as a part of the window's smaller size. 0: the pane lies on the
-    /// model's outer edge, where the original's window is; the frame is then flat (GlassFrame).</summary>
+    /// model's outer edge, where the original's window is; its edges then get borders (GlassBorders).</summary>
     public const double GlassInset = 0;
-    /// <summary>With the pane on the outer edge (GlassInset 0): how wide the flat frame round it is, as a part of the window's
-    /// smaller size - thin posts and rails left in the body's colour.</summary>
-    public const double GlassFrame = 0.05;
     /// <summary>Each model's back walls as baked (null: none) - CheckPieces places their extra points.</summary>
     public ModelCaps.Back?[] Backs { get; private set; } = [];
     public int TriSlots { get; private set; }
@@ -210,10 +214,13 @@ public sealed partial class GpuWorld : Node3D
     readonly bool seaBodies;                                         // SHARKS AND SUBS: WHOLE (SeaBodies), set at launch
 
     /// <summary>interiors false: a card without the car and jeep interiors (CarInside) - CheckCarInside's reference picture.
-    /// edit: a check's own change to the card's models (CheckStore's 300-corner ladder), given the store and the face origins.</summary>
+    /// edit: a check's own change to the card's models (CheckStore's 300-corner ladder), given the store and the face origins.
+    /// viewPalette: the view palette (bank 2, $0RGB words) - a window border's colour, when two body colours touch the window
+    /// equally, is the darker of them; without it the first found.</summary>
     public GpuWorld(byte[] objfile, byte[] sinfile, byte[] terrainMap, byte[]? main = null, Hunter.Rules.FineGround? fine = null, bool interiors = true,
-        Action<CardModels, Dictionary<int, int[]>>? edit = null, bool seaBodies = false)
+        Action<CardModels, Dictionary<int, int[]>>? edit = null, bool seaBodies = false, IReadOnlyList<ushort>? viewPalette = null)
     {
+        this.viewPalette = viewPalette;
         PaintedLight.Forget();                                   // the last build's models (its counts doubled the startup line's)
         rawObjfile = objfile;
         this.seaBodies = seaBodies;
@@ -286,38 +293,40 @@ public sealed partial class GpuWorld : Node3D
         models.SetShaderParameter("own_tex", ownTex);
         glassFaces.SetShaderParameter("own_tex", ownTex);
         pieces.SetShaderParameter("own_tex", ownTex);
+        lines.SetShaderParameter("own_tex", ownTex);                  // the window borders: a machine's paint as its faces
     }
 
-    // STRAIGHT BLADES (owner 2026-10-31: "the joints can be symmetrical") were spikes pinched to the hub; since 2026-11-12 the
+    // STRAIGHT BLADES were spikes pinched to the hub; since 2026-11-12 the
     // blades are EVEN BLADES, rectangles rooted in the rotor head (RotorMast.Blades).
 
-    // MODEL COLOURS (owner 2026-10-31: "helicopter is green, tank is green, soldier is green"; the A1200's colours are
-    // fair game; "have the sun affect the colour more so you don't have to hard code"): one tint a model. A face painted
+    // MODEL COLOURS (the A1200's colours; the sun shades the colour, so no shade is hand-picked): one tint a model. A face painted
     // in the greens (1-4, 12-14) takes the tint, keeping its own brightness - a machine's moving parts (blades, wheels)
     // keep their paint, a person's limbs are the person and take it; the sun then shades it smoothly in full colour, like
     // the ground (gpumodels.gdshader). Black, grey, reds, browns, yellow stay.
     bool glassShown;                                                 // the last glass sent (the shader's default is off)
     bool ownShown;                                                   // the last own_colours sent (the shader's default is off)
     // Base: a machine's one paint for all its greens (gpumodels_body: the sun alone shades its faces apart)
-    static readonly (int Model, Color Tint, bool Machine, int Base)[] OwnTints =   // the colour a unit of brightness becomes
+    // Glass, Opaque: a military machine's window tint - how bright its panes are (1 = the pale glass) and how much of the pane
+    // shows over what is behind it (gpumodels_body GLASS_SEE 0.35 for everything else)
+    static readonly (int Model, Color Tint, bool Machine, int Base, float Glass, float Opaque)[] OwnTints =   // the colour a unit of brightness becomes
     {
-        (0x17, new Color(0.90f, 1.05f, 0.92f), true, 2),             // helicopters: grey-green, the middle green
-        (0x19, new Color(0.90f, 1.05f, 0.92f), true, 2),
-        (0x15, new Color(1.00f, 1.00f, 0.88f), true, 14),            // tanks: khaki grey
-        (0x16, new Color(1.00f, 1.00f, 0.88f), true, 14),
-        (0x02, new Color(0.80f, 1.10f, 0.98f), false, 0),            // enemy soldier: blue-green fatigues, arms and legs too
-        (0x01, new Color(0.98f, 1.06f, 0.74f), false, 0),            // you and your comrades: olive; in disguise you wear model 2 (FootModels)
+        (0x17, new Color(0.90f, 1.05f, 0.92f), true, 2, 0.30f, 0.50f),   // helicopters: grey-green, the middle green
+        (0x19, new Color(0.90f, 1.05f, 0.92f), true, 2, 0.30f, 0.50f),
+        (0x15, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),  // tanks: khaki grey
+        (0x16, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),
+        (0x02, new Color(0.80f, 1.10f, 0.98f), false, 0, 1f, 0.35f),     // enemy soldier: blue-green fatigues, arms and legs too
+        (0x01, new Color(0.98f, 1.06f, 0.74f), false, 0, 1f, 0.35f),     // you and your comrades: olive; in disguise you wear model 2 (FootModels)
     };
 
     /// <summary>MODEL COLOURS as a 256 x 2 table: x = model; row 0 rgb = its tint, a = 1 a machine (its parts untinted), 0.5 not;
-    /// row 1 r = a machine's one paint (Base).</summary>
+    /// row 1 r = a machine's one paint (Base), g = its panes' brightness (Glass), b = how much of a pane shows (Opaque).</summary>
     static ImageTexture OwnTintTable()
     {
         var img = Image.CreateEmpty(256, 2, false, Image.Format.Rgbaf);
-        foreach (var (m, tint, machine, paint) in OwnTints)
+        foreach (var (m, tint, machine, paint, glass, opaque) in OwnTints)
         {
             img.SetPixel(m, 0, new Color(tint.R, tint.G, tint.B, machine ? 1 : 0.5f));
-            img.SetPixel(m, 1, new Color(paint, 0, 0, 1));
+            img.SetPixel(m, 1, new Color(paint, glass, opaque, 1));
         }
         return ImageTexture.CreateFromImage(img);
     }
@@ -472,7 +481,7 @@ public sealed partial class GpuWorld : Node3D
     }
 
     // A frame's picture to the card, then freed: left to the collector, dozens were still alive at exit and the
-    // engine's shutdown crashed on them (owner 2026-10-31).
+    // engine's shutdown crashed on them.
     static void Put(ImageTexture t, Image img)
     {
         t.Update(img);
@@ -535,7 +544,7 @@ public sealed partial class GpuWorld : Node3D
         FilledFaces = new int[nModels];
         GlassFaces = new int[nModels];
         GlassSunkFaces = new int[nModels]; GlassSunkEdges = new int[nModels]; GlassSunkTris = new int[nModels];
-        GlassFrameTris = new int[nModels]; GlassFrameOwn = new int[nModels];
+        GlassFrameTris = new int[nModels]; GlassFrameOwn = new int[nModels]; GlassBorders = new int[nModels];
         var glassNumber = new Dictionary<(int, int), int>();              // a glass face's number (windows.md), by model and ordinal
         for (var model = 0; model < nModels; model++)
         {
@@ -582,8 +591,9 @@ public sealed partial class GpuWorld : Node3D
                 if (!rod[l]) { segments.Add(new Color(lineFaces[l].A, lineFaces[l].B, lineFaces[l].Colour, 0)); lineCount[m]++; }
         }
         var rodsOf = Enumerable.Range(0, lineFaces.Count).Where(l => rod[l]).ToLookup(l => lineFaces[l].Model);
-        // BACK WALLS (ModelCaps, back from the retired 3D view: owner 2026-10-29 "buildings need to have backs
-        // on them"): each model's open sides mirrored and open bottom floored, as faces on extra points the
+        var borders = new List<Color>?[nModels];                 // each model's window borders (GLASS: SEE-THROUGH), joined to its lines after the faces
+        var borderEdges = new HashSet<(int, int)>?[nModels];
+        // BACK WALLS (ModelCaps, back from the retired 3D view:): each model's open sides mirrored and open bottom floored, as faces on extra points the
         // objfile never held. A back triangle's corner numbers run on from the model's own corner count (no
         // real face points past the last corner), their places in extra_tex, one row a model. Careful - only side mirrors and a
         // floor, the front waits for hand-made - are ModelCaps.Careful's models.
@@ -825,43 +835,53 @@ public sealed partial class GpuWorld : Node3D
                 for (var t = first; t < own; t++) tris[t] = new Color(tris[t].R, tris[t].G, tris[t].B, (int)tris[t].A | Glass.Replaced);
                 var lo2 = i; while (lo2 > 0 && faces[lo2 - 1].Model == f.Model) lo2--;
                 var hi2 = i; while (hi2 + 1 < faces.Count && faces[hi2 + 1].Model == f.Model) hi2++;
-                foreach (var ei in fm.Faces[f.Ordinal].Edges)
+                int OtherOf(int a2, int b2)                                       // a face of the model, not glass, on the same two corners
                 {
-                    var a2 = fm.Edges[ei].A;
-                    var b2 = fm.Edges[ei].B;
-                    var other = -1;                                               // a face of the model, not glass, on the same two corners
-                    for (var j = lo2; j <= hi2 && other < 0; j++)
+                    for (var j = lo2; j <= hi2; j++)
                     {
                         if (j == i || (faces[j].Meta & Glass.Bit) != 0) continue;
                         foreach (var ej in fm.Faces[faces[j].Ordinal].Edges)
                         {
                             int u = fm.Edges[ej].A, v = fm.Edges[ej].B;
-                            if ((u == a2 && v == b2) || (u == b2 && v == a2)) { other = j; break; }
+                            if ((u == a2 && v == b2) || (u == b2 && v == a2)) return j;
                         }
                     }
-                    if (other < 0 && flatWalls.WallOf.TryGetValue(i, out var wallFace)) { other = wallFace; GlassWallFrames++; }    // flat on a wall: the wall's colour
-                    var colour = other < 0 ? f.Meta & 15 : (recolour[other] >= 0 ? recolour[other] : faces[other].Meta & 15);
-                    if (other < 0) GlassFrameOwn[f.Model]++;
-                    var de = d;
-                    if (inset == 0)
+                    return -1;
+                }
+                int ColourOf(int other) => recolour[other] >= 0 ? recolour[other] : faces[other].Meta & 15;
+                if (inset == 0)
+                {
+                    // the pane on the outer edge: a border on each of its edges, a flat line (gpulines) one game pixel wide at any
+                    // distance, so the posts and rails never fall under a pixel as the bands in the window's plane did. Its colour:
+                    // the panel colour round the window - the commonest of the body faces on its edges, one colour a window (the
+                    // edges' own colours made a pale rail, a black post and a grey side), on a tie the darker (a car's window
+                    // touches the pale roof and the body once each: the body) - drawn darker, only with SEE-THROUGH
+                    var frameColour = fm.Faces[f.Ordinal].Edges.Select(ei => OtherOf(fm.Edges[ei].A, fm.Edges[ei].B)).Where(o => o >= 0)
+                        .GroupBy(ColourOf).OrderByDescending(g => g.Count()).ThenBy(g => Brightness(g.Key)).Select(g => g.Key)
+                        .DefaultIfEmpty(f.Meta & 15).First();
+                    var seenEdges = borderEdges[f.Model] ??= [];
+                    var windowCorners = fm.Faces[f.Ordinal].Edges.SelectMany(ei => new[] { fm.Edges[ei].A, fm.Edges[ei].B }).Distinct().ToArray();
+                    foreach (var ei in fm.Faces[f.Ordinal].Edges)
                     {
-                        colour = 0;                                                       // one frame colour round every window: black
-                        // the pane on the outer edge: the frame lies flat in the window's own plane, a thin band along this edge
-                        // moved in toward the window's middle - posts and rails in the body's colour. moved = corner less the offset
-                        double[] pa = [fm.Corners[a2].X, fm.Corners[a2].Y, fm.Corners[a2].Z], pb = [fm.Corners[b2].X, fm.Corners[b2].Y, fm.Corners[b2].Z];
-                        double[] e = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-                        double[] perp = [out3[1] * e[2] - out3[2] * e[1], out3[2] * e[0] - out3[0] * e[2], out3[0] * e[1] - out3[1] * e[0]];
-                        var pl = Math.Sqrt(perp[0] * perp[0] + perp[1] * perp[1] + perp[2] * perp[2]);
-                        if (pl > 0)
-                        {
-                            double toMid = 0;                                             // the band goes toward the window's middle
-                            for (var c = 0; c < 3; c++) toMid += (sum[c] / seen - (pa[c] + pb[c]) / 2) * perp[c];
-                            var w = Math.Max(1 << shift, Math.Round(GlassFrame * small)) * (toMid > 0 ? -1 : 1) / pl;
-                            de = new Color((int)Math.Round(w * perp[0]), (int)Math.Round(w * perp[1]), (int)Math.Round(w * perp[2]), 0);
-                        }
+                        int a2 = fm.Edges[ei].A, b2 = fm.Edges[ei].B;
+                        if (!seenEdges.Add((Math.Min(a2, b2), Math.Max(a2, b2)))) continue;   // a post two windows share: one border
+                        // alpha 1 + a third corner of the window: a border, and with its two ends the window's plane - the shader lights
+                        // it by the sun on that plane, as it lights the faces round it
+                        var third = windowCorners.First(c => c != a2 && c != b2);
+                        (borders[f.Model] ??= []).Add(new Color(a2, b2, frameColour, 1 + third));
+                        GlassBorders[f.Model]++;
                     }
-                    AddTri(a2, b2, b2, colour | Glass.Sunk | 0x40, de, Marks(0, 0, Moved));
-                    AddTri(a2, b2, a2, colour | Glass.Sunk | 0x40, de, Marks(0, Moved, Moved));
+                }
+                else foreach (var ei in fm.Faces[f.Ordinal].Edges)
+                {
+                    var a2 = fm.Edges[ei].A;
+                    var b2 = fm.Edges[ei].B;
+                    var other = OtherOf(a2, b2);
+                    if (other < 0 && flatWalls.WallOf.TryGetValue(i, out var wallFace)) { other = wallFace; GlassWallFrames++; }    // flat on a wall: the wall's colour
+                    var colour = other < 0 ? f.Meta & 15 : ColourOf(other);
+                    if (other < 0) GlassFrameOwn[f.Model]++;
+                    AddTri(a2, b2, b2, colour | Glass.Sunk | 0x40, d, Marks(0, 0, Moved));
+                    AddTri(a2, b2, a2, colour | Glass.Sunk | 0x40, d, Marks(0, Moved, Moved));
                     panels.Add(panel); panels.Add(panel);
                     count[f.Model] += 2;
                     GlassFrameTris[f.Model] += 2;
@@ -896,6 +916,19 @@ public sealed partial class GpuWorld : Node3D
         }
         for (var m = 0; m < nModels; m++)                                    // a model of lines only has no face to come after
             if (start[m] < 0 && rodsOf[m].Any()) { start[m] = tris.Count; AddRods(m); }
+        // the window borders join their model's lines (line_tex keeps a model's segments together: first, count)
+        if (borders.Any(b => b is not null))
+        {
+            var own = segments.ToList();
+            segments.Clear();
+            for (var m = 0; m < nModels; m++)
+            {
+                var s = lineStart[m];
+                lineStart[m] = segments.Count;
+                segments.AddRange(own.GetRange(s, lineCount[m]));
+                if (borders[m] is { } bm) { segments.AddRange(bm); lineCount[m] += bm.Count; }
+            }
+        }
         int maxTris = 1, maxLines = 1;
         for (var i = 0; i < nModels; i++)
         {
@@ -972,7 +1005,7 @@ public sealed partial class GpuWorld : Node3D
     };
 
     // twin[] links a pair's two rows; recolour[] gives the unmoved one the later face's colour (-1 = its own).
-    // Rotors (owner 2026-10-29: light on top) keep both colours instead, the lighter face moved up.
+    // Rotors keep both colours instead, the lighter face moved up.
     static (int Pairs, int Sheets, int Decals) FindSheets(CardModels store,
         List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] slab, Color[] off,
         int[] twin, int[] recolour)
@@ -1076,11 +1109,11 @@ public sealed partial class GpuWorld : Node3D
         return (pairs, sheets, decals);
     }
 
-    // STICKERS (owner 2026-10-29: the nuclear device's yellow panel and marks): '91 painted faces in file order, so a
+    // STICKERS: '91 painted faces in file order, so a
     // later face lying on a bigger earlier face, or up to 3 units behind it, showed as a sticker on it; with real depth
     // it hides or speckles. Such a face is drawn only as its moved copy (the thin sheets' machinery: corners marked Moved, meta
     // bit 6, the offset turned with the part) with edges, a plate 1 unit proud of that face, 2 if it lies on another
-    // sticker, so file order still decides. Only faces behind their face, and faces on a lifted one (owner: the 34 for
+    // sticker, so file order still decides. Only faces behind their face, and faces on a lifted one (the 34 for
     // now; the 345 lying flat on a face stay as they are). Same rule as tools/model_viewer stickers().
     static int FindStickers(CardModels store,
         List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] sticker, bool[] slab, Color[] off)
@@ -1129,7 +1162,7 @@ public sealed partial class GpuWorld : Node3D
                 var top = false;                                                  // lying on an earlier sticker of the same face
                 for (var o = i; o < r && !top; o++)
                     top = sticker[o] && under[o - i] == under[r - i] && Plane(pts[o - i]) is { } sn && InsidePoly(cen, pts[o - i], sn);
-                // only the ones behind their face for now (owner: "just the 34"); one lying ON the face is already drawn
+                // only the ones behind their face for now; one lying ON the face is already drawn
                 // right, unless it sits on a sticker that is lifted (the nuclear device's marks on its yellow panel)
                 if (depth > -0.5 && !top) { under[r - i] = -1; continue; }
                 var lift = (top ? 2 : 1) - depth;                                 // from where it lies to 1 (or 2) units out
@@ -1399,6 +1432,7 @@ public sealed partial class GpuWorld : Node3D
         {
             models.SetShaderParameter("glass", seeThrough);
             glassFaces.SetShaderParameter("glass", glassShown = seeThrough);
+            lines.SetShaderParameter("glass", seeThrough);           // the window borders show with the see-through panes only
             if (glassMesh is not null) glassMesh.Visible = seeThrough;   // ORIGINAL: the pass draws nothing, so not run at all
         }
         if (ownColours != ownShown)                                  // MODEL COLOURS, on change: the models and their pieces
@@ -1406,6 +1440,7 @@ public sealed partial class GpuWorld : Node3D
             models.SetShaderParameter("own_colours", ownShown = ownColours);
             glassFaces.SetShaderParameter("own_colours", ownColours);
             pieces.SetShaderParameter("own_colours", ownColours);
+            lines.SetShaderParameter("own_colours", ownColours);
         }
         SetCuts(groundCuts);                                         // GROUND SHAPE: the mesh is rebuilt only when it changes
         if (!Ready) return;
@@ -1536,7 +1571,7 @@ public sealed partial class GpuWorld : Node3D
         SunToward = toward;                                               // CLOUDS: the low layer's lit side (Real3DView.Frame)
         if (world != null) Clock = (world.Hour, world.Minute, world.Day); // CLOUDS' night: the moon's place and phase (Real3DView.Frame)
         var offset = Objects.SunOffset(world);
-        foreach (var m in sunLit ??= [ground, models, glassFaces, pieces])
+        foreach (var m in sunLit ??= [ground, models, glassFaces, pieces, lines])   // lines: the window borders take the sun as the faces do
         {
             m.SetShaderParameter("sun_shading", sunShading);
             m.SetShaderParameter("sun_up", toward != null);

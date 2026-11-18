@@ -86,7 +86,7 @@ fire with up (take off, more power) or down; Space gets out (in the air: a parac
   byte-identical, save included.
   ENHANCEMENT (not the original, setting st_daylight, default off): the Atari ST build's brighter, longer
   days - the 24-hour light table every reader takes (the panel clock's light $18F, smooth_light's per-hour
-  levels) is the ST's (rules/StDaylightTable.cs, from the owner's ST image) instead of the Amiga's $C4A4;
+  levels) is the ST's (rules/StDaylightTable.cs, from an ST disk image) instead of the Amiga's $C4A4;
   off is byte-identical to the original.
   ENHANCEMENT (not the original, setting sound_position, default off): each channel pans by where its owner
   is on screen (godot/Audio.cs SetPan, one panner bus per channel; the player and behind-camera owners stay
@@ -150,7 +150,7 @@ Display: the whole game renders into a 320x200 image (the original resolution), 
   PAL TV - the game's display window is lines $2C-$F3 of the $2C-$12B PAL frame), the whole frame
   shown 4:3: the largest whole vertical scale that fits the window, width round(4/3 of that),
   centred, nearest-neighbour; one game pixel is 16/15 as wide as tall.
-- `centred` (default, owner 2026-10-28): the same 16/15 pixels without the 56 spare lines - 320x200
+- `centred` (default): the same 16/15 pixels without the 56 spare lines - 320x200
   alone, 200k tall and round(1024k/3) wide, in the middle of the window.
 - `stretched`: the 320x200 viewport scaled by whole numbers, square pixels, centred.
 Headless captures are the plain 320x200 game image in every look. `HUNTER_TABLE=1` prints the

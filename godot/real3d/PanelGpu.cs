@@ -4,7 +4,7 @@ using Hunter.Rules;
 
 namespace Hunter;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (renderer = 3d): the panel's rows 140-199 drawn by the card
+/// <summary>(renderer = 3d): the panel's rows 140-199 drawn by the card
 /// (panel.gdshader, panel.gdshaderinc) from the game's values each frame - the clock, score, position, rounds, fuel,
 /// energy, weapon, radar records and graves, lamps - over the panfile picture, in the panel's colours and with the pointer.
 /// The message window's text is the one thing still printed by the processor (Text.cs); its plane 0 bits go up each frame.

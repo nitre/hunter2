@@ -1,5 +1,4 @@
-// ENHANCEMENT, NOT THE ORIGINAL (the card-drawn 3D view, owner 2026-10-24 "the floating car", back on the card
-// 2026-10-28): the original stands every thing LEVEL, its lowest corner on the ground under its CENTRE (+$74), and
+// (the card-drawn 3D view): the original stands every thing LEVEL, its lowest corner on the ground under its CENTRE (+$74), and
 // tips it only nose up or down ($42A6). In real 3D a slope leaves the downhill wheels in the air and the uphill ones in
 // the ground. Here the contact corners (the model's corners within 3 of its lowest) sit on the real ground: a plane
 // y' = y + A * (x - cx) + B * (z - cz) + D through the gaps (ground height under each contact minus its own height),
@@ -38,8 +37,7 @@ bool contact_fit(int row, int base, out vec3 fit, out vec2 c) {
     // game's pitch tips one end lower, and "lowest once tilted" kept only that end - the bike's front wheel floated
     // a vehicle ($00-$12, truck .. amphibian) stands on its fixed corners and its wheels (parts spun about x: kind 1,
     // axis 0) only - the bicycle's feet on the turning cranks (axis 2, and kind 2 following them) dip 2 below its wheels
-    // on each stroke, and as contacts they rolled the bike onto one foot, then the other (owner 11-11: "glitches as he
-    // rides"); parked, it leaned on its low pedal. People and animals keep their feet.
+    // on each stroke, and as contacts they rolled the bike onto one foot, then the other; parked, it leaned on its low pedal. People and animals keep their feet.
     bool wheeled = _ew(ent_tex, row, 4) <= 0x12;
     int bottom = 32767;
     _Walk w = _Walk(ivec3(0), ivec3(0), ivec3(0), 0);
@@ -122,7 +120,7 @@ float contact_lift_at(vec3 fit, vec2 c, float dx, float dz) {
     return fit.x * (dx - c.x) + fit.y * (dz - c.y) + fit.z;
 }
 
-// WALLS DOWN (owner 2026-10-29: "I was going to suggest walls down"): a level thing stands on the highest ground under
+// WALLS DOWN: a level thing stands on the highest ground under
 // its contacts, and each bottom corner (within CONTACT_LEVEL_BAND of the bottom) reaches down to the ground right under it - no gap on
 // the downhill side, nothing buried uphill. y = the corner's placed height, at world x, z; the new height.
 float walls_down(vec2 c, float x, float z, float y) {

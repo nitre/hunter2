@@ -1,6 +1,6 @@
 namespace Hunter.Rules;
 
-/// <summary>ENHANCEMENT, NOT THE ORIGINAL (the wild attract, owner 2026-11-02: "the player doesn't go to wild town"):
+/// <summary>(the wild attract):
 /// where the attract demo's player goes - the plain demo played once (Action game, default soldier, as RunDemo $22D6),
 /// his x and z every few passes. Pure: the recording steers him, so the route is the same every time; kept after the
 /// first ask.</summary>

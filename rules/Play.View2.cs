@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// ENHANCEMENT, NOT THE ORIGINAL (multiplayer piece mp_views): player 2's own picture. After the
+/// (multiplayer piece mp_views): player 2's own picture. After the
 /// normal pass has drawn player 1's picture, a second picture-only draw runs from player 2's
 /// entity: the camera placed from his position ($374C's maths through Ground.Place), every record
 /// placed for a picture only (Objects.PlaceForPicture - no collisions, no far write-back,
