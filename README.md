@@ -2,10 +2,6 @@
 
 An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with Godot 4.7.
 
-The game rules are reimplemented from the original program. On top of that it adds a 3D view, smoother animation,
-more detailed ground and other changes, each of which can be turned off in the settings menu. With all of them off
-it plays like the Amiga version.
-
 ![Helicopter over the coast](screenshots/flying.png)
 
 <img src="screenshots/car.png" width="49%" alt="Car"> <img src="screenshots/boat.png" width="49%" alt="Rocket boat by the stores">
