@@ -21,6 +21,7 @@ An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with God
 
 ### World
 - Gradient sky, clouds and haze
+- Sun, moon and stars
 - Finer ground mesh with more colour variation
 - Animated sea
 - Extended view distance, widescreen
