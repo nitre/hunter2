@@ -83,6 +83,7 @@ public sealed partial class GpuWorld : Node3D
     // about every 4 blanks beside them: room for many tanks at once.
     const int MarkRing = 1024, MarkTread = 1;
     const float MarkLife = 50;                   // blanks a mark lasts, one second (gputracks.gdshader MARK_LIFE)
+    const int MarkJump = 64;                     // world units in one picture: further than a tank drives (about 4 a blank at speed 5) even over a dozen blanks
     readonly ImageTexture markTex = ImageTexture.CreateFromImage(Image.CreateEmpty(MarkRing, 2, false, Image.Format.Rgbaf));
     readonly float[] markFloats = new float[MarkRing * 2 * 4];
     readonly byte[] markBytes = new byte[MarkRing * 2 * 4 * 4];
@@ -427,8 +428,16 @@ public sealed partial class GpuWorld : Node3D
             if (Math.Abs(dx) > 0x800 || Math.Abs(dz) > 0x800) { markGone[r] = 0; continue; }
             if (dx == 0 && dz == 0) continue;
             var h = e.B[0x7E] * Math.PI / 128;
-            TreadMarks(r, x, z, dx, dz, h, clock, e.B[0x25]);
-            ClodThrows(r, x, z, h, clock, e.B[0x25], Math.Clamp((int)(short)e.UW(0x3E), 0, 255));
+            var speed = Math.Clamp((int)(short)e.UW(0x3E), 0, 255);
+            // marks and clods only where the tank DROVE: a move of more than MarkJump in one picture is the thing being put
+            // somewhere (a new place for a boarded tank, a respawn), not driving - no line of bars along the jump - and a
+            // tank moved while it stands (speed 0) throws no earth
+            if (Math.Abs(dx) > MarkJump || Math.Abs(dz) > MarkJump) markGone[r] = 0;
+            else
+            {
+                TreadMarks(r, x, z, dx, dz, h, clock, e.B[0x25]);
+                if (speed > 0) ClodThrows(r, x, z, h, clock, e.B[0x25], speed);
+            }
             var along = dx * Math.Sin(h) + dz * Math.Cos(h);
             var d = 2 * Math.Sqrt((double)dx * dx + (double)dz * dz) * Math.Sign(along);
             var v = (rollFloats[r] + d / (2 * Math.PI * radius) * 256) % 256;
