@@ -66,6 +66,16 @@ public static class TankTracks
     /// <summary>The tanks' models (the objfile numbers): GpuWorld sends their offsets as track_models.</summary>
     public static IEnumerable<int> Models => Tanks.Select(t => t.Model);
 
+    // TRACK MARKS: each tank's track across its side, model x (the two sides alike). $16's track block is x 48..120. $15's
+    // belt is taken as x 64..112: its black panel is 100..112, and the clods resting on its rear run sit at x 64..96, inside it.
+    static readonly Dictionary<int, (int Inner, int Outer)> TreadX = new() { [0x15] = (64, 112), [0x16] = (48, 120) };
+
+    /// <summary>TRACK MARKS: a tank model's track on the ground in model units - the middle of a track out from the tank's
+    /// middle, its width, and the link pitch (one tread bar and its gap) - or null for any other model.</summary>
+    public static (int Centre, int Width, int Pitch)? Tread(int model) =>
+        TreadX.TryGetValue(model, out var x) && Tanks.FirstOrDefault(t => t.Model == model) is { } t
+            ? ((x.Inner + x.Outer) / 2, x.Outer - x.Inner, t.Pitch) : null;
+
     /// <summary>A tank model's wheel radius (full units), 0 for any other model: GpuWorld turns a record's rolling into 256ths of it.</summary>
     public static int Radius(int model) => Tanks.FirstOrDefault(t => t.Model == model)?.Radius ?? 0;
 

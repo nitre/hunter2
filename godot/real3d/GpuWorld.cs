@@ -53,7 +53,7 @@ public sealed partial class GpuWorld : Node3D
     readonly int model0, faces0;                 // model 0 (the debris model) and where its ten faces start ($59FE)
     readonly byte[] model0Seen = new byte[11], model0Now = new byte[11];   // its scale byte and the ten face colours: as last uploaded, and now
     /// <summary>The materials that need the palette uniforms every frame (Real3DView.Frame).</summary>
-    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces];
+    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces, marks];
     ShaderMaterial[]? materials, things, sunLit;  // made once: the lists Update sets uniforms on every frame
     readonly float[] animFloats = new float[320 * 2], dposFloats = new float[30];   // SMOOTH PARTS: anim row 1 = the table one step back
     readonly byte[] animBytes = new byte[320 * 2 * 4], dposBytes = new byte[30 * 4];
@@ -75,6 +75,21 @@ public sealed partial class GpuWorld : Node3D
     readonly int[] rollModel = Enumerable.Repeat(-1, LiveRows).ToArray();
     readonly int[] rollX = new int[LiveRows], rollZ = new int[LiveRows];
     bool rollDirty = true;
+    // TRACK MARKS: a ring of things noted on the ground in the world, the oldest written over. An entry is two texels of
+    // mark_tex, column = the entry: row 0 (world x, world z, heading in radians, clock in blanks), row 1 (kind, half width,
+    // half length, spare) in world units. Kind 0 is an empty entry, MarkTread a tread bar (gputracks.gdshader draws only
+    // those), so other kinds of note can share the ring. 1024: a tank at full speed goes 5 world units a blank and lays a
+    // bar a side every 21 units ($16's pitch 42 model units), 2 x 72 bars in 300 blanks, so four tanks at once fit (576).
+    const int MarkRing = 1024, MarkTread = 1;
+    const float MarkLife = 300;                  // blanks a mark lasts (gputracks.gdshader MARK_LIFE)
+    readonly ImageTexture markTex = ImageTexture.CreateFromImage(Image.CreateEmpty(MarkRing, 2, false, Image.Format.Rgbaf));
+    readonly float[] markFloats = new float[MarkRing * 2 * 4];
+    readonly byte[] markBytes = new byte[MarkRing * 2 * 4 * 4];
+    readonly double[] markGone = new double[LiveRows];   // world units a tank has gone since its last bar
+    int markNext, markLive = -1;
+    bool markDirty = true;
+    readonly ShaderMaterial marks = new() { Shader = GD.Load<Shader>("res://real3d/gputracks.gdshader"), RenderPriority = -1 };   // before the shadows (see gputracks.gdshader)
+    static readonly bool MarkLog = System.Environment.GetEnvironmentVariable("HUNTER_TRACK_MARKS") == "1";   // print each mark noted
     float animFracLast = 2f;                     // > 1 until the first update
     bool entprevDirty = true;
 
@@ -260,6 +275,8 @@ public sealed partial class GpuWorld : Node3D
         pieces.SetShaderParameter("blast_tex", blastTex);
         pieces.SetShaderParameter("blast_info", blastInfoTex);
         AddChild(groundMesh = new MeshInstance3D { Mesh = Empty(meshCorners = 128 * 128 * 2 * 3 * cuts * cuts), MaterialOverride = ground, CustomAabb = Huge });
+        marks.SetShaderParameter("mark_tex", markTex);                // TRACK MARKS: two triangles an entry of the ring
+        AddChild(new MeshInstance3D { Mesh = Empty(MarkRing * 6), MaterialOverride = marks, CustomAabb = Huge });
         mdlTex = ImageTexture.CreateFromImage(Image.CreateFromData(CardModels.Width, Store.Rows, false, Image.Format.Rgbaf, StoreBytes()));
         atTex = Store.AtTexture();
         dposTex = ImageTexture.CreateFromImage(Image.CreateEmpty(30, 1, false, Image.Format.Rf));
@@ -384,7 +401,7 @@ public sealed partial class GpuWorld : Node3D
     /// record went since the last picture along its heading (+$7E: 0 = +z, $40 = +x; back counts back), in model units (x and z
     /// twice the world's, Place $41FC) over the wheel's round. A new thing in a row starts at 0; a jump (into a building, a
     /// respawn: Play.Smooth's limit) adds nothing; turning on the spot adds nothing (the original's tanks turn standing).</summary>
-    void TrackRoll(EntityTable entities)
+    void TrackRoll(EntityTable entities, float clock)
     {
         for (var r = 0; r < LiveRows; r++)
         {
@@ -401,18 +418,57 @@ public sealed partial class GpuWorld : Node3D
             {
                 (rollModel[r], rollX[r], rollZ[r]) = (e.B[0x25], x, z);
                 if (rollFloats[r] != 0) { rollFloats[r] = 0; rollDirty = true; }
+                markGone[r] = 0;
                 continue;
             }
             int dx = (short)(x - rollX[r]), dz = (short)(z - rollZ[r]);
             (rollX[r], rollZ[r]) = (x, z);
-            if (dx == 0 && dz == 0 || Math.Abs(dx) > 0x800 || Math.Abs(dz) > 0x800) continue;
+            if (Math.Abs(dx) > 0x800 || Math.Abs(dz) > 0x800) { markGone[r] = 0; continue; }
+            if (dx == 0 && dz == 0) continue;
             var h = e.B[0x7E] * Math.PI / 128;
+            TreadMarks(r, x, z, dx, dz, h, clock, e.B[0x25]);
             var along = dx * Math.Sin(h) + dz * Math.Cos(h);
             var d = 2 * Math.Sqrt((double)dx * dx + (double)dz * dz) * Math.Sign(along);
             var v = (rollFloats[r] + d / (2 * Math.PI * radius) * 256) % 256;
             rollFloats[r] = (float)(v < 0 ? v + 256 : v);
             rollDirty = true;
         }
+    }
+
+    /// <summary>TRACK MARKS: a tread bar under the middle of each track each time a tank has gone one link pitch (bar and gap
+    /// each half a pitch long, so they alternate along the line), placed at the exact spot along this move where the pitch was
+    /// crossed, so the bars lie evenly however far a frame moves. Model x and z are twice the world's (Place $41FC).</summary>
+    void TreadMarks(int r, int x, int z, int dx, int dz, double h, float clock, int model)
+    {
+        if (TankTracks.Tread(model) is not { } t) return;
+        var step = t.Pitch / 2.0;
+        var moved = Math.Sqrt((double)dx * dx + (double)dz * dz);
+        var gone = markGone[r] + moved;
+        var (ax, az) = (Math.Cos(h), -Math.Sin(h));                  // across the tank (forward is sin h, cos h)
+        for (; gone >= step; gone -= step)
+        {
+            var back = (gone - step) / moved;                        // the pitch was crossed this share of the move back
+            double px = x - dx * back, pz = z - dz * back;
+            foreach (var side in new[] { -1, 1 })
+                NoteMark(px + side * ax * t.Centre / 2.0, pz + side * az * t.Centre / 2.0, h, clock, MarkTread, t.Width / 4.0, t.Pitch / 8.0,
+                    MarkLog ? $"row {r} side {side} tank {x} {z} heading {h:F4}" : null);
+        }
+        markGone[r] = gone;
+    }
+
+    /// <summary>TRACK MARKS: one entry into the ring at a world spot, none on a sea square (type 0, as gpushadow.gdshader's
+    /// shadow_types). The ring's oldest entry is written over.</summary>
+    void NoteMark(double x, double z, double h, float clock, int kind, double halfW, double halfL, string? log)
+    {
+        (x, z) = ((x % 65536 + 65536) % 65536, (z % 65536 + 65536) % 65536);
+        var type = map[(((int)z >> 9) * 128 + ((int)x >> 9)) * 2 + 1];
+        if (log is not null) GD.Print($"TRACKMARK {log} mark {x:F1} {z:F1} clock {clock:F1} type {type}{(type == 0 ? " SEA none" : "")}");
+        if (type == 0) return;
+        var (a, b) = (markNext * 4, (MarkRing + markNext) * 4);
+        (markFloats[a], markFloats[a + 1], markFloats[a + 2], markFloats[a + 3]) = ((float)x, (float)z, (float)h, clock);
+        (markFloats[b], markFloats[b + 1], markFloats[b + 2], markFloats[b + 3]) = (kind, (float)halfW, (float)halfL, 0);
+        markNext = (markNext + 1) % MarkRing;
+        markDirty = true;
     }
 
     /// <summary>The helicopters' even blades into the models (RotorMast.Blades); the rules keep theirs.</summary>
@@ -1501,8 +1557,22 @@ public sealed partial class GpuWorld : Node3D
             if (viewMaskTex == null) { viewMaskTex = ImageTexture.CreateFromImage(img); ground.SetShaderParameter("win_tex", viewMaskTex); }
             else viewMaskTex.Update(img);
         }
-        TrackRoll(entities);
-        foreach (var m in new[] { models, glassFaces, shadows, lines }) m.SetShaderParameter("track_clock", clock);   // TANK TRACKS: the clods' throw
+        TrackRoll(entities, clock);
+        foreach (var m in new[] { models, glassFaces, shadows, lines, marks }) m.SetShaderParameter("track_clock", clock);   // TANK TRACKS: the clods' throw, the marks' age
+        if (markDirty)
+        {
+            Buffer.BlockCopy(markFloats, 0, markBytes, 0, markBytes.Length);
+            Put(markTex, Image.CreateFromData(MarkRing, 2, false, Image.Format.Rgbaf, markBytes));
+            markDirty = false;
+        }
+        if (MarkLog)                                                 // the count of marks still fading, each time it changes
+        {
+            var live = 0;
+            for (var i = 0; i < MarkRing; i++)
+                if (markFloats[(MarkRing + i) * 4] == MarkTread && clock - markFloats[i * 4 + 3] is >= 0 and < MarkLife) live++;
+            if (live != markLive) GD.Print($"TRACKMARK live {live} clock {clock:F1}");
+            markLive = live;
+        }
         if (rollDirty)
         {
             Buffer.BlockCopy(rollFloats, 0, rollBytes, 0, rollBytes.Length);
@@ -1551,7 +1621,7 @@ public sealed partial class GpuWorld : Node3D
         if (lean != leanShown || LeanRow != leanRowShown)
         {
             (leanShown, leanRowShown) = (lean, LeanRow);
-            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
+            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
         }
         SendBlasts();
         pieces.SetShaderParameter("piece_clock", clock);                // the game's own frames (GameView.GameClock): still while paused
@@ -1559,7 +1629,7 @@ public sealed partial class GpuWorld : Node3D
         pieces.SetShaderParameter("pieces_on", cardPieces);
         pieces.SetShaderParameter("piece_stay", PiecesStay);           // EXPLOSIONS: LASTING - they lie where they fell
         models.SetShaderParameter("better_fire", cardPieces);          // BETTER EXPLOSIONS: the fireball (gpumodels.gdshaderinc fire_look)
-        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces])
+        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks])
         {
             m.SetShaderParameter("inside_view", insideView);
             m.SetShaderParameter("shell_row", shellRow);                  // the building drawn from inside ($48F8)
