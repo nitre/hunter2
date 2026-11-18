@@ -1083,7 +1083,7 @@ public sealed partial class GpuWorld : Node3D
         long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)
         long blastBytes = Blasts * (0xA0L * 4 + 16 + maxTris * 3L * 12);                   // a blast's: the two blast textures + its share of the pieces mesh
         GD.Print($"GpuWorld ready: {tris.Count} of {MaxTriangles} triangles (GpuWorld.MaxTriangles; table {table.GetWidth() * table.GetHeight() * 16 / 1048576.0:F1} MB of {4L * MaxTriangles * 16 / 1048576.0:F0} MB), up to {maxTris} a model; caps a model {CardModels.MaxCorners} corners, {CardModels.MaxEdges} edges, {CardModels.MaxFaces} faces, up to {maxLines} lines; card room {Rows} rows = {rowBytes / 1048576.0:F1} MB, {Blasts} blasts = {blastBytes / 1048576.0:F1} MB; model store {Store.Used} texels in {Store.Rows} rows = {Store.Rows * CardModels.Width * 16 / 1048576.0:F2} MB (cap {CardModels.Width * CardModels.Height * 16 / 1048576.0:F0} MB)");
-        GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers; flat on a face: {layer.Count(v => v == 1)} on layer 1, {layer.Count(v => v == 2)} on 2, {layer.Count(v => v == 3)} on 3");
+        GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers; flat on a face: {string.Join(", ", Enumerable.Range(1, LayerMax).Select(k => $"{layer.Count(v => v == k)} on layer {k}"))}; deepest stack {DeepestLayer}");
         GD.Print($"GpuWorld rods: {rodsOf.Sum(g => g.Count())} free-standing lines made solid, {segments.Count} lines on faces left flat, {lineFaces.Count} in all");
         GD.Print($"GpuWorld backs: {backsAuto} models closed automatically, {backsHand} hand-made; painted light: {PaintedLight.Groups} colour groups in {PaintedLight.ModelsWith} models");
     }
@@ -1290,13 +1290,13 @@ public sealed partial class GpuWorld : Node3D
     // away, and which one a pixel shows is decided by rounding: the earlier face came through the later in patches (the
     // truck's wheel: a dark patch on its brown half). Each such face gets a LAYER: 0 for a face with nothing under it,
     // otherwise one more than the highest layer among the earlier faces it lies on (same plane, the two overlapping), up
-    // to 3. The shader draws a face a clear step nearer the eye for each layer (gpumodels_body.gdshaderinc LAYER_NEARER),
+    // to LayerMax. The shader draws a face a clear step nearer the eye for each layer (gpumodels_body.gdshaderinc LAYER_NEARER),
     // so the later face always wins - and only among faces of its own plane: a count over all the model's faces would
     // have to be so small a step that rounding beats it, or so big that a model's last faces jump in front of real shape.
     // A face that is drawn as a moved copy (a slab, a sticker) is already off the plane and takes no part.
     static int[] FindLayers(CardModels store, List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] sticker, bool[] slab)
     {
-        var layer = new int[faces.Count];
+        var deep = new int[faces.Count];
         for (var i = 0; i < faces.Count; )
         {
             var end = i;
@@ -1317,20 +1317,25 @@ public sealed partial class GpuWorld : Node3D
                 if (plane[r - i] is not { } nr) continue;
                 for (var o = i; o < r; o++)
                 {
-                    if (plane[o - i] is not { } on || layer[o] < layer[r]) continue;
+                    if (plane[o - i] is not { } on || deep[o] < deep[r]) continue;
                     var ln = Math.Sqrt((double)on.Item1 * on.Item1 + (double)on.Item2 * on.Item2 + (double)on.Item3 * on.Item3);
                     var o0 = pts[o - i][0];
                     var same = true;                                              // every corner of the later face within half a unit of the earlier one's plane
                     foreach (var q in pts[r - i])
                         if (Math.Abs(on.Item1 * (q.Item1 - o0.Item1) + on.Item2 * (q.Item2 - o0.Item2) + on.Item3 * (q.Item3 - o0.Item3)) / ln > 0.5) { same = false; break; }
                     if (!same || (!InsidePoly(centre[r - i], pts[o - i], on) && !InsidePoly(centre[o - i], pts[r - i], nr))) continue;
-                    layer[r] = Math.Min(3, layer[o] + 1);
+                    deep[r] = deep[o] + 1;
                 }
             }
             i = end;
         }
-        return layer;
+        DeepestLayer = deep.Length == 0 ? 0 : deep.Max();              // told in the bake's line: past LayerMax the top faces share a layer
+        return deep.Select(d => Math.Min(LayerMax, d)).ToArray();
     }
+
+    /// <summary>The highest layer a face can carry (3 bits in the marks), and the deepest stack the models really have.</summary>
+    internal const int LayerMax = 7;
+    internal static int DeepestLayer;
 
     // A filled face's corners at rest (signed bytes), chained into its loop.
     static List<(int, int, int)> FacePoints(CardModels store, (int Model, int Base, int N, int Meta, int Ordinal) f)
