@@ -6,7 +6,7 @@ namespace Hunter;
 
 /// <summary>the card's copy of both tanks ($15 kind $03, $16 kind $04) gets, on each black track panel,
 ///   ROAD WHEELS - a row of grey discs proud of the panel, each its own spin-x part on channel 0 (a pivot flagged $10 at the
-///     disc's centre, the disc both ways round and a black bowtie from the hub that shows the turn), their
+///     disc's centre, the disc in four pieces from the hub: a black bowtie that shows the turn and the grey between), their
 ///     lowest point 12 over the hull's bottom, so the ground fit (fixed corners within 3 of the lowest) is the original's;
 ///   LINKS - short grey lines across the belt, 4 in from the panel's outline, every Pitch along each run of the belt (top,
 ///     front, bottom, rear), 4 proud of the panel. Each run is a BELT part (kind 3, card only): its first corner A is
@@ -132,10 +132,14 @@ public static class TankTracks
                     ring[k] = pile.P(side * t.WheelX, y, zz);
                 }
                 var (h, w) = (t.Sides / 2, Math.Max(1, t.Sides / 8));       // a wedge spans an eighth of the rim
-                pile.Face(Wheel, ring);
-                pile.Face(Wheel, ring.Reverse().ToArray(), 0x80);
-                pile.Face(Band, [hub, .. Enumerable.Range(1, w + 1).Select(k => ring[k])], 0x80);       // the BOWTIE: two opposite black wedges
-                pile.Face(Band, [hub, .. Enumerable.Range(h + 1, w + 1).Select(k => ring[k])], 0x80);   // from the hub
+                // the disc as four pieces from the hub, side by side: the BOWTIE's two opposite black wedges and the two grey
+                // parts between them. Nothing lies on anything (a whole grey disc under the wedges, and its copy facing the
+                // other way, fought the wedges for the same pixels); the card draws each piece from both sides.
+                int[] Piece(int from, int steps) => [hub, .. Enumerable.Range(from, steps + 1).Select(k => ring[k % t.Sides])];
+                pile.Face(Band, Piece(1, w));
+                pile.Face(Wheel, Piece(1 + w, h - w));
+                pile.Face(Band, Piece(h + 1, w));
+                pile.Face(Wheel, Piece(h + 1 + w, h - w));
             }
         // the links: a belt part a run, a side
         foreach (var side in new[] { 1, -1 })
