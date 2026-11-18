@@ -26,6 +26,14 @@ public static class RoundWheels
     /// <summary>The wheel models whose rims stand out by Proud: truck, ambulance, jeep, armoured car.</summary>
     static readonly int[] ProudModels = [18, 20, 34, 36];
 
+    /// <summary>Rims moved to another x (model, old x -> new x). The scanner van's side panels lean out from the body's
+    /// bottom edge (x 80 and -80 at y -40) and the original paints each panel after its wheels, so a wheel shows only below
+    /// the body. Its right rims are at x 80, on that edge, and the leaning panel hides their top on the card too; its left
+    /// rims are at x -82, two units outside the edge, so their top came through the panel as far as it leans past them
+    /// (to y -23). Both sides stand a world unit inside the edge (x 78 and -78): a turned model's corners land on the
+    /// nearest half unit, and a rim exactly on the edge came out half a unit past it at some headings.</summary>
+    static readonly Dictionary<(int Model, int X), int> RimAt = new() { [(32, -82)] = -78, [(32, 80)] = 78 };
+
     /// <summary>The models whose spin-x parts are wheels (the other spin-x parts are legs): truck, car, ambulance,
     /// scanner van, jeep, armoured car, the bicycle (boarded model $28), amphimobile.</summary>
     static readonly int[] WheelModels = [18, 19, 20, 32, 34, 36, 40, 41];
@@ -114,7 +122,7 @@ public static class RoundWheels
                 {
                     var a = j * 2 * Math.PI / Sides;
                     r.New[j] = outCorners.Count;
-                    outCorners.Add(md.FullCorner(0, corners[k][1] + Math.Sign(corners[k][1]) * proud,
+                    outCorners.Add(md.FullCorner(0, RimAt.TryGetValue((model, corners[k][1]), out var at) ? at : corners[k][1] + Math.Sign(corners[k][1]) * proud,
                         r.Py + (int)Math.Round(r.R * Math.Cos(a), MidpointRounding.AwayFromZero),
                         r.Pz + (int)Math.Round(r.R * Math.Sin(a), MidpointRounding.AwayFromZero)));
                 }
