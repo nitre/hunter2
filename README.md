@@ -30,6 +30,7 @@ An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with God
 - Vehicle interiors and see-through glass
 
 ### Gameplay
+- Game rules taken from the original's assembly code
 - Experimental world mode: more objects on the islands, people and animals that react to each other, graves
 - Fixes for several original bugs
 
