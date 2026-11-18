@@ -73,7 +73,7 @@ public partial class GameView
         wire on|off               Godot's own wireframe of the 3D view (a test)
         eye                       the camera's eye height, its place, the smooth and drawn ground there, the highest ground to the player
         corners ROW [shadow|raw|old]  where the card puts ROW's triangle corners (or its shadow's; raw = before the ground fit;
-                                  old = the fit by heights only, as before vehicles turned): slot corner x y z colour
+                                  old = the fit by heights only, as before vehicles turned, with the turned body's lift): slot corner x y z colour
         joy DIRS FRAMES           hold the stick (letters u d l r f, f = fire; "-" = let go) for FRAMES frames
         log                       the log book's places as its little map marks them (to the nearest 512-unit square), from you
         carry                     what you carry: each item and how many
