@@ -18,6 +18,7 @@
 
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: see-through windows (GpuWorld sets it; meta bit 12 marks the faces)
+const float FRONT_TURN = 1.0;                     // the way a face's corners turn on the screen when its front is to the eye
 const float GLASS_SEE = 0.35;                     // how much of the glass's own colour shows (the rest is what is behind it)
 const vec3 GLASS_TINT = vec3(0.85, 0.93, 1.1);    // the pane's light grey, a little blue
 varying flat float glass_dark;                    // a military machine's panes: their brightness (GpuWorld.OwnTints Glass; 1 the pale glass)
@@ -143,6 +144,9 @@ void vertex() {
             }
         }
         POSITION = vec4(mine_px / half_vp * mine.w, mine.z, mine.w);
+        // BACK TO BACK: a front-only face seen from behind is not drawn (the way its corners turn on the screen)
+        if (front_only(first) && ((s1.x - s0.x) * (s2.y - s0.y) - (s1.y - s0.y) * (s2.x - s0.x)) * FRONT_TURN < 0.0)
+            POSITION = vec4(2.0, 2.0, 2.0, 1.0);
     }
     depth_ = POSITION.w;
 }

@@ -718,6 +718,7 @@ public sealed partial class GpuWorld : Node3D
         var found = FindSheets(Store, faces, slab, slabOff, twin, recolour);
         var sticker = new bool[faces.Count];                 // STICKERS: drawn only as a copy moved onto the face under them
         var stickers = FindStickers(Store, faces, sticker, slab, slabOff);
+        var frontOnly = FindBacks(Store, faces, slab, sticker, twin);   // BACK TO BACK: faces drawn from their front only
         // GLASS: SEE-THROUGH, a window painted flat on a wall: the wall to be drawn with a hole (GlassWalls)
         var notPlain = new bool[faces.Count];
         for (var i = 0; i < faces.Count; i++) notPlain[i] = slab[i] || twin[i] >= 0 || sticker[i];
@@ -808,6 +809,10 @@ public sealed partial class GpuWorld : Node3D
                 GlassWallTris[w.Model]++;
             }
         }
+        var frontWay = new (int, int, int)?[faces.Count];     // a front-only face's own direction at rest (its winding's)
+        for (var i = 0; i < faces.Count; i++)
+            if (frontOnly[i]) frontWay[i] = Plane(WoundPoints(Store, faces[i]));
+        GD.Print($"GpuWorld back to back: {frontOnly.Count(v => v)} faces drawn from their front only");
         for (var i = 0; i < rows; i++)
         {
             var f = faces[i];
@@ -832,7 +837,18 @@ public sealed partial class GpuWorld : Node3D
                 var moving = part[c0] && part[c1] && part[c2];
                 // bit 10: its paint has the painters' light in it (PaintedLight) - the sun lights it against their sun
                 var painted = recolour[i] < 0 && !moving && PaintedLight.Painted(fm, f.Ordinal);
-                AddTri(c0, c1, c2, f.Meta | (plate ? 32 : 0) | (moving ? 512 : 0) | (painted ? 1024 : 0), default);
+                var front = 0;
+                if (frontOnly[i] && c0 < corners && c1 < corners && c2 < corners && frontWay[i] is { } way)
+                {
+                    // the triangle wound as its face is, so the card can tell the face's front from its back
+                    var (p0, p1, p2) = (fm.Raw(c0), fm.Raw(c1), fm.Raw(c2));
+                    long tx = (long)(p1.Item2 - p0.Item2) * (p2.Item3 - p0.Item3) - (long)(p1.Item3 - p0.Item3) * (p2.Item2 - p0.Item2),
+                         ty = (long)(p1.Item3 - p0.Item3) * (p2.Item1 - p0.Item1) - (long)(p1.Item1 - p0.Item1) * (p2.Item3 - p0.Item3),
+                         tz = (long)(p1.Item1 - p0.Item1) * (p2.Item2 - p0.Item2) - (long)(p1.Item2 - p0.Item2) * (p2.Item1 - p0.Item1);
+                    if (tx * way.Item1 + ty * way.Item2 + tz * way.Item3 < 0) (c1, c2) = (c2, c1);
+                    front = FrontOnly;
+                }
+                AddTri(c0, c1, c2, f.Meta | (plate ? 32 : 0) | (moving ? 512 : 0) | (painted ? 1024 : 0) | front, default);
                 count[f.Model]++;
             }
             var own = tris.Count;
@@ -1413,6 +1429,75 @@ public sealed partial class GpuWorld : Node3D
         }
         if (outs[0] == outs[^1]) outs.RemoveAt(outs.Count - 1);
         return outs;
+    }
+
+    /// <summary>Meta bit 23: a face drawn only when seen from its front (gpumodels.gdshaderinc front_only).</summary>
+    internal const int FrontOnly = 0x800000;
+
+    // BACK TO BACK: the original draws a face from its front only, so a model can hold two faces in one place looking
+    // opposite ways - a panel's outside and inside in two colours, a body's side and the back of the part behind it - and
+    // only one of them is ever seen. The card draws every face from both sides, so the two fought over the same pixels.
+    // A plain face with such a partner (same plane, looking the other way, the two overlapping) is drawn from its front
+    // only, as the original does; every other face stays seen from both sides. Thin sheets, their twins, stickers and
+    // a vehicle's inside take no part: they are drawn as moved copies already.
+    // A face's corners at rest in the order the file winds them: edge i runs from corner i to corner i + 1, so corner i
+    // is the one edge i shares with the edge before it. (FacePoints chains the edges into a loop from either end: its
+    // order says nothing of which way the face looks.) Empty when the edges are not such a chain.
+    static List<(int, int, int)> WoundPoints(CardModels store, (int Model, int Base, int N, int Meta, int Ordinal) f)
+    {
+        var md = store.Models[f.Model];
+        var es = md.Faces[f.Ordinal].Edges;
+        var pts = new List<(int, int, int)>();
+        for (var i = 0; i < es.Length; i++)
+        {
+            int p = es[(i + es.Length - 1) % es.Length], c = es[i];
+            if (p >= md.Edges.Length || c >= md.Edges.Length) return [];
+            var (pa, pb, ca, cb) = (md.Edges[p].A, md.Edges[p].B, md.Edges[c].A, md.Edges[c].B);
+            var k = pa == ca || pa == cb ? pa : pb == ca || pb == cb ? pb : -1;
+            if (k < 0 || k >= md.Corners.Length) return [];
+            pts.Add(md.Raw(k));
+        }
+        return pts;
+    }
+
+    static bool[] FindBacks(CardModels store, List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] slab, bool[] sticker, int[] twin)
+    {
+        var back = new bool[faces.Count];
+        for (var i = 0; i < faces.Count; )
+        {
+            var end = i;
+            while (end < faces.Count && faces[end].Model == faces[i].Model) end++;
+            var pts = new List<(int, int, int)>[end - i];
+            var plane = new (int, int, int)?[end - i];
+            var centre = new double[end - i][];
+            for (var r = i; r < end; r++)
+            {
+                var p = pts[r - i] = WoundPoints(store, faces[r]);
+                if (p.Count < 3 || slab[r] || sticker[r] || twin[r] >= 0 || (faces[r].Meta & CarInside.Bit) != 0) continue;
+                plane[r - i] = Plane(p);
+                centre[r - i] = [p.Average(q => (double)q.Item1), p.Average(q => (double)q.Item2), p.Average(q => (double)q.Item3)];
+            }
+            for (var r = i; r < end; r++)
+            {
+                if (plane[r - i] is not { } nr) continue;
+                for (var o = i; o < r; o++)
+                {
+                    if (plane[o - i] is not { } on) continue;
+                    double lr = Math.Sqrt((double)nr.Item1 * nr.Item1 + (double)nr.Item2 * nr.Item2 + (double)nr.Item3 * nr.Item3),
+                           lo = Math.Sqrt((double)on.Item1 * on.Item1 + (double)on.Item2 * on.Item2 + (double)on.Item3 * on.Item3);
+                    var facing = ((double)nr.Item1 * on.Item1 + (double)nr.Item2 * on.Item2 + (double)nr.Item3 * on.Item3) / (lr * lo);
+                    if (facing > -0.999) continue;                                // not looking opposite ways
+                    var o0 = pts[o - i][0];
+                    var same = true;                                              // every corner of the one within half a unit of the other's plane
+                    foreach (var q in pts[r - i])
+                        if (Math.Abs((double)on.Item1 * (q.Item1 - o0.Item1) + (double)on.Item2 * (q.Item2 - o0.Item2) + (double)on.Item3 * (q.Item3 - o0.Item3)) / lo > 0.5) { same = false; break; }
+                    if (!same || (!InsidePoly(centre[r - i], pts[o - i], on) && !InsidePoly(centre[o - i], pts[r - i], nr))) continue;
+                    back[r] = back[o] = true;
+                }
+            }
+            i = end;
+        }
+        return back;
     }
 
     // A face's rest direction: the first of its corner triples with a cross product (its winding's

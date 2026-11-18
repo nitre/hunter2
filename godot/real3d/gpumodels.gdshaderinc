@@ -306,6 +306,10 @@ bool on_part(int id) { return (int(tri_row(id).a + 0.5) & 0x200) != 0; }
 // own triangle, hidden with SEE-THROUGH where its holed copy is drawn (GlassWalls.HiddenBit).
 int glass_bits(int id) { return int(tri_row(id).a + 0.5) & 0xF000; }
 
+// A face drawn from its front only (meta bit 23, GpuWorld.FindBacks): one of two faces in one place looking opposite
+// ways, of which the original shows only the one facing the eye. Its triangles are wound as the face is.
+bool front_only(int id) { return ((int(tri_row(id).a + 0.5) >> 23) & 1) != 0; }
+
 // A thin sheet's parts that stay as thin as they are (GpuWorld.Bake), not widened to a game pixel: a slab's side
 // (meta bit 6, not a rod, some corners moved and some not), the thin edge between the sheet's two copies, and the
 // sheet's resting copy (bit 7 without bit 6) - edge-on, its moved copy alone is widened, one line of one colour.
