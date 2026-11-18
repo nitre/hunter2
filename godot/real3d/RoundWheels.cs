@@ -141,6 +141,49 @@ public static class RoundWheels
             else oldEdge[e] = -1;
         }
 
+        // A wheel's whole side with two later halves lying on it (the truck: a black disc, then a black half and a brown
+        // half that meet along one line across it): the original paints the halves over the disc, so the disc is never seen.
+        // On the card all three lie in one plane, and in places the disc came out in front of a half - a dark patch on the
+        // half, its edges the disc's own triangles. The disc is left out; the two halves are the wheel's side.
+        // Only when the cover is certain: exactly two later faces on that rim, each the rim's steps on its side closed by
+        // one line across, the same line for both, their steps together the whole rim and none shared.
+        var hidden = new HashSet<int>();
+        var flat = new List<(int Face, int Ring, HashSet<int> Steps, List<(int, int)> Across)>();
+        for (var f = 0; f < faces.Count; f++)
+        {
+            var es = faces[f].Edges;
+            if (es.Length < 3 || es.All(e => oldEdge[e] >= 0)) continue;
+            var loop = new int[es.Length];
+            var closed = true;
+            for (var i = 0; i < es.Length && closed; i++)
+            {
+                var (pa, pc) = edges[es[(i + es.Length - 1) % es.Length]];
+                var (qa, qc) = edges[es[i]];
+                if (pa == qa || pa == qc) loop[i] = pa; else if (pc == qa || pc == qc) loop[i] = pc; else closed = false;
+            }
+            if (!closed) continue;
+            var ring = ringOf[loop[0]];
+            if (ring < 0 || loop.Any(c => ringOf[c] != ring)) continue;
+            var (members, js) = (rings[ring].Members, rings[ring].J);
+            var steps = new HashSet<int>();
+            var across = new List<(int, int)>();
+            for (var i = 0; i < loop.Length; i++)
+            {
+                int s = loop[i], t = loop[(i + 1) % loop.Length], si = members.IndexOf(s), ti = members.IndexOf(t);
+                var forward = members[(si + 1) % members.Count] == t;
+                if (!forward && members[(si + members.Count - 1) % members.Count] != t) { across.Add((Math.Min(s, t), Math.Max(s, t))); continue; }
+                for (var j = js[si]; j != js[ti]; j = (j + (forward ? 1 : Sides - 1)) % Sides) steps.Add(forward ? j : (j + Sides - 1) % Sides);
+            }
+            flat.Add((f, ring, steps, across));
+        }
+        foreach (var whole in flat.Where(w => w.Steps.Count == Sides && w.Across.Count == 0))
+        {
+            var later = flat.Where(o => o.Ring == whole.Ring && o.Face > whole.Face).ToList();
+            if (later.Count == 2 && later.All(o => o.Across.Count == 1) && later[0].Across[0] == later[1].Across[0]
+                && !later[0].Steps.Overlaps(later[1].Steps) && later[0].Steps.Count + later[1].Steps.Count == Sides)
+                hidden.Add(whole.Face);
+        }
+
         // the faces
         var outFaces = new List<(int Colour, int Flags, int[] E)>();
         var origin = new List<int>();                            // each new face's number among the old ones (a band of treads is many)
@@ -148,6 +191,7 @@ public static class RoundWheels
         {
             while (origin.Count < outFaces.Count) origin.Add(oldFace - 1);
             var (colour, flags, es) = faces[oldFace];
+            if (hidden.Contains(oldFace)) continue;
             if (es.All(e => oldEdge[e] >= 0)) { outFaces.Add((colour, flags, es.Select(e => oldEdge[e]).ToArray())); continue; }
             var n = es.Length;
             var loop = new int[n];                               // the corners, one an edge: edge i runs corner i to corner i + 1
