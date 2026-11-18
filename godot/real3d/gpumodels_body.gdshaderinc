@@ -18,8 +18,7 @@
 
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: see-through windows (GpuWorld sets it; meta bit 12 marks the faces)
-const float LAYER_NEARER = 0.002;                 // how much nearer the eye a face is drawn for each layer it lies on in its own plane (measured on the truck's wheel: 0.00016 lost to the face under it in a patch, 0.0016 won everywhere)
-const float GLASS_SEE = 0.35;                    // how much of the glass's own colour shows (the rest is what is behind it)
+const float GLASS_SEE = 0.35;                     // how much of the glass's own colour shows (the rest is what is behind it)
 const vec3 GLASS_TINT = vec3(0.85, 0.93, 1.1);    // the pane's light grey, a little blue
 varying flat float glass_dark;                    // a military machine's panes: their brightness (GpuWorld.OwnTints Glass; 1 the pale glass)
 varying flat float glass_see;                     // ...and how much of the pane shows (OwnTints Opaque; GLASS_SEE otherwise)
@@ -45,10 +44,7 @@ bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out
     vec3 eye = (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
     float k = (shell_row >= 0 && id / (tri_slots * 3) == shell_row) ? 1.25 : 1.0;   // indoors the building's shell is a backdrop ($48F8)
     int slot = (id - (id / (tri_slots * 3)) * (tri_slots * 3)) / 3;                      // the triangle's place in its model's face list
-    // later faces win a tie on a shared plane, as the painter's order did ($77AA walks the list in order): a face lying on
-    // earlier faces of its own plane is drawn LAYER_NEARER closer for each layer (face_layer) - a step rounding cannot beat;
-    // the hair for the face's place in the list stays for faces that only meet along an edge
-    float order = 1.0 - float(slot) * 0.000002 - float(face_layer(id)) * LAYER_NEARER;
+    float order = 1.0 - float(slot) * 0.000002;                                          // later faces win a tie on a shared plane, as the painter's order did ($77AA walks the list in order)
     clip = proj * vec4((pull ? eye * 0.996 : eye) * k * order, 1.0);
     return clip.w > 0.01;
 }
