@@ -8,11 +8,11 @@ namespace Hunter;
 ///   ROAD WHEELS - a row of grey discs proud of the panel, each its own spin-x part on channel 0 (a pivot flagged $10 at the
 ///     disc's centre, the disc in four pieces from the hub: a black bowtie that shows the turn and the grey between), their
 ///     lowest point 12 over the hull's bottom, so the ground fit (fixed corners within 3 of the lowest) is the original's;
-///   LINKS - short grey lines across the belt, 4 in from the panel's outline, every Pitch along each run of the belt (top,
-///     front, bottom, rear), 4 proud of the panel. Each run is a BELT part (kind 3, card only): its first corner A is
-///     flagged $30 | (L - 1) << 2, the next B = A + D is the run's pitch, and every corner after slides by
-///     D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - the links repeat every pitch, so the pattern
-///     moves without end. L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
+///   no links drawn on the belt: lines 8 long were too small to draw alike (a turned model's corners land on the nearest
+///     half unit) and read as specks. The belt's Pitch stays: the marks a tank leaves on the ground are that far apart, and
+///     L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough). The BELT part itself (kind 3, card only:
+///     a first corner A flagged $30 | (L - 1) << 2, the next B = A + D the pitch, every corner after sliding by
+///     D * ((L * channel) mod 256) / 256, model.gdshaderinc _walk_step) is still the bicycle's chain, below;
 ///   CLODS:
 ///     not parts of the model: a moving tank throws small triangles of earth from its tracks' rear, each noted once in the
 ///     world (GpuWorld ClodThrows, the marks' ring) with where it left the belt (ClodSpots: most from the rear run, where the
@@ -28,7 +28,7 @@ public static class TankTracks
     /// <summary>The face origin GpuWorld.Bake reads as a track face: a plain part of the body, no glass.</summary>
     public const int Origin = -1002;
 
-    public const int Wheel = 8, Band = 0, Link = 8;                  // grey wheels with a black band, grey links (the panels are black 0)
+    public const int Wheel = 8, Band = 0;                            // grey wheels with a black bowtie (the panels are black 0)
     public const int ClodsATrack = 12;                               // CLODS: thrown a track in a cycle (GpuWorld.ClodThrows)
 
     /// <summary>CLODS: a tank model's ClodsATrack throw spots in turn (right side, model units; the left mirrors x), y given as
@@ -55,7 +55,6 @@ public static class TankTracks
         }
         return spots;
     }
-    const int Inset = 4, LinkLength = 8, Proud = 4;                  // full units
 
     /// <summary>A tank: its panel's outer face as x of y (right side; the left mirrors it), the belt's outline (z, y) in the order
     /// the belt moves when the tank goes forward (the top run toward the front), the wheels (centre y, radius, sides, x of their
@@ -141,44 +140,6 @@ public static class TankTracks
                 pile.Face(Band, Piece(h + 1, w));
                 pile.Face(Wheel, Piece(h + 1 + w, h - w));
             }
-        // the links: a belt part a run, a side
-        foreach (var side in new[] { 1, -1 })
-        {
-            int X(double y) => side * R(t.PanelX(y) + Proud);
-            var round = 0.0;                                             // how far round the belt this run starts, from the outline's first corner
-            for (var r = 0; r < t.Belt.Length; r++)
-            {
-                var (az, ay) = t.Belt[r];
-                var (bz, by) = t.Belt[(r + 1) % t.Belt.Length];
-                double len = Math.Sqrt((bz - az) * (bz - az) + (by - ay) * (by - ay));
-                var before = round;
-                round += len;
-                double uz = (bz - az) / len, uy = (by - ay) / len;
-                double nz = -uy, ny = uz;                                // the left of the run: inward when the belt goes round anticlockwise
-                if (Turn(t.Belt) < 0) (nz, ny) = (-nz, -ny);             // clockwise (both tanks' belts): the right is inward
-                var (dz, dy) = (R(uz * t.Pitch), R(uy * t.Pitch));
-                double step = Math.Sqrt(dz * dz + dy * dy);
-                // ONE CHAIN: the links stand a pitch apart measured round the whole belt from its outline's first corner, not from
-                // each run's own corner - so the spacing carries on across a corner (a link or two hidden in it) where each run
-                // starting afresh left gaps of any size. The run's first link: the first such place at least 8 along it (4 in from
-                // the outline: clear of both edges at its corner - in from the edge alone, an acute corner's start stood outside
-                // the panel or on the hull's bottom).
-                var along = 2 * Inset + ((-(before + 2 * Inset)) % t.Pitch + t.Pitch) % t.Pitch;
-                var (sz, sy) = (R(az + uz * along + nz * Inset), R(ay + uy * along + ny * Inset));
-                var (ez, ey) = (R(nz * LinkLength), R(ny * LinkLength));  // a link, across the belt
-                var links = (int)Math.Floor((len - Inset - along) / step);     // the last one slides to 4 short of the run's end, no further
-                if (links < 1) continue;
-                pile.P(X(sy), sy, sz, 0x30 | (t.L - 1) << 2);                 // A: a belt part on channel 0
-                pile.P(X(sy + dy), sy + dy, sz + dz);                         // B = A + D: the pitch
-                var segs = new List<(int, int)>();
-                for (var k = 0; k < links; k++)
-                {
-                    var (pz, py) = (sz + k * dz, sy + k * dy);
-                    segs.Add((pile.P(X(py), py, pz), pile.P(X(py + ey), py + ey, pz + ez)));
-                }
-                for (var i = 0; i < segs.Count; i += 15) pile.Lines(Link, segs.Skip(i).Take(15));   // a line face holds 15 edges
-            }
-        }
         md.Replace([.. md.Corners, .. pile.Corners], [.. md.Edges, .. pile.Edges], [.. md.Faces, .. pile.Faces]);
         if (origins is not null)
             origins[t.Model] = (origins.TryGetValue(t.Model, out var old) ? old : Enumerable.Range(0, nf).ToArray()).Concat(pile.Faces.Select(_ => Origin)).ToArray();
@@ -229,13 +190,6 @@ public static class TankTracks
         store.Layout();
     }
 
-    /// <summary>The belt outline's turn in (z, y): 1 when it goes round anticlockwise (z right, y up), -1 clockwise.</summary>
-    static int Turn((int Z, int Y)[] belt)
-    {
-        long a = 0;
-        for (var i = 0; i < belt.Length; i++) { var (p, q) = (belt[i], belt[(i + 1) % belt.Length]); a += (long)p.Z * q.Y - (long)q.Z * p.Y; }
-        return a > 0 ? 1 : -1;
-    }
 
     /// <summary>The corners, edges and faces to add to a model, numbered after the model's own.</summary>
     sealed class Pile(CardModels.Model md)
