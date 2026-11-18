@@ -145,22 +145,28 @@ public static class TankTracks
         foreach (var side in new[] { 1, -1 })
         {
             int X(double y) => side * R(t.PanelX(y) + Proud);
+            var round = 0.0;                                             // how far round the belt this run starts, from the outline's first corner
             for (var r = 0; r < t.Belt.Length; r++)
             {
                 var (az, ay) = t.Belt[r];
                 var (bz, by) = t.Belt[(r + 1) % t.Belt.Length];
                 double len = Math.Sqrt((bz - az) * (bz - az) + (by - ay) * (by - ay));
-                if (len < t.Pitch + 3 * Inset) continue;
+                var before = round;
+                round += len;
                 double uz = (bz - az) / len, uy = (by - ay) / len;
                 double nz = -uy, ny = uz;                                // the left of the run: inward when the belt goes round anticlockwise
                 if (Turn(t.Belt) < 0) (nz, ny) = (-nz, -ny);             // clockwise (both tanks' belts): the right is inward
                 var (dz, dy) = (R(uz * t.Pitch), R(uy * t.Pitch));
                 double step = Math.Sqrt(dz * dz + dy * dy);
-                // the run's start: 8 along it and 4 in, clear of both edges at its corner (in from the edge alone, an acute corner's
-                // start stood outside the panel or on the hull's bottom)
-                var (sz, sy) = (R(az + uz * 2 * Inset + nz * Inset), R(ay + uy * 2 * Inset + ny * Inset));
+                // ONE CHAIN: the links stand a pitch apart measured round the whole belt from its outline's first corner, not from
+                // each run's own corner - so the spacing carries on across a corner (a link or two hidden in it) where each run
+                // starting afresh left gaps of any size. The run's first link: the first such place at least 8 along it (4 in from
+                // the outline: clear of both edges at its corner - in from the edge alone, an acute corner's start stood outside
+                // the panel or on the hull's bottom).
+                var along = 2 * Inset + ((-(before + 2 * Inset)) % t.Pitch + t.Pitch) % t.Pitch;
+                var (sz, sy) = (R(az + uz * along + nz * Inset), R(ay + uy * along + ny * Inset));
                 var (ez, ey) = (R(nz * LinkLength), R(ny * LinkLength));  // a link, across the belt
-                var links = (int)Math.Floor((len - 3 * Inset) / step);         // the last one slides to 4 short of the run's end, no further
+                var links = (int)Math.Floor((len - Inset - along) / step);     // the last one slides to 4 short of the run's end, no further
                 if (links < 1) continue;
                 pile.P(X(sy), sy, sz, 0x30 | (t.L - 1) << 2);                 // A: a belt part on channel 0
                 pile.P(X(sy + dy), sy + dy, sz + dz);                         // B = A + D: the pitch
