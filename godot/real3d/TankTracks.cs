@@ -14,10 +14,12 @@ namespace Hunter;
 ///     D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - the links repeat every pitch, so the pattern
 ///     moves without end. L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
 ///   CLODS:
-///     three small brown triangles a track, each a CLOD part (kind 5, card only): let go at the top of the track's rear where
-///     it wraps round the last wheel, a small hop, then down to the ground and left behind by the tank's speed (channel 1),
-///     each at its own share of a throw that takes FLING_BLANKS of the game's clock; still, at rest just inside the track's top
-///     rear (model.gdshaderinc _walk_step, place.gdshaderinc entity_artic).
+///     twelve small brown triangles a track, each a CLOD part (kind 5, card only): nine rest just inside the track's rear run,
+///     where the belt climbs round the last wheel, three inside its top rear corner under the bodywork. Moving, each lets go
+///     with a small hop up and back, falls to the hull's bottom (the ground), lies there and is left behind by the tank's speed
+///     (channel 1), then starts again from its rest spot - each at its own share of a cycle of FLING_BLANKS of the game's clock
+///     (24 blanks of flight, 26 on the ground); still, at rest inside the track (model.gdshaderinc _walk_step, place.gdshaderinc
+///     entity_artic).
 /// Channel 0 of these two models is not the animation table's (their set is 0): the card gives it the tank's own rolling,
 /// the distance its record has moved along its heading (back counts back), turned into the wheels' 256ths (GpuWorld
 /// TrackRoll -> roll_tex, place.gdshaderinc entity_artic). The rules treat kind 3 as a plain corner ($551E) and keep their
@@ -34,21 +36,31 @@ public static class TankTracks
 
     /// <summary>A tank: its panel's outer face as x of y (right side; the left mirrors it), the belt's outline (z, y) in the order
     /// the belt moves when the tank goes forward (the top run toward the front), the wheels (centre y, radius, sides, x of their
-    /// plane, centres in z), the link pitch with its L (pitches a wheel turn), and where the clods rest inside the track's rear
-    /// (right side).</summary>
+    /// plane, centres in z), the link pitch with its L (pitches a wheel turn), and where the clods rest (right side): Flap, three
+    /// spots inside the track's top rear corner under the bodywork, and Rear, one spot each for the ClodsATrack - 3 clods that
+    /// rest on the belt's rear run, just inside its surface at different heights.</summary>
     sealed record Tank(int Model, Func<double, double> PanelX, (int Z, int Y)[] Belt, int WheelY, int Radius, int Sides, int WheelX,
-        int[] WheelZ, int Pitch, int L, (int X, int Y, int Z)[] Clods);
+        int[] WheelZ, int Pitch, int L, (int X, int Y, int Z)[] Flap, (int X, int Y, int Z)[] Rear);
 
     static readonly Tank[] Tanks =
     [
         // $15: the lower hull's black side is the panel, sloping out from x 100 (y -64) to 112 (y -14); 50 high, so the wheels
         // are radius 16; 2 pi 16 = 100.5 = 2 x 50
         new(0x15, y => 100 + 12 * (y + 64) / 50.0, [(-184, -12), (208, -16), (160, -64), (-160, -64)],
-            -36, 16, 16, 112, [128, 64, 0, -64, -128], 50, 2, [(96, -18, -176), (80, -16, -180), (64, -20, -172)]),   // at the belt's top rear (-184, -12)
+            -36, 16, 16, 112, [128, 64, 0, -64, -128], 50, 2, [(96, -18, -176), (80, -16, -180), (64, -20, -172)],   // at the belt's top rear (-184, -12)
+            // the rear run (-160, -64) -> (-184, -12): each spot about 2 inside it, so the whole triangle is hidden at rest and the
+            // clod is behind the run a tenth into its flight at speed 5 (a few units of depth do both)
+            [(88, -60, -160), (72, -56, -161), (96, -52, -163), (64, -48, -165), (80, -44, -167), (96, -40, -169),
+             (72, -36, -171), (88, -32, -173), (64, -28, -174)]),
         // $16: track blocks x 48..120 with a black outer face at x 120, the top run hidden at y 32 under the hull's side;
         // five wheels, radius 20; 2 pi 20 = 125.7 = 3 x 42. The rear's last step (-272, 0) -> (-280, 32) is shorter than a pitch
         new(0x16, _ => 120, [(-280, 32), (152, 32), (76, -56), (-208, -56), (-272, 0)],
-            -24, 20, 16, 124, [52, -8, -68, -124, -184], 42, 3, [(72, 24, -272), (88, 26, -276), (104, 22, -268)]),   // at the belt's top rear (-280, 32)
+            -24, 20, 16, 124, [52, -8, -68, -124, -184], 42, 3, [(72, 24, -272), (88, 26, -276), (104, 22, -268)],   // at the belt's top rear (-280, 32)
+            // the rear run's upper step (-272, 0) -> (-280, 32) and just below it, each spot the one z that is both hidden at rest
+            // and out a tenth into the flight at speed 5; lower down, the slope (-208, -56) -> (-272, 0) leans back about as fast
+            // as a clod rises, so a clod resting there would stay inside the track for most of its flight
+            [(64, -4, -266), (96, -2, -267), (80, 0, -267), (104, 4, -268), (72, 6, -269), (88, 8, -269),
+             (60, 10, -270), (100, 14, -271), (76, 16, -271)]),
     ];
 
     /// <summary>The tanks' models (the objfile numbers): GpuWorld sends their offsets as track_models.</summary>
@@ -124,19 +136,28 @@ public static class TankTracks
                 for (var i = 0; i < segs.Count; i += 15) pile.Lines(Link, segs.Skip(i).Take(15));   // a line face holds 15 edges
             }
         }
-        // the clods: each a small triangle that is its own CLOD part (kind 5, card only, model.gdshaderinc): let go at the top of
-        // the track's rear, a small hop, then left behind by the tank's speed - each on its own share of the throw (the flag's
-        // low 4 bits x 16); still, at rest just inside the track's top rear (no offset: the rules' walk has them there too)
-        // ClodsATrack a side, spread round the three rest spots a few units apart, each on its own sixteenth of the throw (the
-        // two sides between each other), so the whole throw always has some in the air
+        // the clods: each a small triangle that is its own CLOD part (kind 5, card only, model.gdshaderinc): let go where it rests,
+        // a small hop up and back, down to the ground and lying there while the tank drives on - each on its own share of the
+        // cycle (the flag's low 4 bits x 16); still, at rest inside the track (no offset: the rules' walk has them there too).
+        // ClodsATrack a side, each on its own sixteenth of the cycle (the two sides between each other), so the cycle always has
+        // some in the air: every fourth (0, 4, 8) rests at one of the Flap spots, moved a few units apart; the rest at the Rear
+        // spots in turn. The flag's bits 8 up carry how far the clod's lowest corner (its first) rests above the hull's bottom,
+        // where the shader lands it (the rules read the flag's low byte only)
+        var ground = md.Corners.Min(c => c.Y);                          // the hull's bottom: the lowest of the tank's own corners
         foreach (var side in new[] { 1, -1 })
-            for (var i = 0; i < ClodsATrack; i++)
+            for (int i = 0, r = 0; i < ClodsATrack; i++)
             {
-                var (x, y, z) = t.Clods[i % t.Clods.Length];
-                x += (i / t.Clods.Length - 1) * 5;
-                y += i % 2;
-                z += i * 7 % 5 - 2;
-                var a = pile.P(side * x, y, z, 0x50 | (i * 16 / ClodsATrack + (side < 0 ? 1 : 0)) & 15);   // spread over the sixteen shares
+                int x, y, z;
+                if (i % 4 == 0)
+                {
+                    (x, y, z) = t.Flap[i % t.Flap.Length];
+                    x += (i / t.Flap.Length - 1) * 5;
+                    y += i % 2;
+                    z += i * 7 % 5 - 2;
+                }
+                else (x, y, z) = t.Rear[r++];
+                if (y - ground is < 0 or > 255) throw new InvalidOperationException($"model {t.Model}: a clod rests {y - ground} above the hull's bottom");
+                var a = pile.P(side * x, y, z, 0x50 | (i * 16 / ClodsATrack + (side < 0 ? 1 : 0)) & 15 | (y - ground) << 8);   // spread over the sixteen shares
                 var b = pile.P(side * (x + 4 * ClodSize), y + 8 * ClodSize, z - 4 * ClodSize);
                 var c = pile.P(side * (x - 4 * ClodSize), y + 4 * ClodSize, z + 8 * ClodSize);
                 pile.Face(ClodColours[i % ClodColours.Length], [a, b, c]);

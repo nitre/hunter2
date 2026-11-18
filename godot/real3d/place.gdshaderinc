@@ -47,13 +47,13 @@ uniform int steer_lean_row = 0;   // the player's record (slot 0); a check may p
 // a record row (x = row & 255, y = row >> 8). Their models have no animation set, so nothing else drives the channel. Kept
 // when the tank stops (the table's parts rest at 0 then, $56D0), so the wheels do not jump. track_models = the objfile
 // offsets + 1 of the two tank models; only the live table's materials turn it on (a blast's record row is not a live row).
-// Channel 1 is the tank's speed (+$3E, 0 when still) and channel 2 is where its clods are in their throw: the
-// game's clock (track_clock, its own frames, still while paused) over FLING_BLANKS, offset by the row so tanks differ.
+// Channel 1 is the tank's speed (+$3E, 0 when still) and channel 2 is where its clods are in their cycle (flight, then
+// lying on the ground): the game's clock (track_clock, its own frames, still while paused) over FLING_BLANKS (set with the
+// clods' other numbers, model.gdshaderinc), offset by the row so tanks differ.
 uniform bool track_on = false;
 uniform int track_models[2];   // the two tanks
 uniform sampler2D roll_tex : hint_default_black, filter_nearest;
 uniform float track_clock = 0.0;
-const float FLING_BLANKS = 24.0;
 
 ivec4 entity_artic(sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base) {
     if (track_on && (base + 1 == track_models[0] || base + 1 == track_models[1]))
