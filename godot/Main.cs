@@ -356,6 +356,8 @@ public partial class Main : Node2D
             {
                 await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
                 var img = GetViewport().GetTexture().GetImage();
+                // HUNTER_SUN_DEPTH=<png> (real shadows, step 1): the sun's depth picture of the same draw, at the last shot only
+                if (GpuWorld.SunDepthPath is { } sunPng && path == shots[^1].Path) GpuWorld.SaveSunDepth(sunPng);
                 if (draws++ == 0) drawn.Restart();
                 if (path.EndsWith(".mp4")) { Pipe(img, path); continue; }   // straight to video, no picture files
                 saving.Add(System.Threading.Tasks.Task.Run(() => img.SavePng(path)));

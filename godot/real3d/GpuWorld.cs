@@ -1100,6 +1100,7 @@ public sealed partial class GpuWorld : Node3D
         // runs before this bake ends, so a mesh made hidden was never shown and the panes were missing in every game
         AddChild(glassMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = glassShown });
         AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
+        if (SunDepthPath is not null) MakeSunDepth(slotMesh);
         Ready = true;
         long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)
         long blastBytes = Blasts * (0xA0L * 4 + 16 + maxTris * 3L * 12);                   // a blast's: the two blast textures + its share of the pieces mesh
@@ -1615,6 +1616,122 @@ public sealed partial class GpuWorld : Node3D
     }
     int[]? bandGainFor;
 
+    // ENHANCEMENT (real shadows, step 1 - nothing on screen uses it yet): the sun's depth picture. The models' triangle
+    // slots drawn once more by gpusundepth.gdshader, as the sun sees them, into a SubViewport with a world of its own
+    // (OwnWorld3D): the player's camera never sees these triangles and the sun's picture holds nothing else. Made only
+    // with HUNTER_SUN_DEPTH=<png path> set (a debug aid): a normal run builds none of it.
+    public static readonly string? SunDepthPath = System.Environment.GetEnvironmentVariable("HUNTER_SUN_DEPTH");
+    public const int SunDepthPixels = 1024;          // the picture, square
+    public const float SunBoxSize = 4096f;           // the ground square round the player it covers, world units a side
+    public const float SunBoxDepth = 8192f;          // the depth range 0..1 covers along the sun (shown units: x, height / 2, z)
+    static GpuWorld? sunOwner;                       // the live one, for Main's capture (SaveSunDepth)
+    SubViewport? sunView;
+    ShaderMaterial? sunDepth;
+    string[] sunCopied = [];                         // the model pass's uniforms the sun's pass shares, copied every frame
+    Vector3 sunCentre;                               // the box's centre this frame (sun_box_centre)
+    Vector3 sunToward;                               // and the sun (sun_dir)
+
+    void MakeSunDepth(Mesh slotMesh)
+    {
+        sunDepth = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/gpusundepth.gdshader") };
+        sunDepth.SetShaderParameter("sun_box_size", SunBoxSize);
+        sunDepth.SetShaderParameter("sun_box_depth", SunBoxDepth);
+        sunCopied = [.. sunDepth.Shader.GetShaderUniformList().Select(u => (string)u.AsGodotDictionary()["name"]).Where(n => !n.StartsWith("sun_box_"))];
+        sunView = new SubViewport
+        {
+            Size = new Vector2I(SunDepthPixels, SunDepthPixels),
+            OwnWorld3D = true,
+            TransparentBg = true,                    // nothing drawn = (0, 0, 0, 0)
+            UseHdr2D = true,                         // a half-float picture, no sRGB step: the depth comes back as written
+            Msaa3D = Viewport.Msaa.Disabled,
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,   // on only while the sun is up (SunDepthFrame)
+        };
+        AddChild(sunView);
+        sunView.AddChild(new Camera3D { Current = true });           // a camera for the world to be drawn at all; the shader writes POSITION itself
+        sunView.AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = sunDepth, CustomAabb = Huge });
+        sunOwner = this;
+        GD.Print($"SUNDEPTH: on, {SunDepthPixels} x {SunDepthPixels} RGBA half float, box {SunBoxSize} world units, depth range {SunBoxDepth}, {sunCopied.Length} uniforms shared with the model pass");
+    }
+
+    /// <summary>Each frame: the model pass's uniforms copied over, the box centred on the player (record 0's x +$4A,
+    /// height +$4C, z +$4E), the sun's direction; the picture drawn only while the sun is up and the view is outdoors.</summary>
+    void SunDepthFrame((float X, float Y, float Z)? toward, bool insideView)
+    {
+        var on = toward is not null && !insideView;
+        sunView!.RenderTargetUpdateMode = on ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
+        if (!on) return;
+        foreach (var n in sunCopied) sunDepth!.SetShaderParameter(n, models.GetShaderParameter(n));
+        int U(int o) => (int)entFloats[o] << 8 | (int)entFloats[o + 1];
+        sunCentre = new Vector3(U(0x4A), (short)U(0x4C), U(0x4E));
+        var t = toward!.Value;
+        sunToward = new Vector3(t.X, t.Y, t.Z);
+        sunDepth!.SetShaderParameter("sun_box_centre", sunCentre);
+    }
+
+    /// <summary>HUNTER_SUN_DEPTH: the depth picture as a grey PNG (covered pixels stretched from their farthest, dark, to
+    /// their nearest the sun, white; nothing drawn black), and its numbers in the log: the pixels covered, the depth
+    /// range, the nearest pixel, and at the picture's centre (the player's spot) the depth read back and the height
+    /// above the player's point it means along the sun's ray.</summary>
+    public static void SaveSunDepth(string path)
+    {
+        if (sunOwner?.sunView is not { } view) { GD.Print("SUNDEPTH: no picture (no 3D view)"); return; }
+        if (view.RenderTargetUpdateMode == SubViewport.UpdateMode.Disabled) { GD.Print("SUNDEPTH: off (no sun, or indoors)"); return; }
+        var img = view.GetTexture().GetImage();
+        int w = img.GetWidth(), h = img.GetHeight();
+        var d = new float[w * h];
+        var covered = 0; float lo = 1, hi = 0; int near = -1; var worst = 0f;
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                var c = img.GetPixel(x, y);
+                if (c.A < 0.5f) { d[y * w + x] = -1; continue; }
+                var v = c.R + c.G / 256f;                                // the packed depth (gpusundepth.gdshader)
+                worst = Math.Max(worst, Math.Abs(v - c.B));
+                d[y * w + x] = v; covered++;
+                if (v < lo) { lo = v; near = y * w + x; }
+                hi = Math.Max(hi, v);
+            }
+        var grey = new byte[w * h];
+        for (var i = 0; i < grey.Length; i++)
+            grey[i] = d[i] < 0 ? (byte)0 : (byte)Math.Round(hi > lo ? 40 + 215 * (hi - d[i]) / (hi - lo) : 255);
+        Image.CreateFromData(w, h, false, Image.Format.L8, grey).SavePng(path);
+        var o = sunOwner;
+        // pixel (x, y) is the spot g of the centre's level (x east, y down = south); that spot reads 0.5 - (g . sun) / depth,
+        // and a point t shown units up the sun's ray from it reads t / depth less and stands t * sun_dir.y shown units
+        // (twice that in world height) above the centre's level
+        float Above(int x, int y, float v)
+        {
+            float gx = ((x + 0.5f) / w - 0.5f) * SunBoxSize, gz = (0.5f - (y + 0.5f) / h) * SunBoxSize;
+            var level = 0.5f - (gx * o.sunToward.X + gz * o.sunToward.Z) / SunBoxDepth;
+            return (level - v) * SunBoxDepth * o.sunToward.Y * 2f;
+        }
+        float aLo = float.MaxValue, aHi = float.MinValue;
+        for (var i = 0; i < d.Length; i++)
+            if (d[i] >= 0) { var a = Above(i % w, i / w, d[i]); aLo = Math.Min(aLo, a); aHi = Math.Max(aHi, a); }
+        if (covered > 0) GD.Print($"SUNDEPTH: height above the centre's level over the covered pixels {aLo:F1}..{aHi:F1} world units");
+        // the lean: the mean pixel of the low parts (under 40 above the level) and of the high ones (over 150) - the high
+        // ones lie away from the sun in the picture
+        double lx = 0, ly = 0, hx = 0, hy = 0; int ln = 0, hn = 0;
+        for (var i = 0; i < d.Length; i++)
+        {
+            if (d[i] < 0) continue;
+            var a = Above(i % w, i / w, d[i]);
+            if (a < 40) { lx += i % w; ly += i / w; ln++; } else if (a > 150) { hx += i % w; hy += i / w; hn++; }
+        }
+        if (ln > 0 && hn > 0) GD.Print($"SUNDEPTH: lean: low parts {ln} pixels mean ({lx / ln:F1}, {ly / ln:F1}), high parts {hn} pixels mean ({hx / hn:F1}, {hy / hn:F1}): high - low = ({hx / hn - lx / ln:F1}, {hy / hn - ly / ln:F1}) pixels (x east, y south)");
+        var mid = d[(h / 2) * w + w / 2];
+        GD.Print($"SUNDEPTH: {w} x {h} {img.GetFormat()}, sun_dir ({o.sunToward.X:F4}, {o.sunToward.Y:F4}, {o.sunToward.Z:F4}), centre {o.sunCentre}, " +
+                 $"{covered} pixels covered, depth {lo:F6}..{hi:F6}, packed vs plain off by up to {worst:F6}");
+        if (near >= 0) GD.Print($"SUNDEPTH: nearest the sun at pixel ({near % w}, {near / w}) depth {lo:F6}");
+        GD.Print($"SUNDEPTH: centre pixel ({w / 2}, {h / 2}) " + (mid < 0 ? "empty" : $"depth {mid:F6} = {Above(w / 2, h / 2, mid):F1} world height above the player's point along the sun's ray"));
+        for (var k = -6; k <= 6; k++)                                 // a row of samples through the centre, west to east, 4 pixels apart
+        {
+            var x = w / 2 + k * 4; var v = d[(h / 2) * w + x];
+            GD.Print($"SUNDEPTH: row {h / 2} x {x}: " + (v < 0 ? "empty" : $"{v:F6} ({Above(x, h / 2, v):F1} above the level)"));
+        }
+        GD.Print($"SUNDEPTH: -> {path}");
+    }
+
     public void Update(EntityTable entities, byte[] anim, bool insideView, int shellRow, byte[] modelBuf, short[] debrisPos, List<byte[]>? stored,
         WorldState? world = null, bool sunShading = false, bool ownShadows = false, int viewRows = 0, Camera? viewCamera = null, double viewWide = 1, bool cardPieces = false,
         int groundCuts = 1, ViewDistance.Turn? turn = null, float clock = 0, float animFrac = 0, bool ownColours = false, bool seeThrough = false)
@@ -1788,6 +1905,7 @@ public sealed partial class GpuWorld : Node3D
         shadows.SetShaderParameter("own_shadows", ownShadows);
         shadows.SetShaderParameter("shadow_sun_up", offset != null);
         if (offset is { } sun) shadows.SetShaderParameter("sun_shadow", new Vector3((float)sun.DirX, (float)sun.DirZ, (float)sun.TanElev));
+        if (sunView is not null) SunDepthFrame(toward, insideView);
 
         // The original's debris: $59FE rewrites model 0 in the session's buffer - its scale byte and the ten face
         // colours. Only that is sent over again, and only when it changed.
