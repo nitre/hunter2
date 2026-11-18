@@ -119,6 +119,24 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
         floor_ = 0.0;
         for (int i = 0; i < n; i++) floor_ += float(_wrap16(ph[i] + lift));
         floor_ /= float(n);
+        // the lift for the TURNED body: each contact where contact_turn puts it (without D), against the ground under
+        // THAT place. The contacts of a pitched body stand at different heights (the game tips a tank ~100 end to end on a
+        // steep hill), so the turn slides the high and low ones sideways, up or down the slope; the lift worked out for
+        // heights alone left a contact 2.4 in the ground on a 14 degree hill
+        if (a != 0.0 || b != 0.0) {
+            float hx = a * 0.5, hz = b * 0.5, k = inversesqrt(1.0 + hx * hx + hz * hz);
+            vec3 nn = vec3(-hx * k, k, -hz * k);
+            float ax = nn.z, az = -nn.x;
+            d = -1e30;
+            for (int i = 0; i < n; i++) {
+                float h = float(_wrap16(ph[i] + lift));
+                vec3 r = vec3(px[i] - cx, (h - floor_) * 0.5, pz[i] - cz);
+                float f = (ax * r.x + az * r.z) / (1.0 + nn.y);
+                vec3 t = vec3(r.x * nn.y - az * r.y + ax * f, r.y * nn.y + az * r.x - ax * r.z, r.z * nn.y + ax * r.y + az * f);
+                int gx = int(floor(float(x) + cx + t.x)), gz = int(floor(float(z) + cz + t.z));
+                d = max(d, float(ground_height(cam_map, gx & 0xFFFF, gz & 0xFFFF)) - (floor_ + t.y * 2.0));
+            }
+        }
     }
     fit = vec4(a, b, d, floor_); c = vec2(cx, cz);
     return true;
