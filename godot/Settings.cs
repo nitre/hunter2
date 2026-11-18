@@ -152,6 +152,15 @@ public static class Settings
         set => Set("own_shadows", value);
     }
 
+    /// <summary>SHADOWS: REAL (with OwnShadows on, so the rules and the flat software picture keep MORE): the 3D view
+    /// throws true shadows from the sun's depth picture (GpuWorld SunDepth, sunshadow.gdshaderinc) onto the ground and the
+    /// models, and the flat pressed-down shadow pass is not drawn while the sun's picture is. Default off.</summary>
+    public static bool RealShadows
+    {
+        get => (bool)Get("real_shadows", false);
+        set => Set("real_shadows", value);
+    }
+
     /// <summary>(row SUN, the card-drawn 3D view): the sun lights every face and ground
     /// square from its angle to it, in the game's own shades and their half-bright copies (rules/SunShade.cs); the
     /// ground's checker stays. Default off: the faces keep their flat paint, as the original. Read every frame.</summary>

@@ -197,6 +197,10 @@ float contact_lift(vec4 fit, vec2 c, ivec3 rot) { return contact_lift_at(fit, c,
 bool contact_fit_row(int row, out vec4 fit, out vec2 c) {
     fit = vec4(0.0, 0.0, 0.0, CONTACT_NO_TURN); c = vec2(0.0);
     int model = _eb(ent_tex, row, 0x25);
+#ifdef SUN_PASS
+    if (_eb(ent_tex, row, 0) == 0 || model == 0 || _sb(_eb(ent_tex, row, 0x24)) < 0) return false;   // the sun's picture: in view or not
+#else
     if (_eb(ent_tex, row, 0) == 0 || _eb(ent_tex, row, 0x1C) == 0 || model == 0 || _sb(_eb(ent_tex, row, 0x24)) < 0) return false;
+#endif
     return contact_fit(row, int(texelFetch(model_tex, ivec2(model, 0), 0).r + 0.5), fit, c);
 }

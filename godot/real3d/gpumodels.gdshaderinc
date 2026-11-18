@@ -209,7 +209,11 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     int slot = rem / 3;
     int corner = rem - slot * 3;
     bool shell = layer == 0 && row == shell_row;
+#ifdef SUN_PASS
+    if (_eb(ent_tex, row, 0) == 0) return false;                                            // the sun's picture: in view or not (a thing behind the camera throws shadow into it)
+#else
     if (_eb(ent_tex, row, 0) == 0 || (!shell && _eb(ent_tex, row, 0x1C) == 0)) return false;          // not alive / not in view ($4F2E)
+#endif
     int b20 = _eb(ent_tex, row, 0x20);
     if (!shell && (inside_view ? b20 == 0 : b20 != 0)) return false;                       // Draw's first tests
     int b24 = _sb(_eb(ent_tex, row, 0x24)), b25 = _eb(ent_tex, row, 0x25);

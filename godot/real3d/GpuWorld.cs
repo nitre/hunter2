@@ -1099,7 +1099,8 @@ public sealed partial class GpuWorld : Node3D
         // GLASS: the glass ones alone, SEE-THROUGH only. Made in the glass state Update already set: the game's first Update
         // runs before this bake ends, so a mesh made hidden was never shown and the panes were missing in every game
         AddChild(glassMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = glassShown });
-        AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
+        AddChild(shadowMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
+        sunSlots = slotMesh;
         if (SunDepthPath is not null) MakeSunDepth(slotMesh);
         Ready = true;
         long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)
@@ -1630,6 +1631,13 @@ public sealed partial class GpuWorld : Node3D
     string[] sunCopied = [];                         // the model pass's uniforms the sun's pass shares, copied every frame
     Vector3 sunCentre;                               // the box's centre this frame (sun_box_centre)
     Vector3 sunToward;                               // and the sun (sun_dir)
+    /// <summary>SHADOWS: REAL (GameView sets it each frame): the sun's picture is made the first frame it is asked for.</summary>
+    public bool RealShadows;
+    bool realShown;                                  // real_shadows as last sent (and the flat pass hidden)
+    MeshInstance3D? shadowMesh;                      // the flat pressed-down shadow pass (gpushadow.gdshader)
+    Mesh? sunSlots;                                  // the triangle slots, for a sun pass made later
+    // HUNTER_SHADOW_FORCE=dark|lit (a debug aid for checking REAL): every tested spot in shadow / none
+    static readonly int ShadowForce = System.Environment.GetEnvironmentVariable("HUNTER_SHADOW_FORCE") switch { "dark" => 1, "lit" => 2, _ => 0 };
 
     void MakeSunDepth(Mesh slotMesh)
     {
@@ -1650,15 +1658,35 @@ public sealed partial class GpuWorld : Node3D
         sunView.AddChild(new Camera3D { Current = true });           // a camera for the world to be drawn at all; the shader writes POSITION itself
         sunView.AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = sunDepth, CustomAabb = Huge });
         sunOwner = this;
+        // SHADOWS: REAL - the receivers read the picture (sunshadow.gdshaderinc), with the same box
+        var picture = sunView.GetTexture();
+        foreach (var m in new[] { ground, models })
+        {
+            m.SetShaderParameter("sun_depth_tex", picture);
+            m.SetShaderParameter("shadow_box_size", SunBoxSize);
+            m.SetShaderParameter("shadow_box_depth", SunBoxDepth);
+            if (ShadowForce != 0) m.SetShaderParameter("shadow_force", ShadowForce);
+        }
         GD.Print($"SUNDEPTH: on, {SunDepthPixels} x {SunDepthPixels} RGBA half float, box {SunBoxSize} world units, depth range {SunBoxDepth}, {sunCopied.Length} uniforms shared with the model pass");
     }
 
     /// <summary>Each frame: the model pass's uniforms copied over, the box centred on the player (record 0's x +$4A,
     /// height +$4C, z +$4E), the sun's direction; the picture drawn only while the sun is up and the view is outdoors.</summary>
-    void SunDepthFrame((float X, float Y, float Z)? toward, bool insideView)
+    void SunDepthFrame((float X, float Y, float Z)? toward, bool insideView, bool sunShading)
     {
-        var on = toward is not null && !insideView;
+        var on = toward is not null && !insideView && (SunDepthPath is not null || RealShadows);
         sunView!.RenderTargetUpdateMode = on ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
+        // SHADOWS: REAL while the picture is drawn (the sun up, outdoors) and the faces take the sun (SUN SHADING: the shade
+        // is its paint): the receivers read it and the flat pass is not drawn. Otherwise as MORE: a picture not drawn this
+        // frame is last frame's or older, so nothing reads it
+        var real = on && RealShadows && sunShading;
+        if (real != realShown)
+        {
+            realShown = real;
+            foreach (var m in new[] { ground, models }) m.SetShaderParameter("real_shadows", real);
+            shadowMesh!.Visible = !real;
+            GD.Print($"REALSHADOWS: {(real ? "on" : "off")} (flat shadow pass {(real ? "hidden" : "drawn")})");
+        }
         if (!on) return;
         foreach (var n in sunCopied) sunDepth!.SetShaderParameter(n, models.GetShaderParameter(n));
         int U(int o) => (int)entFloats[o] << 8 | (int)entFloats[o + 1];
@@ -1666,6 +1694,7 @@ public sealed partial class GpuWorld : Node3D
         var t = toward!.Value;
         sunToward = new Vector3(t.X, t.Y, t.Z);
         sunDepth!.SetShaderParameter("sun_box_centre", sunCentre);
+        if (real) foreach (var m in new[] { ground, models }) m.SetShaderParameter("shadow_box_centre", sunCentre);
     }
 
     /// <summary>HUNTER_SUN_DEPTH: the depth picture as a grey PNG (covered pixels stretched from their farthest, dark, to
@@ -1905,7 +1934,8 @@ public sealed partial class GpuWorld : Node3D
         shadows.SetShaderParameter("own_shadows", ownShadows);
         shadows.SetShaderParameter("shadow_sun_up", offset != null);
         if (offset is { } sun) shadows.SetShaderParameter("sun_shadow", new Vector3((float)sun.DirX, (float)sun.DirZ, (float)sun.TanElev));
-        if (sunView is not null) SunDepthFrame(toward, insideView);
+        if (sunView is null && RealShadows && sunSlots is not null) MakeSunDepth(sunSlots);   // SHADOWS: REAL, first asked for
+        if (sunView is not null) SunDepthFrame(toward, insideView, sunShading);
 
         // The original's debris: $59FE rewrites model 0 in the session's buffer - its scale byte and the ten face
         // colours. Only that is sent over again, and only when it changed.

@@ -15,6 +15,7 @@
 #include "res://real3d/gpumodels.gdshaderinc"
 #include "res://real3d/view.gdshaderinc"
 #include "res://real3d/ground_contact.gdshaderinc"
+#include "res://real3d/sunshadow.gdshaderinc"
 
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: see-through windows (GpuWorld sets it; meta bit 12 marks the faces)
@@ -28,12 +29,15 @@ varying flat float tag;
 varying float depth_;                             // HAZE: how far ahead of the eye (POSITION.w)
 varying flat vec3 own_tint;                       // MODEL COLOURS: this face's tint, 0 = none (the palette's)
 varying flat float own_light;                     // ...and the sun's light on it (sun_light64 / 64); untinted: SunShade.Over
+varying flat float own_light_shade;               // SHADOWS: REAL - the light it keeps in shadow (sunshadow.gdshaderinc SHADOW_K)
+varying flat float shadow_bias;                   // ...the face's bias (shadow_face_bias); < 0 = not tested (turned away, unlit, fire)
+varying vec3 shadow_p;                            // ...the pixel's world point, as the corners were placed (contact and walls down)
 
 
 // One corner of a triangle in clip space (the id's own world point moved to the eye, nearer if a detail face, back with
 // the shell indoors), sat on the real ground when contact (ground_contact.gdshaderinc); false = this triangle is not drawn.
-bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out ivec3 rot, out bool own_side) {
-    vec3 p; bool pull;
+bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out ivec3 rot, out bool own_side, out vec3 p) {
+    bool pull;
     clip = vec4(2.0, 2.0, 2.0, 1.0);
     if (!gpu_model_vertex_rot(id, p, colour, pull, rot, own_side)) return false;
     if (contact) {
@@ -58,6 +62,7 @@ void vertex() {
     ivec3 r0, r1, r2;
     vec4 fit; vec2 fc;
     bool own_side;
+    vec3 w0, w1, w2;                                           // the corners' world points (SHADOWS: REAL)
     int gbits = glass_bits(first);                             // meta bits 12-15, told before the corners are worked out
 #ifdef GLASS_PASS
     bool ok = glass && (gbits & 0x1000) != 0 && (gbits & 0x4000) == 0;   // the glass pass: the glass faces and sunk panes, not a face that was sunk; none with ORIGINAL
@@ -68,10 +73,13 @@ void vertex() {
     if (ok) ok = b25 != 0 && (first - row0 * per) / 3 < int(texelFetch(model_tex, ivec2(b25, 0), 0).b + 0.5);   // before the fit, as model_clip would
     bool contact = ok && contact_fit_row(row0, fit, fc);      // the record: one fit for its whole model, only for a triangle drawn
     if (ok) {
-        ok = model_clip(first, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c0, col0, r0, own_side);
-        ok = model_clip(first + 1, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c1, col1, r1, own_side) && ok;
-        ok = model_clip(first + 2, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c2, col2, r2, own_side) && ok;
+        ok = model_clip(first, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c0, col0, r0, own_side, w0);
+        ok = model_clip(first + 1, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c1, col1, r1, own_side, w1) && ok;
+        ok = model_clip(first + 2, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c2, col2, r2, own_side, w2) && ok;
     }
+    shadow_bias = -1.0;
+    own_light_shade = 1.0;
+    shadow_p = vec3(0.0);
     if (!ok) {
         tag = 0.0;
         POSITION = vec4(2.0, 2.0, 2.0, 1.0);                   // outside the clip volume: nothing is drawn
@@ -107,12 +115,21 @@ void vertex() {
                 if (!own_side && dot(n, out_dir) < 0.0) n = -n;                  // a slab's face keeps its own side
                 // painted light: against the painters' sun on the side the paint was made for (a copied back: the opposite)
                 float kp = dot(copied ? -n : n, painter_dir);
-                if (tinted) own_light = float(sun_light64(dot(n, sun_dir))) / float(painted ? sun_light64(kp) : 64);
+                float ks = dot(n, sun_dir);
+                bool lit = tinted || (col >= 1 && col <= 14);
+                if (tinted) own_light = float(sun_light64(ks)) / float(painted ? sun_light64(kp) : 64);
                 else {
                     // its own paint times the sun's light, smooth as the ground's and the tinted machines' - the nearest shade of its
                     // palette family (SunShade.Pick) jumped from shade to shade as a car turned
                     float k = dot(n, sun_dir);
                     if (col >= 1 && col <= 14) own_light = float(sun_light64(k)) / float(painted ? sun_light64(kp) : 64);
+                }
+                // SHADOWS: REAL - a face toward the sun may lie in another's shadow (or its own model's): tested per pixel in
+                // fragment, its light there the same face's turned straight away. A face already turned away keeps its paint.
+                if (real_shadows && lit && ks > 0.0) {
+                    own_light_shade = float(sun_light64(SHADOW_K)) / float(painted ? sun_light64(kp) : 64);
+                    shadow_bias = shadow_face_bias(ks);
+                    shadow_p = corner == 0 ? w0 : (corner == 1 ? w1 : w2);
                 }
             }
         }
@@ -153,10 +170,11 @@ void vertex() {
 
 void fragment() {
     float d = cam_interior ? 0.0 : depth_;
+    float light = shadow_bias >= 0.0 && in_sun_shadow(shadow_p, shadow_bias) ? own_light_shade : own_light;   // SHADOWS: REAL
     if (own_tint != vec3(0.0))
-        ALBEDO = to_linear(floor(mix(tinted_rgb8(int(round(tag)), FRAGCOORD, own_tint, own_light), sky_nib(5) * 17.0, haze_amount(d)) + 0.5) / 255.0);   // lit and hazed as world_lit_hazed
-    else if (own_light != 1.0)
-        ALBEDO = world_lit_hazed(int(round(tag)), FRAGCOORD, d, own_light);   // lighter than its lightest paint (SunShade.Over)
+        ALBEDO = to_linear(floor(mix(tinted_rgb8(int(round(tag)), FRAGCOORD, own_tint, light), sky_nib(5) * 17.0, haze_amount(d)) + 0.5) / 255.0);   // lit and hazed as world_lit_hazed
+    else if (light != 1.0)
+        ALBEDO = world_lit_hazed(int(round(tag)), FRAGCOORD, d, light);   // lighter than its lightest paint (SunShade.Over)
     else
         ALBEDO = world_hazed(int(round(tag)), FRAGCOORD, d);
 #ifdef GLASS_PASS

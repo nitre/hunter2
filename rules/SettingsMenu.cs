@@ -200,7 +200,7 @@ public sealed class SettingsMenu
         ["text_size"] = ["NORMAL", "LARGE", "EXTRA LARGE"],
         ["players"] = ["1", "2"],
         ["split_layout"] = ["SIDE", "STACKED"],
-        ["own_shadows"] = ["ORIGINAL", "MORE"],
+        ["own_shadows"] = ["ORIGINAL", "MORE", "REAL"],   // REAL: true shadows from the sun's picture (3D view; the rules keep MORE)
         ["finer_ground"] = ["ORIGINAL", "2X", "HILLS", "CLIFFS"],   // (the store takes any power of two; FineGround.Reliefs)
         ["ground_seed"] = ["WORLD", "RANDOM", "LAST"],
         ["leave_behind"] = ["ORIGINAL", "BEHIND"],

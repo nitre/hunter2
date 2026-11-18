@@ -12,6 +12,16 @@ render_mode unshaded, cull_disabled;
 #include "res://real3d/ground_pattern.gdshaderinc"
 #include "res://real3d/view.gdshaderinc"
 #include "res://real3d/ground_bands.gdshaderinc"
+#include "res://real3d/sunshadow.gdshaderinc"
+
+// SHADOWS: REAL - the ground is not in the sun's picture, so it never shadows itself: the bias only keeps a thing
+// standing on it from shading the ground at its own foot. 2 shown units along the sun's ray: the picture's depth steps
+// (0.016) and a model corner's rounding to the game's whole units (0.5 world, so 0.25 shown in height) and the ground
+// mesh's cut height against the contact fit's are all well under it; at 09:00 (the sun 42 degrees up) it lets a part
+// less than 2 x 0.67 x 2 = 2.7 world units above the ground throw no shadow, so a tread on the ground has none under it.
+const float GROUND_SHADOW_BIAS = 2.0;
+varying vec3 shadow_p;                            // the pixel's ground point (x, height, z) for the sun's picture
+varying flat float shadow_on;                     // 1 = this triangle takes shadow (sunlit land outdoors; not the sea)
 
 uniform sampler2D map : filter_nearest;      // 128 x 128 Rf: the height bytes
 uniform sampler2D types : filter_nearest;    // 128 x 128 Rf: the cell type bytes
@@ -87,6 +97,7 @@ void vertex() {
     ivec3 p = ivec3(0);
     int colour = 0;
     ground_light = 1.0;
+    shadow_on = 0.0;
     banded_ = 0.0;
     band_at = vec3(0.0);
     if (offwin || t.x < 0 || (water && cuts > 1 && piece != 0)) {
@@ -152,17 +163,21 @@ void vertex() {
     }
     depth_ = POSITION.w;
     pat_at = vec2(float(p.x), float(p.z)) / 512.0;
+    shadow_p = vec3(p);
+    if (real_shadows && !water && sun_shading && sun_up && !cam_interior) shadow_on = 1.0;
 }
 
 void fragment() {
     // the coast water with SEA: LIVING coloured exactly as the sea plane around it, so the two meet unseen
     int ti = int(round(tag));
+    // SHADOWS: REAL - in shadow the light of ground turned straight away from the sun, over flat ground's (GroundLevel)
+    float light = shadow_on > 0.5 && in_sun_shadow(shadow_p, GROUND_SHADOW_BIAS) ? ground_sun_level(SHADOW_K) : ground_light;
     if (banded_ > 0.5)                                                         // GROUND COLOURS: BANDS
-        ALBEDO = ground_band_albedo(ground_point_word(map, types, ivec2(round(band_at.xz)), int(round(band_at.y))), cam_interior ? 0.0 : depth_, ground_light * band_check_);
+        ALBEDO = ground_band_albedo(ground_point_word(map, types, ivec2(round(band_at.xz)), int(round(band_at.y))), cam_interior ? 0.0 : depth_, light * band_check_);
     else if (ground_pattern && ti < 16)                                        // GROUND PATTERN: SPECKS (not the sea, tag 16; none indoors)
-        ALBEDO = world_speck_hazed(ti, FRAGCOORD, cam_interior ? 0.0 : depth_, ground_light, cam_interior ? 1.0 : ground_speck(pat_at));
+        ALBEDO = world_speck_hazed(ti, FRAGCOORD, cam_interior ? 0.0 : depth_, light, cam_interior ? 1.0 : ground_speck(pat_at));
     else
     ALBEDO = int(round(tag)) == 16 && sea_living ? sea_albedo(FRAGCOORD, sea_at, cam_interior ? 0.0 : depth_)
-                 : ground_light != 1.0 ? world_lit_hazed(int(round(tag)), FRAGCOORD, cam_interior ? 0.0 : depth_, ground_light)
+                 : light != 1.0 ? world_lit_hazed(int(round(tag)), FRAGCOORD, cam_interior ? 0.0 : depth_, light)
                                        : world_hazed(int(round(tag)), FRAGCOORD, cam_interior ? 0.0 : depth_);
 }

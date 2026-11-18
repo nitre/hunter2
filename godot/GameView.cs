@@ -601,6 +601,7 @@ public partial class GameView : Node2D
         var shell = inside ? play.State.BuildingSlot : -1;
         real3d!.Gpu.PiecesStay = Settings.CardPieces && Settings.PiecesStay;            // EXPLOSIONS: LASTING
         real3d.Gpu.FineAngles = Settings.FineAngles;                                   // FINE ANGLES: the records' fine angles drawn
+        real3d.Gpu.RealShadows = Settings.RealShadows && play.OwnShadows;              // SHADOWS: REAL (a play without own shadows, e.g. a replay, never)
         play.WithInBetweenPoses(() =>                                                   // the card reads the records itself: at their in-between places, as the camera
             real3d!.Gpu.Update(play.State.Entities, play.State.Anim, inside, shell, play.State.Models.Buf, play.State.DebrisPos, real3d.Gpu is { Ready: true } ? play.StoredLooks() : null,
                 play.State, Settings.SunShading, play.OwnShadows, Settings.ViewDistance, play.PictureCamera ?? play.State.Camera,
@@ -1731,6 +1732,8 @@ public partial class GameView : Node2D
     public static void ApplyRecorded()
     {
         foreach (var (key, word) in SettingsMenu.Recorded) ApplySetting(key, word, null);
+        // HUNTER_SHADOWS=ORIGINAL|MORE|REAL: a recording's SHADOWS row instead of Recorded's (a check of one choice; a debug aid)
+        if (System.Environment.GetEnvironmentVariable("HUNTER_SHADOWS") is { Length: > 0 } shadows) ApplySetting("own_shadows", shadows.ToUpperInvariant(), null);
         GD.Print("RECORDED SETTINGS " + string.Join(", ", SettingsMenu.Recorded.Select(r => $"{r.Key}={SettingsValue(r.Key)}")));
     }
 
@@ -1798,7 +1801,7 @@ public partial class GameView : Node2D
             case "living_sea": Settings.LivingSea = label != "ORIGINAL"; Settings.SeaCycling = label == "CYCLING"; break;                               // read every frame
             case "view_distance": Settings.ViewDistance = label == "ORIGINAL" ? 7 : label == "ALL" ? 0 : int.Parse(label); break;   // read every frame
             case "wide_view": Settings.WideView = label == "WIDE"; break;                                   // the next start lays the 3D view out (Restart)
-            case "own_shadows": Settings.OwnShadows = label == "MORE"; if (play is not null) play.OwnShadows = Settings.OwnShadows; break;   // handed to the RUNNING play (Objects.cs:341; needs the sun - none at night/indoors)
+            case "own_shadows": Settings.OwnShadows = label is "MORE" or "REAL"; Settings.RealShadows = label == "REAL"; if (play is not null) play.OwnShadows = Settings.OwnShadows; break;   // handed to the RUNNING play (Objects.cs:341; needs the sun - none at night/indoors)
             case "renderer": Settings.Renderer = label == "ON" ? "3d" : "software"; break;   // the next start builds the 3D view with it (Restart)
             case "gpu_scale": Settings.GpuScale = label switch { "1" => 1, "2" => 2, "4" => 4, _ => 0 }; break;   // FollowScale applies it
             case "fuller_world": Settings.FullerWorld = label == "SOME" ? 1 : label == "MORE" ? 2 : label == "LOTS" ? 3 : 0; break;
@@ -1875,7 +1878,7 @@ public partial class GameView : Node2D
         "haze" => Settings.Haze switch { 1 => "BANDS", 2 => "FINE", _ => "OFF" },
         "living_sea" => Settings.LivingSea ? (Settings.SeaCycling ? "CYCLING" : "LIVING") : "ORIGINAL",
         "view_distance" => Settings.ViewDistance switch { 7 => "ORIGINAL", 0 => "ALL", var n => n.ToString() },
-        "own_shadows" => Settings.OwnShadows ? "MORE" : "ORIGINAL",
+        "own_shadows" => Settings.OwnShadows ? (Settings.RealShadows ? "REAL" : "MORE") : "ORIGINAL",
         "fuller_world" => Settings.FullerWorld switch { 1 => "SOME", 2 => "MORE", 3 => "LOTS", _ => "ORIGINAL" },
         "more_objects" => Settings.MoreObjects ? "MORE" : "ORIGINAL",
         "finer_ground" => Settings.FinerGround == 0 ? "ORIGINAL" : Settings.GroundRelief switch { 1 => "HILLS", 2 => "CLIFFS", _ => "2X" },

@@ -18,6 +18,9 @@ render_mode unshaded, cull_disabled, depth_draw_always;
 // because they belong to the player's screen: the detail faces' pull toward the eye, the thin faces' widening to one
 // game pixel, the back-to-back face test.
 
+// SUN_PASS: gpumodels.gdshaderinc and ground_contact.gdshaderinc skip the in-view test (+$1C) here - a thing outside the
+// camera's view still throws its shadow into it. Only the records inside the box are placed (sun_box_near).
+#define SUN_PASS
 #include "res://real3d/place.gdshaderinc"
 #include "res://real3d/world_colour.gdshaderinc"
 #include "res://real3d/sunshade.gdshaderinc"
@@ -52,6 +55,9 @@ void vertex() {
     bool ok = glass ? (gbits & 0x9000) == 0 : (gbits & 0x2000) == 0;       // the opaque pass's own test (no glass faces)
     int per = tri_slots * 3, row0 = first / per, b25 = _eb(ent_tex, row0, 0x25);
     if (ok) ok = b25 != 0 && (first - row0 * per) / 3 < int(texelFetch(model_tex, ivec2(b25, 0), 0).b + 0.5);
+    // with the in-view test gone, only a record within the box (and a box's half more, for a tall thing's slant) is placed
+    if (ok) ok = abs(float(_euw(ent_tex, row0, 0x4A)) - sun_box_centre.x) < sun_box_size
+              && abs(float(_euw(ent_tex, row0, 0x4E)) - sun_box_centre.z) < sun_box_size;
     vec4 fit; vec2 fc;
     bool contact = ok && contact_fit_row(row0, fit, fc);
     vec3 p0, p1, p2;
