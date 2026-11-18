@@ -108,6 +108,10 @@ public partial class GameView
         if (to != from) Array.Clear(grid, from, 16);
         grid[to + 6] = (byte)(x >> 8); grid[to + 7] = (byte)x;
         grid[to + 10] = (byte)(z >> 8); grid[to + 11] = (byte)z;
+        // its height too (+8): the ground at the new place. Left as the old place's, the thing hung in the air or sat in
+        // the ground there, and the game's pitch for a parked vehicle ($42A6: its height less the ground ahead) came out steep
+        var h = play.State.Ground.Height((ushort)x, (ushort)z);
+        grid[to + 8] = (byte)(h >> 8); grid[to + 9] = (byte)h;
         if (turn is { } t) grid[to + 12] = (byte)t;
         return $"record {rec} -> slot {to / 16} at {x}:{z}";
     }
