@@ -432,17 +432,18 @@ public sealed partial class GpuWorld : Node3D
             // marks and clods only where the tank DROVE: a move of more than MarkJump in one picture is the thing being put
             // somewhere (a new place for a boarded tank, a respawn), not driving - no line of bars along the jump - and a
             // tank moved while it stands (speed 0) throws no earth
-            if (Math.Abs(dx) > MarkJump || Math.Abs(dz) > MarkJump) markGone[r] = 0;
+            if (Math.Abs(dx) > MarkJump || Math.Abs(dz) > MarkJump) markGone[r] = clodGone[r] = 0;
             else
             {
                 TreadMarks(r, x, z, dx, dz, h, clock, e.B[0x25]);
-                if (speed > 0) ClodThrows(r, x, z, h, clock, e.B[0x25], speed);
+                if (speed > 0) ClodThrows(r, x, z, h, clock, e.B[0x25], speed, Math.Sqrt((double)dx * dx + (double)dz * dz));
             }
             var along = dx * Math.Sin(h) + dz * Math.Cos(h);
             var d = 2 * Math.Sqrt((double)dx * dx + (double)dz * dz) * Math.Sign(along);
             var v = (rollFloats[r] + d / (2 * Math.PI * radius) * 256) % 256;
             rollFloats[r] = (float)(v < 0 ? v + 256 : v);
             rollDirty = true;
+            if (MarkLog) GD.Print($"TRACKROLL row {r} moved {d:F2} model units, roll {rollFloats[r]:F2} of 256 (radius {radius})");
         }
     }
 
@@ -471,25 +472,27 @@ public sealed partial class GpuWorld : Node3D
     }
 
     // CLODS: the lumps of earth a moving tank's tracks throw, noted in the mark ring as kind 2 and flown, landed and left
-    // lying by gputracks.gdshader from that note alone. ClodsATrack a track in a cycle of ClodCycle blanks while it moves.
+    // lying by gputracks.gdshader from that note alone. Thrown by the DISTANCE the track has gone, not by the clock: one a
+    // track every two of its ribs (TankTracks.ClodEvery) - the faster the tank, the more earth; a crawl throws little.
     const int MarkClod = 2;
-    const double ClodCycle = 50;
-    readonly double[] clodClock = new double[256];       // the clock of each live row's last throw
+    readonly double[] clodGone = new double[256];        // each live row's way since its last throw, world units
     readonly int[] clodCount = new int[256];             // each live row's throws so far: which rest spot, which colour
 
-    /// <summary>CLODS: one clod a track every ClodCycle / ClodsATrack blanks of a moving tank, thrown from its next rest spot
+    /// <summary>CLODS: one clod a track each time a moving tank's track has gone two ribs' pitches (moved: this picture's way,
+    /// world units), thrown from its next rest spot
     /// (TankTracks.ClodSpots: most on the track's rear run, every fourth inside its top rear corner), turned into the world
     /// by the tank's place and heading (model units twice the world's, Place $41FC). Its colour is fixed now: every second
     /// clod of a track brown (9 and 10 in turn), the others the colour of the land square under the tank - the low nibble of
     /// its type byte - or brown on sea or on land that is already brown.</summary>
-    void ClodThrows(int r, int x, int z, double h, float clock, int model, int speed)
+    void ClodThrows(int r, int x, int z, double h, float clock, int model, int speed, double moved)
     {
         if (TankTracks.ClodSpots(model) is not { } spots) return;
-        var every = ClodCycle / TankTracks.ClodsATrack;
-        if (clock < clodClock[r] || clock - clodClock[r] > ClodCycle) clodClock[r] = clock - every;   // starting off: one now
+        var every = TankTracks.ClodEvery(model);
+        if (every <= 0) return;
+        clodGone[r] += moved;
         var (fx, fz, ax, az) = (Math.Sin(h), Math.Cos(h), Math.Cos(h), -Math.Sin(h));
         var land = map[(((z & 0xFFFF) >> 9) * 128 + ((x & 0xFFFF) >> 9)) * 2 + 1] & 15;
-        for (; clock - clodClock[r] >= every; clodClock[r] += every)
+        for (; clodGone[r] >= every; clodGone[r] -= every)
         {
             var n = clodCount[r]++;
             var (sx, sy, sz) = spots[n % spots.Length];

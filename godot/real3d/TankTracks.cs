@@ -112,6 +112,10 @@ public static class TankTracks
         return ((x.Inner + x.Outer) / 2, x.Outer - x.Inner, t.Pitch, onGround.Min(), onGround.Max());
     }
 
+    /// <summary>CLODS: how far a tank model's track goes between two throws, world units: two of its ribs' pitches (model units
+    /// are twice the world's, so that is RibPitch itself). 0 for any other model.</summary>
+    public static double ClodEvery(int model) => Tanks.FirstOrDefault(t => t.Model == model)?.RibPitch ?? 0;
+
     /// <summary>A tank model's rolling circle's radius (full units), 0 for any other model: GpuWorld turns a record's rolling into 256ths of it.</summary>
     public static int Radius(int model) => Tanks.FirstOrDefault(t => t.Model == model)?.Radius ?? 0;
 
