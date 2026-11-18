@@ -47,9 +47,8 @@ uniform int steer_lean_row = 0;   // the player's record (slot 0); a check may p
 // a record row (x = row & 255, y = row >> 8). Their models have no animation set, so nothing else drives the channel. Kept
 // when the tank stops (the table's parts rest at 0 then, $56D0), so the wheels do not jump. track_models = the objfile
 // offsets + 1 of the two tank models; only the live table's materials turn it on (a blast's record row is not a live row).
-// Channel 1 is the tank's speed (+$3E, 0 when still) and channel 2 is where its clods are in their cycle (flight, then
-// lying on the ground): the game's clock (track_clock, its own frames, still while paused) over FLING_BLANKS (set with the
-// clods' other numbers, model.gdshaderinc), offset by the row so tanks differ.
+// Channels 1 to 3 are 0 for the tanks: their clods are no part of the model (GpuWorld.ClodThrows notes them in the world).
+// track_clock is the game's clock (its own frames, still while paused), which gputracks.gdshader ages the marks and clods by.
 uniform bool track_on = false;
 uniform int track_models[2];   // the two tanks
 uniform sampler2D roll_tex : hint_default_black, filter_nearest;
@@ -57,9 +56,7 @@ uniform float track_clock = 0.0;
 
 ivec4 entity_artic(sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base) {
     if (track_on && (base + 1 == track_models[0] || base + 1 == track_models[1]))
-        return ivec4(int(round(texelFetch(roll_tex, ivec2(row & 255, row >> 8), 0).r)) & 255,
-            clamp(_ew(ent, row, 0x3E), 0, 255),                          // the tanks: their speed (0 still, backing up as still) - the clods' trail
-            int(fract(track_clock / FLING_BLANKS + float(row) * 0.618) * 256.0) & 255, 0);
+        return ivec4(int(round(texelFetch(roll_tex, ivec2(row & 255, row >> 8), 0).r)) & 255, 0, 0, 0);
     int set = _head(_at(base)).x;
     bool f19 = ((_eb(ent, row, 6) >> 1) & 1) != 0, f1b = ((_eb(ent, row, 6) >> 3) & 1) != 0;
     if (!f19 && f1b && _ew(ent, row, 0x3E) <= 0) return ivec4(0);        // $56D0: a dead thing's parts rest

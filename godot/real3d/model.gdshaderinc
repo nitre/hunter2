@@ -63,18 +63,6 @@ void _subrotate(inout ivec3 v, ivec3 piv, ivec3 art, sampler2D trig) {
 // the four channel angle bytes.
 struct _Walk { ivec3 piv; ivec3 off; ivec3 art; int mode; };   // art = (pitch, yaw, roll) bytes
 
-// TankTracks' clods (kind 5): each lets go of the belt where it rests - most just inside the track's rear run, where the belt
-// climbs round the last wheel, a few inside its top rear corner - with a small hop up and back, falls to the hull's bottom
-// (the ground) and lies there; the tank drives on, so in its own frame the clod falls back by the tank's speed, in the air
-// and on the ground (channel 1 = the speed +$3E: at 5 the tank covers ~4 world units a blank, ~6.7 model units - so 32 model
-// units a speed step over the 24 blanks of a flight, about 1.3 a blank). Channel 2 = where the clod is in its cycle of
-// FLING_BLANKS of the game's clock (place.gdshaderinc entity_artic): the first CLOD_FLIGHT_BLANKS it flies, the rest (26
-// blanks, over half a second at 50 a second) it lies on the ground, then it is back at its rest spot inside the track.
-const float FLING_BLANKS = 50.0, CLOD_FLIGHT_BLANKS = 24.0;
-const int CLOD_HOP = 20, CLOD_OUT = 4, CLOD_BACK = 32;
-const int CLOD_BACK_MAX = 70;   // in flight no further back than two wheels' length (72; the wheels are 32 and 40 across) behind
-                                // the belt's rearmost point: a clod's back corner can rest 2 behind it
-
 // Corner k of the model, given what the corners before it set up in w.
 ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
     ivec4 c = _corner(at, k);
@@ -96,19 +84,6 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
             w.piv = v;                                                   // is the run's start A, the next one A + the pitch D; the corners
             w.art = ivec3(((axis + 1) * artic[which]) & 255, 0, 0);      // after slide by D x (L x channel) mod 256 / 256, L = axis + 1
             w.mode = 3;                                                  // (the rules' walk treats kind 3 as plain, $551E)
-        } else if (kind == 5) {                                          // ENHANCEMENT, card only (TankTracks' clods): a clod - this corner
-            // and the ones after: still (channel 1 = 0) where they rest - inside the track, and where the rules' walk has them, so a
-            // blast's pieces start there (CheckPieces); moving, thrown along an arc that ends with this corner (the clod's lowest)
-            // on the hull's bottom - the flag's bits 8 up are how far it rests above it - and then lying there, left behind
-            float u = float((artic[2] + (flag & 15) * 16) & 255) / 256.0, fly = CLOD_FLIGHT_BLANKS / FLING_BLANKS;
-            float t = min(u / fly, 1.0), sp = float(artic[1]), drop = float(flag >> 8);
-            float back = min(float(CLOD_BACK) * sp, float(CLOD_BACK_MAX)) * t + float(CLOD_BACK) * sp * max(u - fly, 0.0) / fly;
-            w.off = artic[1] == 0 ? ivec3(0) : ivec3(round(vec3(
-                float(v.x < 0 ? -CLOD_OUT : CLOD_OUT) * t,
-                float(CLOD_HOP) * 4.0 * t * (1.0 - t) - drop * t * t,
-                -back)));
-            v = ivec3(_wrap16(v.x + w.off.x), _wrap16(v.y + w.off.y), _wrap16(v.z + w.off.z));
-            w.mode = 4;
         } else {
             w.mode = 0;
         }

@@ -427,6 +427,7 @@ public sealed partial class GpuWorld : Node3D
             if (dx == 0 && dz == 0) continue;
             var h = e.B[0x7E] * Math.PI / 128;
             TreadMarks(r, x, z, dx, dz, h, clock, e.B[0x25]);
+            ClodThrows(r, x, z, h, clock, e.B[0x25], Math.Clamp((int)(short)e.UW(0x3E), 0, 255));
             var along = dx * Math.Sin(h) + dz * Math.Cos(h);
             var d = 2 * Math.Sqrt((double)dx * dx + (double)dz * dz) * Math.Sign(along);
             var v = (rollFloats[r] + d / (2 * Math.PI * radius) * 256) % 256;
@@ -456,9 +457,42 @@ public sealed partial class GpuWorld : Node3D
         markGone[r] = gone;
     }
 
+    // CLODS: the lumps of earth a moving tank's tracks throw, noted in the mark ring as kind 2 and flown, landed and left
+    // lying by gputracks.gdshader from that note alone. ClodsATrack a track in a cycle of ClodCycle blanks while it moves.
+    const int MarkClod = 2;
+    const double ClodCycle = 50;
+    readonly double[] clodClock = new double[256];       // the clock of each live row's last throw
+    readonly int[] clodCount = new int[256];             // each live row's throws so far: which rest spot, which colour
+
+    /// <summary>CLODS: one clod a track every ClodCycle / ClodsATrack blanks of a moving tank, thrown from its next rest spot
+    /// (TankTracks.ClodSpots: most on the track's rear run, every fourth inside its top rear corner), turned into the world
+    /// by the tank's place and heading (model units twice the world's, Place $41FC). Its colour is fixed now: every second
+    /// clod of a track brown (9 and 10 in turn), the others the colour of the land square under the tank - the low nibble of
+    /// its type byte - or brown on sea or on land that is already brown.</summary>
+    void ClodThrows(int r, int x, int z, double h, float clock, int model, int speed)
+    {
+        if (TankTracks.ClodSpots(model) is not { } spots) return;
+        var every = ClodCycle / TankTracks.ClodsATrack;
+        if (clock < clodClock[r] || clock - clodClock[r] > ClodCycle) clodClock[r] = clock - every;   // starting off: one now
+        var (fx, fz, ax, az) = (Math.Sin(h), Math.Cos(h), Math.Cos(h), -Math.Sin(h));
+        var land = map[(((z & 0xFFFF) >> 9) * 128 + ((x & 0xFFFF) >> 9)) * 2 + 1] & 15;
+        for (; clock - clodClock[r] >= every; clodClock[r] += every)
+        {
+            var n = clodCount[r]++;
+            var (sx, sy, sz) = spots[n % spots.Length];
+            foreach (var side in new[] { 1, -1 })
+            {
+                var odd = (n + (side < 0 ? 1 : 0)) % 2 != 0;
+                var colour = odd && land is not (0 or 9 or 10) ? land : 9 + n / 2 % 2;
+                NoteMark(x + (side * sx * ax + sz * fx) / 2.0, z + (side * sx * az + sz * fz) / 2.0, h, clock, MarkClod, sy / 2.0, speed,
+                    MarkLog ? $"CLOD row {r} side {side} n {n} start {sy / 2.0:F1} speed {speed} colour {colour} land {land} entry {markNext}" : null, colour);
+            }
+        }
+    }
+
     /// <summary>TRACK MARKS: one entry into the ring at a world spot, none on a sea square (type 0, as gpushadow.gdshader's
-    /// shadow_types). The ring's oldest entry is written over.</summary>
-    void NoteMark(double x, double z, double h, float clock, int kind, double halfW, double halfL, string? log)
+    /// shadow_types). The ring's oldest entry is written over. A clod's entry carries its palette colour in the spare.</summary>
+    void NoteMark(double x, double z, double h, float clock, int kind, double halfW, double halfL, string? log, float spare = 0)
     {
         (x, z) = ((x % 65536 + 65536) % 65536, (z % 65536 + 65536) % 65536);
         var type = map[(((int)z >> 9) * 128 + ((int)x >> 9)) * 2 + 1];
@@ -466,7 +500,7 @@ public sealed partial class GpuWorld : Node3D
         if (type == 0) return;
         var (a, b) = (markNext * 4, (MarkRing + markNext) * 4);
         (markFloats[a], markFloats[a + 1], markFloats[a + 2], markFloats[a + 3]) = ((float)x, (float)z, (float)h, clock);
-        (markFloats[b], markFloats[b + 1], markFloats[b + 2], markFloats[b + 3]) = (kind, (float)halfW, (float)halfL, 0);
+        (markFloats[b], markFloats[b + 1], markFloats[b + 2], markFloats[b + 3]) = (kind, (float)halfW, (float)halfL, spare);
         markNext = (markNext + 1) % MarkRing;
         markDirty = true;
     }

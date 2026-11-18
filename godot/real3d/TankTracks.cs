@@ -14,12 +14,11 @@ namespace Hunter;
 ///     D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - the links repeat every pitch, so the pattern
 ///     moves without end. L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
 ///   CLODS:
-///     twelve small brown triangles a track, each a CLOD part (kind 5, card only): nine rest just inside the track's rear run,
-///     where the belt climbs round the last wheel, three inside its top rear corner under the bodywork. Moving, each lets go
-///     with a small hop up and back, falls to the hull's bottom (the ground), lies there and is left behind by the tank's speed
-///     (channel 1), then starts again from its rest spot - each at its own share of a cycle of FLING_BLANKS of the game's clock
-///     (24 blanks of flight, 26 on the ground); still, at rest inside the track (model.gdshaderinc _walk_step, place.gdshaderinc
-///     entity_artic).
+///     not parts of the model: a moving tank throws small triangles of earth from its tracks' rear, each noted once in the
+///     world (GpuWorld ClodThrows, the marks' ring) with where it left the belt (ClodSpots: most from the rear run, where the
+///     belt climbs round the last wheel, every fourth from the top rear corner), its colour (brown, or the land's under the
+///     tank) and the clock. gputracks.gdshader flies it from that note - a small hop up and back, down to the ground's own
+///     height - and leaves it lying there, still, until it goes. A clod in the tank's own frame could only ride with the tank.
 /// Channel 0 of these two models is not the animation table's (their set is 0): the card gives it the tank's own rolling,
 /// the distance its record has moved along its heading (back counts back), turned into the wheels' 256ths (GpuWorld
 /// TrackRoll -> roll_tex, place.gdshaderinc entity_artic). The rules treat kind 3 as a plain corner ($551E) and keep their
@@ -30,8 +29,32 @@ public static class TankTracks
     public const int Origin = -1002;
 
     public const int Wheel = 8, Band = 0, Link = 8;                  // grey wheels with a black band, grey links (the panels are black 0)
-    static readonly int[] ClodColours = [9, 10, 9];                  // earth: the palette's browns (MODEL COLOURS leaves them be)
-    const int ClodsATrack = 12, ClodSize = 2;
+    public const int ClodsATrack = 12;                               // CLODS: thrown a track in a cycle (GpuWorld.ClodThrows)
+
+    /// <summary>CLODS: a tank model's ClodsATrack throw spots in turn (right side, model units; the left mirrors x), y given as
+    /// the height above the belt's bottom (the ground): every fourth (0, 4, 8) at one of the Flap spots, moved a few units
+    /// apart, the rest at the Rear spots - or null for any other model. The clods are no part of the model: GpuWorld notes
+    /// each in the world when it is thrown and gputracks.gdshader flies it from there.</summary>
+    public static (int X, int Y, int Z)[]? ClodSpots(int model)
+    {
+        if (Tanks.FirstOrDefault(t => t.Model == model) is not { } t) return null;
+        var ground = t.Belt.Min(p => p.Y);
+        var spots = new (int X, int Y, int Z)[ClodsATrack];
+        for (int i = 0, r = 0; i < ClodsATrack; i++)
+        {
+            int x, y, z;
+            if (i % 4 == 0)
+            {
+                (x, y, z) = t.Flap[i % t.Flap.Length];
+                x += (i / t.Flap.Length - 1) * 5;
+                y += i % 2;
+                z += i * 7 % 5 - 2;
+            }
+            else (x, y, z) = t.Rear[r++];
+            spots[i] = (x, y - ground, z);
+        }
+        return spots;
+    }
     const int Inset = 4, LinkLength = 8, Proud = 4;                  // full units
 
     /// <summary>A tank: its panel's outer face as x of y (right side; the left mirrors it), the belt's outline (z, y) in the order
@@ -146,32 +169,6 @@ public static class TankTracks
                 for (var i = 0; i < segs.Count; i += 15) pile.Lines(Link, segs.Skip(i).Take(15));   // a line face holds 15 edges
             }
         }
-        // the clods: each a small triangle that is its own CLOD part (kind 5, card only, model.gdshaderinc): let go where it rests,
-        // a small hop up and back, down to the ground and lying there while the tank drives on - each on its own share of the
-        // cycle (the flag's low 4 bits x 16); still, at rest inside the track (no offset: the rules' walk has them there too).
-        // ClodsATrack a side, each on its own sixteenth of the cycle (the two sides between each other), so the cycle always has
-        // some in the air: every fourth (0, 4, 8) rests at one of the Flap spots, moved a few units apart; the rest at the Rear
-        // spots in turn. The flag's bits 8 up carry how far the clod's lowest corner (its first) rests above the hull's bottom,
-        // where the shader lands it (the rules read the flag's low byte only)
-        var ground = md.Corners.Min(c => c.Y);                          // the hull's bottom: the lowest of the tank's own corners
-        foreach (var side in new[] { 1, -1 })
-            for (int i = 0, r = 0; i < ClodsATrack; i++)
-            {
-                int x, y, z;
-                if (i % 4 == 0)
-                {
-                    (x, y, z) = t.Flap[i % t.Flap.Length];
-                    x += (i / t.Flap.Length - 1) * 5;
-                    y += i % 2;
-                    z += i * 7 % 5 - 2;
-                }
-                else (x, y, z) = t.Rear[r++];
-                if (y - ground is < 0 or > 255) throw new InvalidOperationException($"model {t.Model}: a clod rests {y - ground} above the hull's bottom");
-                var a = pile.P(side * x, y, z, 0x50 | (i * 16 / ClodsATrack + (side < 0 ? 1 : 0)) & 15 | (y - ground) << 8);   // spread over the sixteen shares
-                var b = pile.P(side * (x + 4 * ClodSize), y + 8 * ClodSize, z - 4 * ClodSize);
-                var c = pile.P(side * (x - 4 * ClodSize), y + 4 * ClodSize, z + 8 * ClodSize);
-                pile.Face(ClodColours[i % ClodColours.Length], [a, b, c]);
-            }
         md.Replace([.. md.Corners, .. pile.Corners], [.. md.Edges, .. pile.Edges], [.. md.Faces, .. pile.Faces]);
         if (origins is not null)
             origins[t.Model] = (origins.TryGetValue(t.Model, out var old) ? old : Enumerable.Range(0, nf).ToArray()).Concat(pile.Faces.Select(_ => Origin)).ToArray();
