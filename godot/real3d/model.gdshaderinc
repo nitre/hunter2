@@ -84,6 +84,10 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
             w.piv = v;                                                   // is the run's start A, the next one A + the pitch D; the corners
             w.art = ivec3(((axis + 1) * artic[which]) & 255, 0, 0);      // after slide by D x (L x channel) mod 256 / 256, L = axis + 1
             w.mode = 3;                                                  // (the rules' walk treats kind 3 as plain, $551E)
+        } else if (kind == 4) {                                          // card only (TankTracks): a belt part WITH ENDS - this corner is the
+            w.piv = v;                                                   // run's start A, the next A + the pitch D, the one after the run's end
+            w.art = ivec3(((axis + 1) * artic[which]) & 255, 0, 0);      // E; the corners after slide as kind 3's, then are held between A and
+            w.mode = 5;                                                  // E along the run (the rules' walk treats it as plain, $551E)
         } else {
             w.mode = 0;
         }
@@ -96,6 +100,18 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
         w.mode = 4;
     } else if (w.mode == 4) {
         v = ivec3(_wrap16(v.x + w.off.x), _wrap16(v.y + w.off.y), _wrap16(v.z + w.off.z));
+    } else if (w.mode == 5) {                                            // the pitch corner, as mode 3
+        w.off = ivec3(round(vec3(v - w.piv) * float(w.art.x) / 256.0));
+        w.mode = 6;
+    } else if (w.mode == 6) {                                            // the run's end E: the run itself, A to E
+        w.art = v - w.piv;
+        w.mode = 7;
+    } else if (w.mode == 7) {
+        // slid, then held on the run: a corner past either end stays at that end, so a bar across the belt thins to nothing
+        // as it reaches the end and grows from nothing at the start - it goes round the corner, not off into the air
+        vec3 s = vec3(v + w.off - w.piv), run = vec3(w.art);
+        float t = dot(s, run) / max(dot(run, run), 1.0);
+        v = w.piv + ivec3(round(s - (t - clamp(t, 0.0, 1.0)) * run));
     }
     return v;
 }

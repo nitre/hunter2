@@ -359,7 +359,7 @@ public sealed partial class GpuWorld : Node3D
         for (var k = 0; k < on.Length; k++)
         {
             var flag = md.Corners[k].Flag;
-            if (flag != 0) part = ((flag >> 4) & 7) is 1 or 2 or 3;  // 3: a belt part (TankTracks), card only
+            if (flag != 0) part = ((flag >> 4) & 7) is 1 or 2 or 3 or 4;  // 3, 4: a belt part (TankTracks), card only
             on[k] = part;
         }
         return on;

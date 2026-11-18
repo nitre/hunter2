@@ -87,7 +87,11 @@ public static class TankTracks
     // lowest corners and change its lift), its top is under the hull and its rear step is shorter than a rib and its gap.
     // $15 has none.
     static readonly Dictionary<int, int[]> TreadRuns = new() { [0x16] = [1, 3] };
-    const int Inset = 4, RibProud = 2;                               // full units: in from the tread's edges, out from its surface
+    // full units: in from the tread's side edges; out from its surface - more than a model unit (4 here), so the bake takes a
+    // rib for a free sheet and gives every one the same thickness (within a unit it counts as a mark lying on the tread and
+    // stays flat: half a world unit off, where a turned model's corners landing on half units sank part of a rib into the
+    // tread); and in from each end of a run, so no rib corner comes lower than the model's own lowest (that sets its lift)
+    const int Inset = 4, RibProud = 6, RunInset = 14;
 
     /// <summary>The tanks' models (the objfile numbers): GpuWorld sends their offsets as track_models.</summary>
     public static IEnumerable<int> Models => Tanks.Select(t => t.Model);
@@ -121,10 +125,9 @@ public static class TankTracks
         var pile = new Pile(md);
         // RIBS: bars across the tread, one every RibPitch along a run, half a pitch long (bar and gap equal), from 4 in of the
         // track's inner edge to 4 in of its outer, standing 2 out from the tread's surface - clear of it, so the two never
-        // share a plane. Each run a side is a BELT part (kind 3, card only): its first corner A is flagged $30 | (L - 1) << 2,
-        // the next B = A + D is the pitch, and every corner after slides by D * ((L * channel 0) mod 256) / 256
-        // (model.gdshaderinc _walk_step) - a rib's four corners slide together and the ribs repeat every pitch, so the
-        // pattern moves without end.
+        // share a plane. Each run a side is a BELT part WITH ENDS (kind 4, card only): its first corner A is flagged
+        // $40 | (L - 1) << 2, the next B = A + D is the pitch, the third E the run's end, and every corner after slides by
+        // D * ((L * channel 0) mod 256) / 256 and is then held between A and E along the run (model.gdshaderinc _walk_step).
         if (TreadRuns.TryGetValue(t.Model, out var runs) && TreadX.TryGetValue(t.Model, out var tx))
         {
             long turn = 0;                                               // the outline's turn in (z, y): > 0 anticlockwise (z right, y up)
@@ -141,17 +144,21 @@ public static class TankTracks
                     var (dz, dy) = (R(uz * t.RibPitch), R(uy * t.RibPitch));
                     double step = Math.Sqrt(dz * dz + dy * dy);
                     var (wz, wy) = (R(dz / 2.0), R(dy / 2.0));           // a rib's length along the run
-                    // the first rib 8 along the run; the last one's far end slides to 4 short of the run's end, no further
-                    var ribs = (int)Math.Floor((len - 3 * Inset - Math.Sqrt(wz * wz + wy * wy)) / step);
-                    if (ribs < 1) continue;
-                    var (tz, ty) = (R(az + uz * 2 * Inset + oz * RibProud), R(ay + uy * 2 * Inset + oy * RibProud));
+                    // the run the ribs keep to: RunInset in from each of its corners. A rib a pitch from one before the start to the
+                    // end: the card slides them all together and holds each corner on the run, so the first grows out of the
+                    // start as the last thins away into the end - the ribs go round the corners, none pops in or out
+                    var (tz, ty) = (R(az + uz * RunInset + oz * RibProud), R(ay + uy * RunInset + oy * RibProud));
+                    var (ez, ey) = (R(bz - uz * RunInset + oz * RibProud), R(by - uy * RunInset + oy * RibProud));
                     var (xi, xo) = (side * (tx.Inner + Inset), side * (tx.Outer - Inset));
-                    pile.P(xi, ty, tz, 0x30 | (t.L - 1) << 2);           // A: a belt part on channel 0
+                    pile.P(xi, ty, tz, 0x40 | (t.L - 1) << 2);           // A: a belt part with ends, on channel 0
                     pile.P(xi, ty + dy, tz + dz);                        // B = A + D: the pitch
-                    for (var k = 0; k < ribs; k++)
+                    pile.P(xi, ey, ez);                                  // E: the run's end
+                    var outFirst = ((double)(xo - xi) * (wy * oz - wz * oy)) < 0;   // wound so the rib's own direction is IN toward the tread: the bake's moved copy is the corner less that direction, so its thickness goes outward
+                    for (var k = -1; k * step < len - 2 * RunInset; k++)
                     {
                         var (pz, py) = (tz + k * dz, ty + k * dy);
-                        pile.Face(Rib, [pile.P(xi, py, pz), pile.P(xo, py, pz), pile.P(xo, py + wy, pz + wz), pile.P(xi, py + wy, pz + wz)]);
+                        int[] quad = [pile.P(xi, py, pz), pile.P(xo, py, pz), pile.P(xo, py + wy, pz + wz), pile.P(xi, py + wy, pz + wz)];
+                        pile.Face(Rib, outFirst ? quad : [.. quad.Reverse()]);
                     }
                 }
         }
