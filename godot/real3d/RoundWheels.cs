@@ -15,6 +15,17 @@ public static class RoundWheels
 {
     public const int Sides = 16;
 
+    /// <summary>How far a rebuilt wheel of a ProudModels model stands out from the body, whole units, away from the model's
+    /// middle (x 0). Those four have their wheels in the plane of a body side; the original paints the wheel after that side
+    /// (its hub faces come later in the file), so the whole wheel shows on top. On the card two faces in one plane fought
+    /// pixel by pixel; a unit out, the wheel is always in front, as the original draws it. The other wheel models keep their
+    /// rims where they were: the car's and the amphimobile's are already clear of the body, the bicycle's are at x 0, and the
+    /// scanner van's would be pushed through its leaning side panels, which the original paints over them.</summary>
+    public const int Proud = 1;
+
+    /// <summary>The wheel models whose rims stand out by Proud: truck, ambulance, jeep, armoured car.</summary>
+    static readonly int[] ProudModels = [18, 20, 34, 36];
+
     /// <summary>The models whose spin-x parts are wheels (the other spin-x parts are legs): truck, car, ambulance,
     /// scanner van, jeep, armoured car, the bicycle (boarded model $28), amphimobile.</summary>
     static readonly int[] WheelModels = [18, 19, 20, 32, 34, 36, 40, 41];
@@ -93,6 +104,7 @@ public static class RoundWheels
         // the new corner list: a rim's 16 stand where its first old corner stood; the rest of its old corners go
         var map = new int[nv];
         var outCorners = new List<CardModels.Corner>();
+        var proud = ProudModels.Contains(model) ? Proud : 0;     // 0 leaves the rim in its old plane
         for (var k = 0; k < nv; k++)
         {
             if (ringOf[k] < 0) { map[k] = outCorners.Count; outCorners.Add(md.Corners[k]); continue; }
@@ -102,7 +114,7 @@ public static class RoundWheels
                 {
                     var a = j * 2 * Math.PI / Sides;
                     r.New[j] = outCorners.Count;
-                    outCorners.Add(md.FullCorner(0, corners[k][1],
+                    outCorners.Add(md.FullCorner(0, corners[k][1] + Math.Sign(corners[k][1]) * proud,
                         r.Py + (int)Math.Round(r.R * Math.Cos(a), MidpointRounding.AwayFromZero),
                         r.Pz + (int)Math.Round(r.R * Math.Sin(a), MidpointRounding.AwayFromZero)));
                 }
