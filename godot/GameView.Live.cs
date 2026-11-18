@@ -73,7 +73,8 @@ public partial class GameView
         wire on|off               Godot's own wireframe of the 3D view (a test)
         eye                       the camera's eye height, its place, the smooth and drawn ground there, the highest ground to the player
         corners ROW [shadow|raw|old]  where the card puts ROW's triangle corners (or its shadow's; raw = before the ground fit;
-                                  old = the fit by heights only, as before vehicles turned, with the turned body's lift): slot corner x y z colour
+                                  old = the fit by heights only, as before vehicles turned, with the turned body's lift;
+                                  ids = as drawn, the colour replaced by corner number x 8 + bake marks, + 100000 past the model's corners)
         joy DIRS FRAMES           hold the stick (letters u d l r f, f = fire; "-" = let go) for FRAMES frames
         log                       the log book's places as its little map marks them (to the nearest 512-unit square), from you
         carry                     what you carry: each item and how many
@@ -147,6 +148,57 @@ public partial class GameView
                 ok = gpu_model_vertex(id, p, colour, pull);
                 if (ok && cam_on && !inside_view) p.y = float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF));
             }
+            if (live_raw == 3 && ok) {                          // "ids": in place of the colour, the model corner number x 8 + its bake marks (1 slab copy, 2 rod copy, 4 rod centre), + 100000 past the model's own corners
+                vec4 mi = texelFetch(model_tex, ivec2(_eb(ent_tex, live_row, 0x25), 0), 0);
+                int start = int(mi.g + 0.5), base = int(mi.r + 0.5), slot = fc.y / 3, cn = fc.y - slot * 3;
+                vec4 tri = texelFetch(tri_tex, tri_texel(start + slot, 0), 0);
+                int vidx = int((cn == 0 ? tri.r : (cn == 1 ? tri.g : tri.b)) + 0.5);
+                int mk = (int(floor(texelFetch(tri_tex, tri_texel(start + slot, 2), 0).a + 0.5)) >> (3 * cn)) & 7;
+                colour = vidx * 8 + mk + (vidx >= _head(_at(base)).z ? 100000 : 0);
+            }
+            if (live_raw == 4 && ok) {                          // "fit": the fit's own sums for this corner (ground_contact.gdshaderinc contact_fit): x = the height the
+                // fit's turn gives it, y = as drawn, z = the same sums on the drawing's own corner (place.gdshaderinc model_local; = x unless the walk and it differ); colour = 1 contact + 2 rides + 4 a vehicle's wheel rule
+                vec4 mi = texelFetch(model_tex, ivec2(_eb(ent_tex, live_row, 0x25), 0), 0);
+                int start = int(mi.g + 0.5), base = int(mi.r + 0.5), slot = fc.y / 3, cn = fc.y - slot * 3;
+                vec4 tri = texelFetch(tri_tex, tri_texel(start + slot, 0), 0);
+                int vidx = int((cn == 0 ? tri.r : (cn == 1 ? tri.g : tri.b)) + 0.5);
+                int at = _at(base); int count = _head(at).z;
+                int ex = _euw(ent_tex, live_row, 0x4A), ey = _ew(ent_tex, live_row, 0x4C), ez = _euw(ent_tex, live_row, 0x4E), eg = _ew(ent_tex, live_row, 0x74);
+                ivec4 artic = entity_artic(ent_tex, entprev_tex, anim_tex, 0, 1, live_row, base);
+                ivec3 ang = ivec3(_eb(ent_tex, live_row, 0x80), _eb(ent_tex, live_row, 0x7C), _eb(ent_tex, live_row, 0x7E));
+                int low = model_min_y(trig_tex, at, artic, ang, 0, ivec3(0, ey, 0));
+                int lift = lift_to_ground(eg, low);
+                bool wheeled = _ew(ent_tex, live_row, 4) <= 0x12;
+                _Walk w = _Walk(ivec3(0), ivec3(0), ivec3(0), 0); bool rides = true; int bottom = 32767;
+                for (int k = 0; k < count; k++) {
+                    int f = _corner(at, k).w;
+                    if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
+                    int oy = _walk_step(w, trig_tex, at, k, artic).y;
+                    if (!wheeled || rides) bottom = min(bottom, oy);
+                }
+                w = _Walk(ivec3(0), ivec3(0), ivec3(0), 0); rides = true; ivec3 own = ivec3(0); bool mine = false;
+                for (int k = 0; k < count && k <= vidx; k++) {
+                    int f = _corner(at, k).w;
+                    if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
+                    own = _walk_step(w, trig_tex, at, k, artic);
+                    mine = k == vidx;
+                }
+                vec4 fit2; vec2 c2; float ty = -9999.0;
+                if (mine && contact_fit_row(live_row, fit2, c2)) {
+                    ivec3 vv = corner_fine(own, ang, entity_frac(ent_tex, live_row), trig_tex);   // as contact_fit turns it
+                    float h = float(_wrap16(_wrap16(vv.y + ey + _waterline(at)) + lift));
+                    ty = contact_turn(fit2, c2, vec3(float(ex) + float(vv.x) * 0.5, h, float(ez) + float(vv.z) * 0.5), float(vv.x) * 0.5, float(vv.z) * 0.5).y;
+                }
+                float tf = -9999.0;                             // the same with the drawing's corner (fine angles, place.gdshaderinc entity_corner_rot)
+                if (mine && contact_fit_row(live_row, fit2, c2)) {
+                    ivec3 vf = corner_fine(model_local(trig_tex, at, vidx, artic), ang, entity_frac(ent_tex, live_row), trig_tex);
+                    float h = float(_wrap16(_wrap16(vf.y + ey + _waterline(at)) + lift));
+                    tf = contact_turn(fit2, c2, vec3(float(ex) + float(vf.x) * 0.5, h, float(ez) + float(vf.z) * 0.5), float(vf.x) * 0.5, float(vf.z) * 0.5).y;
+                }
+                bool contact = mine && own.y <= bottom + 3 && (!wheeled || rides);
+                p = vec3(ty, p.y, tf);
+                colour = (contact ? 1 : 0) + (rides ? 2 : 0) + (wheeled ? 4 : 0) + (mine ? 0 : 1000);
+            }
             float v = fc.x == 0 ? p.x : (fc.x == 1 ? p.y : (fc.x == 2 ? p.z : (ok ? float(colour) + 1.0 : 0.0)));
             int iv = int(round(v * 16.0));
             COLOR = vec4(float(iv & 0xFF) / 255.0, float((iv >> 8) & 0xFF) / 255.0, float((iv >> 16) & 0xFF) / 255.0, 1.0);
@@ -187,7 +239,7 @@ public partial class GameView
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : 0);
+        if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
     }
 
