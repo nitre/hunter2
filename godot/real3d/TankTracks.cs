@@ -8,15 +8,11 @@ namespace Hunter;
 ///   ROAD WHEELS - a row of grey discs proud of the panel, each its own spin-x part on channel 0 (a pivot flagged $10 at the
 ///     disc's centre, the disc both ways round and a black bowtie from the hub that shows the turn), their
 ///     lowest point 12 over the hull's bottom, so the ground fit (fixed corners within 3 of the lowest) is the original's;
-///   LINKS - flat grey strips across the belt, one every Pitch along each run of the belt (top, front, bottom, rear), half a
-///     pitch long so strip and gap are equal: on the panel 8 deep from 4 in of its outline, 4 proud of it; and, on the runs
-///     where the model has an outer tread surface of its own (TreadRuns: $16's front and rear slope), right across that
-///     surface from 4 in of the track's inner edge (TreadX) to 4 in of its outer, lying on it and pulled nearer (face flag
-///     $80), so the outline is the model's. A run too short for a strip keeps a short line (8 across) instead. Each run is a
-///     BELT part (kind 3, card only): its first corner A is flagged $30 | (L - 1) << 2, the next B = A + D is the run's pitch,
-///     and every corner after slides by D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - a strip's four
-///     corners all slide together, the strips repeat every pitch, so the pattern moves without end. L pitches make one turn
-///     of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
+///   LINKS - short grey lines across the belt, 4 in from the panel's outline, every Pitch along each run of the belt (top,
+///     front, bottom, rear), 4 proud of the panel. Each run is a BELT part (kind 3, card only): its first corner A is
+///     flagged $30 | (L - 1) << 2, the next B = A + D is the run's pitch, and every corner after slides by
+///     D * ((L * channel 0) mod 256) / 256 (model.gdshaderinc _walk_step) - the links repeat every pitch, so the pattern
+///     moves without end. L pitches make one turn of the wheels (2 pi R = L x Pitch, near enough: the belt slips under 5%).
 ///   CLODS:
 ///     not parts of the model: a moving tank throws small triangles of earth from its tracks' rear, each noted once in the
 ///     world (GpuWorld ClodThrows, the marks' ring) with where it left the belt (ClodSpots: most from the rear run, where the
@@ -97,12 +93,6 @@ public static class TankTracks
     // belt is taken as x 64..112: its black panel is 100..112, and the clods resting on its rear run sit at x 64..96, inside it.
     static readonly Dictionary<int, (int Inner, int Outer)> TreadX = new() { [0x15] = (64, 112), [0x16] = (48, 120) };
 
-    // LINKS: the belt runs (indices into Belt) that have an outer tread surface of their own in the model, to carry strips across
-    // it. $16: the front run (its face across x 48..120) and the rear slope; its bottom faces the ground (strips there would be
-    // the model's lowest corners and change its lift), its top is under the hull and its rear step is shorter than a pitch.
-    // $15 has none: its belt is the hull's sloping side, the hull's own ends and bottom span its whole width.
-    static readonly Dictionary<int, int[]> TreadRuns = new() { [0x16] = [1, 3] };
-
     /// <summary>TRACK MARKS: a tank model's track on the ground in model units - the middle of a track out from the tank's
     /// middle, its width, and the link pitch (one tread bar and its gap) - or null for any other model.</summary>
     public static (int Centre, int Width, int Pitch)? Tread(int model) =>
@@ -166,10 +156,7 @@ public static class TankTracks
                 // start stood outside the panel or on the hull's bottom)
                 var (sz, sy) = (R(az + uz * 2 * Inset + nz * Inset), R(ay + uy * 2 * Inset + ny * Inset));
                 var (ez, ey) = (R(nz * LinkLength), R(ny * LinkLength));  // a link, across the belt
-                var (wz, wy) = (R(dz / 2.0), R(dy / 2.0));                   // a strip's length along the run: half a pitch, strip and gap equal
-                // the last strip's far end slides to 4 short of the run's end, no further; a run too short for one strip keeps a line
-                var strips = (int)Math.Floor((len - 3 * Inset - Math.Sqrt(wz * wz + wy * wy)) / step);
-                var links = strips >= 1 ? strips : (int)Math.Floor((len - 3 * Inset) / step);
+                var links = (int)Math.Floor((len - 3 * Inset) / step);         // the last one slides to 4 short of the run's end, no further
                 if (links < 1) continue;
                 pile.P(X(sy), sy, sz, 0x30 | (t.L - 1) << 2);                 // A: a belt part on channel 0
                 pile.P(X(sy + dy), sy + dy, sz + dz);                         // B = A + D: the pitch
@@ -177,23 +164,9 @@ public static class TankTracks
                 for (var k = 0; k < links; k++)
                 {
                     var (pz, py) = (sz + k * dz, sy + k * dy);
-                    if (strips < 1) { segs.Add((pile.P(X(py), py, pz), pile.P(X(py + ey), py + ey, pz + ez))); continue; }
-                    // a flat strip on the panel: the link's 8 across the belt by half a pitch along, its corners all in this belt part
-                    pile.Face(Link, [pile.P(X(py), py, pz), pile.P(X(py + ey), py + ey, pz + ez),
-                        pile.P(X(py + ey + wy), py + ey + wy, pz + ez + wz), pile.P(X(py + wy), py + wy, pz + wz)]);
+                    segs.Add((pile.P(X(py), py, pz), pile.P(X(py + ey), py + ey, pz + ez)));
                 }
                 for (var i = 0; i < segs.Count; i += 15) pile.Lines(Link, segs.Skip(i).Take(15));   // a line face holds 15 edges
-                // the same strips right across the belt's outer tread surface where the model has one: on the run's own line (the
-                // tread face), from 4 in of the track's inner edge to 4 in of its outer, pulled nearer (face flag $80) so it draws
-                // over the tread without standing proud of it - the track's outline stays the model's
-                if (strips < 1 || !TreadRuns.TryGetValue(t.Model, out var runs) || !runs.Contains(r) || !TreadX.TryGetValue(t.Model, out var tx)) continue;
-                var (tz, ty) = (R(az + uz * 2 * Inset), R(ay + uy * 2 * Inset));
-                var (xi, xo) = (side * (tx.Inner + Inset), side * (tx.Outer - Inset));
-                for (var k = 0; k < strips; k++)
-                {
-                    var (pz, py) = (tz + k * dz, ty + k * dy);
-                    pile.Face(Link, [pile.P(xi, py, pz), pile.P(xo, py, pz), pile.P(xo, py + wy, pz + wz), pile.P(xi, py + wy, pz + wz)], 0x80);
-                }
             }
         }
         md.Replace([.. md.Corners, .. pile.Corners], [.. md.Edges, .. pile.Edges], [.. md.Faces, .. pile.Faces]);
