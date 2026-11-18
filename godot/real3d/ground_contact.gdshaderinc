@@ -14,11 +14,14 @@ const float CONTACT_MAX_SLOPE = 0.7;        // the steepest tilt (height per wor
 const int CONTACT_MAX = 64;                 // contact corners kept (a model's corners within 3 of its lowest)
 const int CONTACT_LEVEL_BAND = 16;         // a level thing's bottom corners: within 16 of its lowest - a door 4 below its wall ($97 house: wall -160, door -164), a window sill 40 up stays (-124)
 const float CONTACT_LEVEL = 1e6;            // c.y of a level thing's fit (no tilt, so c is free): walls_down applies
+const float CONTACT_NO_TURN = -1e6;         // fit.w of a thing that is not turned onto its plane (contact_turn): its heights follow the plane, its sides stay upright
+const int CONTACT_TURNS_TO = 0x13;          // the vehicles (types $00-$13): rigid bodies, turned as a whole
 
-// The plane for record row's model (base): fit = (A, B, D), c = the centre (cx, cz) the tilt turns about, in world
-// units from the record's own x and z. False = this thing stands as the game has it.
-bool contact_fit(int row, int base, out vec3 fit, out vec2 c) {
-    fit = vec3(0.0); c = vec2(0.0);
+// The plane for record row's model (base): fit = (A, B, D, floor), c = the centre (cx, cz) the tilt turns about, in
+// world units from the record's own x and z; floor = the contacts' own height before the fit (the height the body
+// turns about), or CONTACT_NO_TURN. False = this thing stands as the game has it.
+bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
+    fit = vec4(0.0, 0.0, 0.0, CONTACT_NO_TURN); c = vec2(0.0);
     if (!cam_on || inside_view || _eb(ent_tex, row, 0x20) != 0) return false;
     bool level = _ew(ent_tex, row, 4) >= 0x30;                                          // stands level: sinks only
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
@@ -84,7 +87,7 @@ bool contact_fit(int row, int base, out vec3 fit, out vec2 c) {
         int step = (c0 <= 2 && c1 >= 4 && y1 - y0 == 1) ? (1 << shift) : 0;
         float d = -1e30;                                                                // the highest ground under a contact: nothing buried
         for (int i = 0; i < n; i++) d = max(d, ph[i] >= low + step ? pg[i] : pg[i] - float(step));   // the door's foot at most one step in
-        fit = vec3(0.0, 0.0, d);
+        fit = vec4(0.0, 0.0, d, CONTACT_NO_TURN);
         c = vec2(float(_wrap16(low + step + lift)) + d, CONTACT_LEVEL);                 // the bottom's height once placed; walls_down takes it on
         return true;
     }
@@ -111,13 +114,41 @@ bool contact_fit(int row, int base, out vec3 fit, out vec2 c) {
     b = clamp(b, -CONTACT_MAX_SLOPE, CONTACT_MAX_SLOPE);
     float d = -1e30;                                                                    // no contact below the ground
     for (int i = 0; i < n; i++) d = max(d, pg[i] - (a * (px[i] - cx) + b * (pz[i] - cz)));
-    fit = vec3(a, b, d); c = vec2(cx, cz);
+    float floor_ = CONTACT_NO_TURN;
+    if (_ew(ent_tex, row, 4) <= CONTACT_TURNS_TO) {                                     // a vehicle: the height its contacts stand at, the turn's middle
+        floor_ = 0.0;
+        for (int i = 0; i < n; i++) floor_ += float(_wrap16(ph[i] + lift));
+        floor_ /= float(n);
+    }
+    fit = vec4(a, b, d, floor_); c = vec2(cx, cz);
     return true;
 }
 
 // The height change for a corner (dx, dz) world units from the record's x and z, of that fit (GroundContact.Lift).
-float contact_lift_at(vec3 fit, vec2 c, float dx, float dz) {
+float contact_lift_at(vec4 fit, vec2 c, float dx, float dz) {
     return fit.x * (dx - c.x) + fit.y * (dz - c.y) + fit.z;
+}
+
+// A corner placed on its thing's fit: p = its world place (x, height, z), (dx, dz) = that place from the record's x and z.
+// A vehicle is TURNED onto the plane as one rigid body - about the fit's centre at its contacts' height, by the smallest
+// turn that takes "up" to the plane's normal - then lifted by D. Moving the heights alone (the plane added to each
+// corner, as people and animals still get: they stand upright on a slope) leaves the sides upright over a sloping
+// floor: on a steep slope a box is pushed out of square, and the lean travels round the body as it turns.
+// Worked in true lengths: a height counts half a world unit (the scene's heights are drawn at half), so the plane's
+// slope is half its number and a turned height is doubled on the way back.
+vec3 contact_turn(vec4 fit, vec2 c, vec3 p, float dx, float dz) {
+    if (fit.w == CONTACT_NO_TURN || (fit.x == 0.0 && fit.y == 0.0)) {
+        p.y += contact_lift_at(fit, c, dx, dz);
+        return p;
+    }
+    float hx = fit.x * 0.5, hz = fit.y * 0.5;
+    float k = inversesqrt(1.0 + hx * hx + hz * hz);
+    vec3 n = vec3(-hx * k, k, -hz * k);                                                 // the plane's normal: where "up" goes
+    vec3 r = vec3(dx - c.x, (p.y - fit.w) * 0.5, dz - c.y);                             // from the turn's middle
+    float ax = n.z, az = -n.x;                                                          // the axis up x n (it has no height)
+    float f = (ax * r.x + az * r.z) / (1.0 + n.y);
+    vec3 t = vec3(r.x * n.y - az * r.y + ax * f, r.y * n.y + az * r.x - ax * r.z, r.z * n.y + ax * r.y + az * f);
+    return vec3(p.x + (c.x + t.x - dx), fit.w + t.y * 2.0 + fit.z, p.z + (c.y + t.z - dz));
 }
 
 // WALLS DOWN: a level thing stands on the highest ground under
@@ -129,11 +160,11 @@ float walls_down(vec2 c, float x, float z, float y) {
 }
 
 // The same for a corner rot as turned, not placed (x and z doubled).
-float contact_lift(vec3 fit, vec2 c, ivec3 rot) { return contact_lift_at(fit, c, float(rot.x) * 0.5, float(rot.z) * 0.5); }
+float contact_lift(vec4 fit, vec2 c, ivec3 rot) { return contact_lift_at(fit, c, float(rot.x) * 0.5, float(rot.z) * 0.5); }
 
 // The fit of record row's main model (+$25), false when it stands as the game has it (no model, debris, not drawn).
-bool contact_fit_row(int row, out vec3 fit, out vec2 c) {
-    fit = vec3(0.0); c = vec2(0.0);
+bool contact_fit_row(int row, out vec4 fit, out vec2 c) {
+    fit = vec4(0.0, 0.0, 0.0, CONTACT_NO_TURN); c = vec2(0.0);
     int model = _eb(ent_tex, row, 0x25);
     if (_eb(ent_tex, row, 0) == 0 || _eb(ent_tex, row, 0x1C) == 0 || model == 0 || _sb(_eb(ent_tex, row, 0x24)) < 0) return false;
     return contact_fit(row, int(texelFetch(model_tex, ivec2(model, 0), 0).r + 0.5), fit, c);

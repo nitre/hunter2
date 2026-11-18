@@ -278,10 +278,10 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     } else {
         // thrown from where the thing is drawn: its height above the real ground under the corner, with the fit and walls down
         float rise = -boat_sink(row, ground, low);
-        vec3 fit; vec2 fc;
+        vec4 fit; vec2 fc;
         if (contact_fit_row(row, fit, fc)) {
             vec3 p = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z) * 0.5);
-            float drawn = walls_down(fc, p.x, p.z, p.y + contact_lift(fit, fc, rot));
+            float drawn = walls_down(fc, p.x, p.z, contact_turn(fit, fc, p, float(rot.x) * 0.5, float(rot.z) * 0.5).y);   // the drawn height (a turned vehicle's small move sideways is left out of its shadow)
             rise += drawn - p.y - float(ground_height(cam_map, int(p.x) & 0xFFFF, int(p.z) & 0xFFFF) - ground);
         }
         pos = entity_sun_shadow_corner(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, rot, low, sun_shadow, rise);

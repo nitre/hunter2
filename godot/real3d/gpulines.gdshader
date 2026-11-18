@@ -28,13 +28,13 @@ varying float depth_;                             // HAZE: how far ahead of the 
 
 // A segment end, in clip space: the world point moved to the eye (sat on the real ground with its model, contact),
 // a little nearer, and back with the shell if indoors.
-bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec3 fit, vec2 fc, out vec4 clip, out int colour) {
+bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour) {
     vec3 p;
     clip = vec4(2.0, 2.0, 2.0, 1.0);
     if (!gpu_line_vertex(id, p, colour)) return false;
     if (contact) {
         int row = id / (line_slots * 2);
-        p.y += contact_lift_at(fit, fc, p.x - float(_euw(ent_tex, row, 0x4A)), p.z - float(_euw(ent_tex, row, 0x4E)));
+        p = contact_turn(fit, fc, p, p.x - float(_euw(ent_tex, row, 0x4A)), p.z - float(_euw(ent_tex, row, 0x4E)));   // as its faces (model_clip)
     }
 
     float k = (shell_row >= 0 && id / (line_slots * 2) == shell_row) ? 1.25 : 1.0;   // the shell's own lines go back with it
@@ -86,7 +86,7 @@ void vertex() {
     int base_id = (row * line_slots + slot) * 2;
     vec4 ca, cb;
     int colour;
-    vec3 fit; vec2 fc;
+    vec4 fit; vec2 fc;
     bool contact = contact_fit_row(row, fit, fc);
     bool ok = line_end(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, ca, colour);
     int colour_b;

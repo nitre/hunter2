@@ -132,8 +132,8 @@ public partial class GameView
             bool ok;
             if (layer == 0) {
                 ok = gpu_model_vertex_rot(id, p, colour, pull, rot, own_side);
-                vec3 fit; vec2 c;
-                if (ok && contact_fit_row(live_row, fit, c)) { p.y += contact_lift(fit, c, rot); p.y = walls_down(c, p.x, p.z, p.y); }
+                vec4 fit; vec2 c;
+                if (ok && contact_fit_row(live_row, fit, c)) { p = contact_turn(fit, c, p, float(rot.x) * 0.5, float(rot.z) * 0.5); p.y = walls_down(c, p.x, p.z, p.y); }
             } else {
                 ok = gpu_model_vertex(id, p, colour, pull);
                 if (ok && cam_on && !inside_view) p.y = float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF));

@@ -31,14 +31,14 @@ varying flat float own_light;                     // ...and the sun's light on i
 
 // One corner of a triangle in clip space (the id's own world point moved to the eye, nearer if a detail face, back with
 // the shell indoors), sat on the real ground when contact (ground_contact.gdshaderinc); false = this triangle is not drawn.
-bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec3 fit, vec2 fc, out vec4 clip, out int colour, out ivec3 rot, out bool own_side) {
+bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out ivec3 rot, out bool own_side) {
     vec3 p; bool pull;
     clip = vec4(2.0, 2.0, 2.0, 1.0);
     if (!gpu_model_vertex_rot(id, p, colour, pull, rot, own_side)) return false;
     if (contact) {
-        float dy = contact_lift(fit, fc, rot);
-        p.y += dy;
-        rot.y += int(round(dy));                                                    // the sun's face direction leans with it
+        vec3 q = contact_turn(fit, fc, p, float(rot.x) * 0.5, float(rot.z) * 0.5);
+        rot += ivec3(int(round((q.x - p.x) * 2.0)), int(round(q.y - p.y)), int(round((q.z - p.z) * 2.0)));   // the sun's face direction leans (a vehicle: turns) with it
+        p = q;
         p.y = walls_down(fc, p.x, p.z, p.y);
     }
     vec3 eye = (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
@@ -55,7 +55,7 @@ void vertex() {
     vec4 c0, c1, c2;
     int col0, col1, col2;
     ivec3 r0, r1, r2;
-    vec3 fit; vec2 fc;
+    vec4 fit; vec2 fc;
     bool own_side;
     int gbits = glass_bits(first);                             // meta bits 12-15, told before the corners are worked out
 #ifdef GLASS_PASS
