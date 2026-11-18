@@ -11,6 +11,8 @@ it plays like the Amiga version.
 <img src="screenshots/car.png" width="49%" alt="Car"> <img src="screenshots/boat.png" width="49%" alt="Rocket boat by the stores">
 <img src="screenshots/attack.png" width="49%" alt="Helicopter attacking a gun"> <img src="screenshots/tank_blast.png" width="49%" alt="A tank destroyed on the hills">
 <img src="screenshots/tank.png" width="49%" alt="Tank firing"> <img src="screenshots/on_foot.png" width="49%" alt="On foot by a helicopter">
+<img src="screenshots/sunset.png" width="49%" alt="Sunset over the sea"> <img src="screenshots/night.png" width="49%" alt="A tank at night under the moon and stars">
+<img src="screenshots/inside.png" width="49%" alt="Inside a building"> <img src="screenshots/beach.png" width="49%" alt="On foot along the coast">
 
 ## Features
 
