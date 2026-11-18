@@ -1,6 +1,6 @@
 # hunter2
 
-An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with Godot 4.7.
+An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with Godot 4.7 and Claude Code.
 
 ![Helicopter over the coast](screenshots/flying.png)
 
