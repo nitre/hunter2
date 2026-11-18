@@ -718,6 +718,7 @@ public sealed partial class GpuWorld : Node3D
         var found = FindSheets(Store, faces, slab, slabOff, twin, recolour);
         var sticker = new bool[faces.Count];                 // STICKERS: drawn only as a copy moved onto the face under them
         var stickers = FindStickers(Store, faces, sticker, slab, slabOff);
+        var layer = FindLayers(Store, faces, sticker, slab);  // FLAT ON A FACE: which of the faces sharing a plane is on top (the shader draws a layer nearer)
         // GLASS: SEE-THROUGH, a window painted flat on a wall: the wall to be drawn with a hole (GlassWalls)
         var notPlain = new bool[faces.Count];
         for (var i = 0; i < faces.Count; i++) notPlain[i] = slab[i] || twin[i] >= 0 || sticker[i];
@@ -832,7 +833,7 @@ public sealed partial class GpuWorld : Node3D
                 var moving = part[c0] && part[c1] && part[c2];
                 // bit 10: its paint has the painters' light in it (PaintedLight) - the sun lights it against their sun
                 var painted = recolour[i] < 0 && !moving && PaintedLight.Painted(fm, f.Ordinal);
-                AddTri(c0, c1, c2, f.Meta | (plate ? 32 : 0) | (moving ? 512 : 0) | (painted ? 1024 : 0), default);
+                AddTri(c0, c1, c2, f.Meta | (plate ? 32 : 0) | (moving ? 512 : 0) | (painted ? 1024 : 0), default, layer[i] << LayerShift);
                 count[f.Model]++;
             }
             var own = tris.Count;
@@ -1082,7 +1083,7 @@ public sealed partial class GpuWorld : Node3D
         long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)
         long blastBytes = Blasts * (0xA0L * 4 + 16 + maxTris * 3L * 12);                   // a blast's: the two blast textures + its share of the pieces mesh
         GD.Print($"GpuWorld ready: {tris.Count} of {MaxTriangles} triangles (GpuWorld.MaxTriangles; table {table.GetWidth() * table.GetHeight() * 16 / 1048576.0:F1} MB of {4L * MaxTriangles * 16 / 1048576.0:F0} MB), up to {maxTris} a model; caps a model {CardModels.MaxCorners} corners, {CardModels.MaxEdges} edges, {CardModels.MaxFaces} faces, up to {maxLines} lines; card room {Rows} rows = {rowBytes / 1048576.0:F1} MB, {Blasts} blasts = {blastBytes / 1048576.0:F1} MB; model store {Store.Used} texels in {Store.Rows} rows = {Store.Rows * CardModels.Width * 16 / 1048576.0:F2} MB (cap {CardModels.Width * CardModels.Height * 16 / 1048576.0:F0} MB)");
-        GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers");
+        GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers; flat on a face: {layer.Count(v => v == 1)} on layer 1, {layer.Count(v => v == 2)} on 2, {layer.Count(v => v == 3)} on 3");
         GD.Print($"GpuWorld rods: {rodsOf.Sum(g => g.Count())} free-standing lines made solid, {segments.Count} lines on faces left flat, {lineFaces.Count} in all");
         GD.Print($"GpuWorld backs: {backsAuto} models closed automatically, {backsHand} hand-made; painted light: {PaintedLight.Groups} colour groups in {PaintedLight.ModelsWith} models");
     }
@@ -1278,6 +1279,57 @@ public sealed partial class GpuWorld : Node3D
             i = end;
         }
         return count;
+    }
+
+    /// <summary>Where a face's layer sits in its triangles' marks (x 2 of tri_tex alpha, above the three corners' 9 bits):
+    /// gpumodels.gdshaderinc face_layer.</summary>
+    internal const int LayerShift = 9;
+
+    // FLAT ON A FACE: '91 painted faces in file order, so of two faces in one plane the later simply covered the earlier (a
+    // window on a wall, a marking on a panel, a wheel's halves on its disc). With real depth the two are exactly as far
+    // away, and which one a pixel shows is decided by rounding: the earlier face came through the later in patches (the
+    // truck's wheel: a dark patch on its brown half). Each such face gets a LAYER: 0 for a face with nothing under it,
+    // otherwise one more than the highest layer among the earlier faces it lies on (same plane, the two overlapping), up
+    // to 3. The shader draws a face a clear step nearer the eye for each layer (gpumodels_body.gdshaderinc LAYER_NEARER),
+    // so the later face always wins - and only among faces of its own plane: a count over all the model's faces would
+    // have to be so small a step that rounding beats it, or so big that a model's last faces jump in front of real shape.
+    // A face that is drawn as a moved copy (a slab, a sticker) is already off the plane and takes no part.
+    static int[] FindLayers(CardModels store, List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] sticker, bool[] slab)
+    {
+        var layer = new int[faces.Count];
+        for (var i = 0; i < faces.Count; )
+        {
+            var end = i;
+            while (end < faces.Count && faces[end].Model == faces[i].Model) end++;
+            var pts = new List<(int, int, int)>[end - i];
+            var plane = new (int, int, int)?[end - i];
+            var centre = new double[end - i][];
+            for (var r = i; r < end; r++)
+            {
+                pts[r - i] = FacePoints(store, faces[r]);
+                var p = pts[r - i];
+                if (p.Count < 3 || sticker[r] || slab[r] || (faces[r].Meta & CarInside.Bit) != 0) continue;
+                plane[r - i] = Plane(p);
+                centre[r - i] = [p.Average(q => (double)q.Item1), p.Average(q => (double)q.Item2), p.Average(q => (double)q.Item3)];
+            }
+            for (var r = i; r < end; r++)
+            {
+                if (plane[r - i] is not { } nr) continue;
+                for (var o = i; o < r; o++)
+                {
+                    if (plane[o - i] is not { } on || layer[o] < layer[r]) continue;
+                    var ln = Math.Sqrt((double)on.Item1 * on.Item1 + (double)on.Item2 * on.Item2 + (double)on.Item3 * on.Item3);
+                    var o0 = pts[o - i][0];
+                    var same = true;                                              // every corner of the later face within half a unit of the earlier one's plane
+                    foreach (var q in pts[r - i])
+                        if (Math.Abs(on.Item1 * (q.Item1 - o0.Item1) + on.Item2 * (q.Item2 - o0.Item2) + on.Item3 * (q.Item3 - o0.Item3)) / ln > 0.5) { same = false; break; }
+                    if (!same || (!InsidePoly(centre[r - i], pts[o - i], on) && !InsidePoly(centre[o - i], pts[r - i], nr))) continue;
+                    layer[r] = Math.Min(3, layer[o] + 1);
+                }
+            }
+            i = end;
+        }
+        return layer;
     }
 
     // A filled face's corners at rest (signed bytes), chained into its loop.
