@@ -148,7 +148,7 @@ public static class RoundWheels
         // Only when the cover is certain: exactly two later faces on that rim, each the rim's steps on its side closed by
         // one line across, the same line for both, their steps together the whole rim and none shared.
         var hidden = new HashSet<int>();
-        var flat = new List<(int Face, int Ring, HashSet<int> Steps, List<(int, int)> Across)>();
+        var flat = new List<(int Face, int Ring, HashSet<int> Steps, List<(int, int)> Across, bool Forward)>();
         for (var f = 0; f < faces.Count; f++)
         {
             var es = faces[f].Edges;
@@ -167,14 +167,16 @@ public static class RoundWheels
             var (members, js) = (rings[ring].Members, rings[ring].J);
             var steps = new HashSet<int>();
             var across = new List<(int, int)>();
+            bool? way = null;                                    // the way its rim steps run round the rim
             for (var i = 0; i < loop.Length; i++)
             {
                 int s = loop[i], t = loop[(i + 1) % loop.Length], si = members.IndexOf(s), ti = members.IndexOf(t);
                 var forward = members[(si + 1) % members.Count] == t;
                 if (!forward && members[(si + members.Count - 1) % members.Count] != t) { across.Add((Math.Min(s, t), Math.Max(s, t))); continue; }
+                way ??= forward;
                 for (var j = js[si]; j != js[ti]; j = (j + (forward ? 1 : Sides - 1)) % Sides) steps.Add(forward ? j : (j + Sides - 1) % Sides);
             }
-            flat.Add((f, ring, steps, across));
+            flat.Add((f, ring, steps, across, way ?? true));
         }
         foreach (var whole in flat.Where(w => w.Steps.Count == Sides && w.Across.Count == 0))
         {
@@ -184,6 +186,56 @@ public static class RoundWheels
                 hidden.Add(whole.Face);
         }
 
+        // A wheel's whole side (one disc or several of one colour) with later faces lying on part of it (the jeep: two
+        // black discs, then a brown piece across the middle): the same fight for the part the later faces cover. The discs
+        // are left out and the rest of the side is drawn as pieces of its own beside the later faces - each stretch of rim
+        // they leave free, closed by the line across that ends it. Only when that is certain: the later faces share no rim
+        // step, and every free stretch ends on a line across that one of them has.
+        var beside = new Dictionary<int, List<(int Colour, int Flags, int[] E)>>();   // the last disc's face number -> the pieces in its place
+        foreach (var g in flat.GroupBy(o => o.Ring))
+        {
+            var wholes = g.Where(o => o.Steps.Count == Sides && o.Across.Count == 0).ToList();
+            if (wholes.Count == 0 || wholes.Any(o => hidden.Contains(o.Face))) continue;
+            var last = wholes.MaxBy(o => o.Face);
+            var parts = g.Where(o => !(o.Steps.Count == Sides && o.Across.Count == 0)).ToList();
+            if (parts.Count == 0 || parts.Any(o => o.Face < last.Face)) continue;
+            if (wholes.Select(o => faces[o.Face].Colour).Distinct().Count() != 1) continue;
+            var covered = new HashSet<int>();
+            var certain = true;
+            foreach (var o in parts) foreach (var s in o.Steps) certain &= covered.Add(s);
+            if (!certain || covered.Count == 0 || covered.Count == Sides) continue;
+            var r = rings[g.Key];
+            var lines = parts.SelectMany(o => o.Across).Select(a =>
+            {
+                int ja = r.J[r.Members.IndexOf(a.Item1)], jb = r.J[r.Members.IndexOf(a.Item2)];
+                return (Math.Min(ja, jb), Math.Max(ja, jb));
+            }).ToHashSet();
+            var pieces = new List<(int Colour, int Flags, int[] E)>();
+            for (var j = 0; j < Sides && certain; j++)
+            {
+                if (covered.Contains(j) || !covered.Contains((j + Sides - 1) % Sides)) continue;   // a free stretch starts at step j
+                var end = j;
+                while (!covered.Contains(end % Sides)) end++;                                       // its steps j .. end - 1, its corners j .. end
+                int a = j, b = end % Sides;
+                if (end - j > 14 || !lines.Contains((Math.Min(a, b), Math.Max(a, b)))) { certain = false; break; }
+                var es = new List<int>();
+                if (last.Forward)
+                {
+                    for (var k = j; k < end; k++) es.Add(Edge(r.New[k % Sides], r.New[(k + 1) % Sides]));
+                    es.Add(Edge(r.New[b], r.New[a]));
+                }
+                else
+                {
+                    for (var k = end; k > j; k--) es.Add(Edge(r.New[k % Sides], r.New[(k - 1) % Sides]));
+                    es.Add(Edge(r.New[a], r.New[b]));
+                }
+                pieces.Add((faces[last.Face].Colour, faces[last.Face].Flags, es.ToArray()));
+            }
+            if (!certain || pieces.Count == 0) continue;
+            foreach (var o in wholes) hidden.Add(o.Face);
+            beside[last.Face] = pieces;
+        }
+
         // the faces
         var outFaces = new List<(int Colour, int Flags, int[] E)>();
         var origin = new List<int>();                            // each new face's number among the old ones (a band of treads is many)
@@ -191,7 +243,11 @@ public static class RoundWheels
         {
             while (origin.Count < outFaces.Count) origin.Add(oldFace - 1);
             var (colour, flags, es) = faces[oldFace];
-            if (hidden.Contains(oldFace)) continue;
+            if (hidden.Contains(oldFace))
+            {
+                if (beside.TryGetValue(oldFace, out var pieces)) outFaces.AddRange(pieces);
+                continue;
+            }
             if (es.All(e => oldEdge[e] >= 0)) { outFaces.Add((colour, flags, es.Select(e => oldEdge[e]).ToArray())); continue; }
             var n = es.Length;
             var loop = new int[n];                               // the corners, one an edge: edge i runs corner i to corner i + 1
