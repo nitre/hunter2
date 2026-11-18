@@ -6,9 +6,11 @@ The game rules are reimplemented from the original program. On top of that it ad
 more detailed ground and other changes, each of which can be turned off in the settings menu. With all of them off
 it plays like the Amiga version.
 
-![On foot by a helicopter](screenshots/helicopter.png)
+![Helicopter over the coast](screenshots/flying.png)
 
-![Car](screenshots/car.png) ![Jeep and parachute](screenshots/parachute.png)
+<img src="screenshots/car.png" width="49%" alt="Car"> <img src="screenshots/boat.png" width="49%" alt="Rocket boat by the stores">
+<img src="screenshots/attack.png" width="49%" alt="Helicopter attacking a gun"> <img src="screenshots/tank_blast.png" width="49%" alt="A tank destroyed on the hills">
+<img src="screenshots/tank.png" width="49%" alt="Tank firing"> <img src="screenshots/on_foot.png" width="49%" alt="On foot by a helicopter">
 
 ## Features
 
