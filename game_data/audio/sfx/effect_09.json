@@ -1,0 +1,41 @@
+{
+ "duration_frames": 255,
+ "duration_samples": 45763,
+ "effect": 9,
+ "envelope": 1,
+ "envelope_steps": [
+  [
+   1,
+   64,
+   1
+  ],
+  [
+   50,
+   0,
+   1
+  ],
+  [
+   195,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ]
+ ],
+ "file": "effect_09.wav",
+ "loop_end": 45763,
+ "loop_start": 0,
+ "looping": true,
+ "peak": 0.4279,
+ "period": 595,
+ "rate_hz": 5961.168,
+ "sample": 5
+}

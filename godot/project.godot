@@ -1,0 +1,30 @@
+; Hunter remake - Godot 4.7 (.NET)
+config_version=5
+
+[application]
+
+config/name="Hunter"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "C#")
+config/use_custom_user_dir.release=true
+config/custom_user_dir_name.release="hunter2"
+
+[display]
+
+window/size/viewport_width=320
+window/size/viewport_height=200
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="viewport"
+window/stretch/aspect="keep"
+window/stretch/scale_mode="integer"
+
+[dotnet]
+
+project/assembly_name="Hunter"
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="forward_plus"
+environment/defaults/default_clear_color=Color(0, 0, 0, 1)

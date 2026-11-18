@@ -1,0 +1,41 @@
+{
+ "duration_frames": 254,
+ "duration_samples": 224028,
+ "effect": 18,
+ "envelope": 2,
+ "envelope_steps": [
+  [
+   1,
+   0,
+   1
+  ],
+  [
+   1,
+   1,
+   64
+  ],
+  [
+   2,
+   255,
+   64
+  ],
+  [
+   128,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ]
+ ],
+ "file": "effect_18.wav",
+ "loop_end": null,
+ "loop_start": null,
+ "looping": false,
+ "peak": 0.3949,
+ "period": 2048,
+ "rate_hz": 1731.882,
+ "sample": 10
+}

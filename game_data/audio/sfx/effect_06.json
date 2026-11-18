@@ -1,0 +1,41 @@
+{
+ "duration_frames": 32,
+ "duration_samples": 28224,
+ "effect": 6,
+ "envelope": 1,
+ "envelope_steps": [
+  [
+   1,
+   64,
+   1
+  ],
+  [
+   50,
+   0,
+   1
+  ],
+  [
+   195,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ]
+ ],
+ "file": "effect_06.wav",
+ "loop_end": null,
+ "loop_start": null,
+ "looping": false,
+ "peak": 0.4915,
+ "period": 424,
+ "rate_hz": 8365.318,
+ "sample": 4
+}

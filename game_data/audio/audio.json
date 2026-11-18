@@ -1,0 +1,1065 @@
+{
+ "music": [
+  {
+   "file": "music/song_0.wav",
+   "loop_end": 7112448,
+   "loop_frame": 8064,
+   "loop_start": 0,
+   "peak": 0.467,
+   "samples": 7113330,
+   "song": 0,
+   "source": "music_render job"
+  },
+  {
+   "file": "music/song_1.wav",
+   "loop_end": 5080320,
+   "loop_frame": 5760,
+   "loop_start": 0,
+   "peak": 0.428,
+   "samples": 5081202,
+   "song": 1,
+   "source": "music_render job"
+  },
+  {
+   "file": "music/song_2.wav",
+   "loop_end": 2540160,
+   "loop_frame": 2880,
+   "loop_start": 0,
+   "peak": 0.5,
+   "samples": 2541042,
+   "song": 2,
+   "source": "music_render job"
+  }
+ ],
+ "music_pan": "Amiga: channels 0+3 left, 1+2 right",
+ "notes": "Triggers from re/out/hunter_en_800.disasm.txt + names.txt + the SFX driver disassembly (tools/audio/disasm_sfx.py). Mechanism: the game calls PlaySound $B11C (d4 = sound = effect index) -> AllocChannel $2D30 -> SetChannel $B12A which writes the request byte to soundfile+$2D2+channel, the volume to +$2D6+channel and a period word to the channel record; the SFX driver's tick $113A6 consumes the request and plays effect[k] (sample/envelope/period/duration at $1178C+16k) - verified in the driver code at $11412-$11438. Entity (engine) sounds: StartEntitySound $2CD6 with d4 = entity +$88 & $1F. AmbientSound $B08E with volume $1F. Game volume for one-shots is 63 (not 64), so rendered peaks are ~1.5% above what the chip would output. Priority table $B164: sounds 0-5 -> 1-3, 6 -> 6, 7-14 -> 4, 15-20 -> 5.",
+ "output_rate_hz": 44100,
+ "pal_clock": 3546895,
+ "sfx": [
+  {
+   "duration_frames": 57,
+   "duration_samples": 50274,
+   "effect": 0,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_00.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.5,
+   "period": 608,
+   "rate_hz": 5833.709,
+   "sample": 0,
+   "triggers": [
+    {
+     "addr": "$2F32",
+     "context": "player dies (AddEnergy(-4) fails): death sound, then the killed/drowned message",
+     "routine": "PlayerSetUpOrDie $2E52"
+    }
+   ]
+  },
+  {
+   "duration_frames": 16,
+   "duration_samples": 14112,
+   "effect": 1,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_01.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4986,
+   "period": 848,
+   "rate_hz": 4182.659,
+   "sample": 1,
+   "triggers": [
+    {
+     "addr": "$A27A",
+     "context": "item picked up",
+     "routine": "TouchItem $A240 (PlaySound1)"
+    },
+    {
+     "addr": "$B17A/$B17E/$B186",
+     "context": "sound 1 at volume 0 = the generic 'silence a channel' call (game start $24DA, entity sound stopped, WriteBack $82A8)",
+     "routine": "StopChannel / SilenceChannel / ResetChannels"
+    }
+   ]
+  },
+  {
+   "duration_frames": 32,
+   "duration_samples": 28224,
+   "effect": 2,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_02.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4196,
+   "period": 608,
+   "rate_hz": 5833.709,
+   "sample": 2,
+   "triggers": [
+    {
+     "addr": "$460C",
+     "context": "bump into an occupied vehicle",
+     "routine": "OccupiedMessage $45F0"
+    },
+    {
+     "addr": "$8F82",
+     "context": "start of talking to a person",
+     "routine": "Speak $8F82"
+    },
+    {
+     "addr": "$A428",
+     "context": "fuel reserve warning (motorised, <= 4)",
+     "routine": "ReserveWarning $A420"
+    },
+    {
+     "addr": "$B08A",
+     "context": "swimming/drowning countdown message",
+     "routine": "EachMinute $B054"
+    }
+   ]
+  },
+  {
+   "duration_frames": 128,
+   "duration_samples": 112896,
+   "effect": 3,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_03.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4986,
+   "period": 848,
+   "rate_hz": 4182.659,
+   "sample": 3,
+   "triggers": []
+  },
+  {
+   "duration_frames": 96,
+   "duration_samples": 84672,
+   "effect": 4,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_04.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4997,
+   "period": 563,
+   "rate_hz": 6299.991,
+   "sample": 3,
+   "triggers": []
+  },
+  {
+   "duration_frames": 64,
+   "duration_samples": 56448,
+   "effect": 5,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_05.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4962,
+   "period": 424,
+   "rate_hz": 8365.318,
+   "sample": 3,
+   "triggers": []
+  },
+  {
+   "duration_frames": 32,
+   "duration_samples": 28224,
+   "effect": 6,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_06.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4915,
+   "period": 424,
+   "rate_hz": 8365.318,
+   "sample": 4,
+   "triggers": []
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 68837,
+   "effect": 7,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_07.wav",
+   "live_changes": "",
+   "loop_end": 68837,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4296,
+   "period": 895,
+   "rate_hz": 3963.011,
+   "sample": 5,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id of an entity type (+$88 & $1F = 7); per-type ids live in the type data - only type $01 car = sound 11 verified",
+     "routine": "StartEntitySound $2CD6 via EnterOrLeaveVehicle / ConstructEntity / UpdateEntitySound"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 54839,
+   "effect": 8,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_08.wav",
+   "live_changes": "",
+   "loop_end": 54839,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4336,
+   "period": 713,
+   "rate_hz": 4974.607,
+   "sample": 5,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 8 (as above)",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 45763,
+   "effect": 9,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_09.wav",
+   "live_changes": "",
+   "loop_end": 45763,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4279,
+   "period": 595,
+   "rate_hz": 5961.168,
+   "sample": 5,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 9 (as above)",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 34457,
+   "effect": 10,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_10.wav",
+   "live_changes": "",
+   "loop_end": 34457,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4303,
+   "period": 448,
+   "rate_hz": 7917.176,
+   "sample": 5,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 10 (as above); type $01 car has +$88 = $10B -> sound 11 one step up, so 10 is a neighbouring vehicle sound",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 45479,
+   "effect": 11,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_11.wav",
+   "live_changes": "",
+   "loop_end": 45479,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4997,
+   "period": 503,
+   "rate_hz": 7051.481,
+   "sample": 6,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 11 - VERIFIED: vehicle type $01 (car) carries +$88 = $10B (vehicles.md worked example + binary at $D4B6)",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 34087,
+   "effect": 12,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_12.wav",
+   "live_changes": "",
+   "loop_end": 34087,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4999,
+   "period": 377,
+   "rate_hz": 9408.21,
+   "sample": 6,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 12",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 56324,
+   "effect": 13,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_13.wav",
+   "live_changes": "",
+   "loop_end": 56324,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4316,
+   "period": 424,
+   "rate_hz": 8365.318,
+   "sample": 7,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 13",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 88439,
+   "effect": 14,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_14.wav",
+   "live_changes": "",
+   "loop_end": 88439,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4977,
+   "period": 848,
+   "rate_hz": 4182.659,
+   "sample": 8,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 14",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 70292,
+   "effect": 15,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_15.wav",
+   "live_changes": "",
+   "loop_end": 70292,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4999,
+   "period": 674,
+   "rate_hz": 5262.455,
+   "sample": 8,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 15",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 255,
+   "duration_samples": 58716,
+   "effect": 16,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_16.wav",
+   "live_changes": "",
+   "loop_end": 58716,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4996,
+   "period": 563,
+   "rate_hz": 6299.991,
+   "sample": 8,
+   "triggers": [
+    {
+     "addr": "$2FCA/$32E0/$2DD0",
+     "context": "engine id 16",
+     "routine": "StartEntitySound $2CD6"
+    }
+   ]
+  },
+  {
+   "duration_frames": 224,
+   "duration_samples": 197568,
+   "effect": 17,
+   "envelope": 2,
+   "envelope_steps": [
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     1,
+     64
+    ],
+    [
+     2,
+     255,
+     64
+    ],
+    [
+     128,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_17.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.2678,
+   "period": 1024,
+   "rate_hz": 3463.765,
+   "sample": 11,
+   "triggers": [
+    {
+     "addr": "$B08E",
+     "context": "low-altitude ambient (player +$4C <= $64): sound from pair $B044+8 = (17, recount 2), volume $1F - the sea/wind swell (sample 11, env 2)",
+     "routine": "AmbientSound $B08E (from EachMinute $B054)"
+    }
+   ]
+  },
+  {
+   "duration_frames": 254,
+   "duration_samples": 224028,
+   "effect": 18,
+   "envelope": 2,
+   "envelope_steps": [
+    [
+     1,
+     0,
+     1
+    ],
+    [
+     1,
+     1,
+     64
+    ],
+    [
+     2,
+     255,
+     64
+    ],
+    [
+     128,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_18.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.3949,
+   "period": 2048,
+   "rate_hz": 1731.882,
+   "sample": 10,
+   "triggers": [
+    {
+     "addr": "$B08E",
+     "context": "high-altitude ambient (player +$4C > $64): pair $B044+0 = (18, recount 4) - the high wind (sample 10, env 2)",
+     "routine": "AmbientSound $B08E (from EachMinute $B054)"
+    }
+   ]
+  },
+  {
+   "duration_frames": 224,
+   "duration_samples": 197568,
+   "effect": 19,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_19.wav",
+   "live_changes": "",
+   "loop_end": null,
+   "loop_start": null,
+   "looping": false,
+   "peak": 0.4743,
+   "period": 429,
+   "rate_hz": 8267.821,
+   "sample": 11,
+   "triggers": [
+    {
+     "addr": "$2BB2",
+     "context": "d7 bit 10 goes ON: an amphibious vehicle or swimming person enters the water (splash)",
+     "routine": "WalkSwimSwitch $2BAC"
+    }
+   ]
+  },
+  {
+   "duration_frames": 16,
+   "duration_samples": 15635,
+   "effect": 20,
+   "envelope": 1,
+   "envelope_steps": [
+    [
+     1,
+     64,
+     1
+    ],
+    [
+     50,
+     0,
+     1
+    ],
+    [
+     195,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "file": "sfx/effect_20.wav",
+   "live_changes": "",
+   "loop_end": 15635,
+   "loop_start": 0,
+   "looping": true,
+   "peak": 0.4647,
+   "period": 784,
+   "rate_hz": 4524.101,
+   "sample": 9,
+   "triggers": [
+    {
+     "addr": "$26A4",
+     "context": "an entity whose +$88 & $1F = 20 and +$0D bit 1 set (the gull) 'fires' without a projectile - the bird's cry",
+     "routine": "UpdateEntity $2642 FireTimer -> StartEntitySound"
+    }
+   ]
+  }
+ ]
+}

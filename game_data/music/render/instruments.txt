@@ -1,0 +1,33 @@
+Instruments used by all three songs (from the driver's chip writes)
+sample = index into the driver's sample table at $236FC; the WAV of each one is in out/samples/sample_NN.wav at 8287 Hz
+
+sample  file offset  len(bytes)  loop start  loop len  instr  driver sample+env  volume/envelope/vibrato  used by
+------------------------------------------------------------------------------------------------------------------------------------
+   0    $000000       1446           0          1  i0 i1  env0, env1 i0: flags $00, no vibrato; i1: flags $ s0.ch0 s0.ch2 s0.ch3 s1.ch2 s1.ch3 s2.ch0 s2.ch2 s2.ch3
+   1    $0005A6       3498           0          1  i2     env2       i2: flags $00, vibrato idx 6 after 32  s0.ch0 s0.ch1 s0.ch2 s1.ch2 s2.ch0 s2.ch2 s2.ch3
+   2    $001350       8648        8392        128  i3     env3       i3: flags $00, vibrato idx 6 after 32  s0.ch0 s0.ch1 s0.ch2 s0.ch3 s1.ch0 s2.ch0 s2.ch1
+   3    $003518       3656        3398        129  i4 i7  env4, env6 i4: flags $00, no vibrato; i7: flags $ s0.ch0 s0.ch1 s0.ch2 s1.ch0 s2.ch0
+   4    $004360       4410        1240       1585  i5     env5       i5: flags $00, no vibrato              s0.ch1 s0.ch2 s0.ch3 s1.ch0 s1.ch1 s1.ch2 s1.ch3 s2.ch2 s2.ch3
+   5    $00549A       4362        1214       1574  i6     env5       i6: flags $00, no vibrato              s0.ch1 s2.ch3
+   6    $0065A4       6284        3052       1616  i8     env7       i8: flags $00, no vibrato              s0.ch0 s0.ch3 s1.ch3 s2.ch3
+
+Envelope/arpeggio table at $2380E, 16 bytes per entry, index = instrument byte +1. Steps are 3 bytes (frames, volume step, repeat count), volume 0-64:
+  entry 0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  entry 1: 01 40 01 40 C0 01 80 00 00 00 00 00 01 C0 01 80
+  entry 2: 01 40 01 40 C0 01 80 00 00 00 00 00 09 F8 3F 80
+  entry 3: 01 30 01 06 FF 40 80 00 00 00 00 00 03 FF 40 80
+  entry 4: 01 38 01 32 00 01 C3 00 00 00 00 00 03 FF 40 80
+  entry 5: 01 30 01 06 FF 20 80 00 00 80 00 00 09 F8 08 80
+  entry 6: 01 1C 01 01 FF 18 80 00 00 00 00 00 03 FF 40 80
+  entry 7: 01 40 01 01 FF 18 80 00 00 00 00 00 03 FF 40 80
+
+Driver instrument table at $2388E, 9 instruments, 16 bytes each (+0 sample, +1 envelope index, +2 effect flags, +7 effect step, +$E vibrato-table index, +$F vibrato delay in frames):
+  instr 0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 1: 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 2: 01 02 00 00 00 00 00 00 00 00 00 00 00 00 06 20
+  instr 3: 02 03 00 00 00 00 00 00 00 00 00 00 00 00 06 20
+  instr 4: 03 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 5: 04 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 6: 05 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 7: 03 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  instr 8: 06 07 00 00 00 00 00 00 00 00 00 00 00 00 00 00

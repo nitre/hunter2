@@ -1,0 +1,41 @@
+{
+ "duration_frames": 255,
+ "duration_samples": 54839,
+ "effect": 8,
+ "envelope": 1,
+ "envelope_steps": [
+  [
+   1,
+   64,
+   1
+  ],
+  [
+   50,
+   0,
+   1
+  ],
+  [
+   195,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   0
+  ]
+ ],
+ "file": "effect_08.wav",
+ "loop_end": 54839,
+ "loop_start": 0,
+ "looping": true,
+ "peak": 0.4336,
+ "period": 713,
+ "rate_hz": 4974.607,
+ "sample": 5
+}

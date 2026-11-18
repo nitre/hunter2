@@ -1,0 +1,13 @@
+# Disk images of the original game stay local
+*.lha
+*.adf
+*.stx
+*.st
+game_data/hunters_loading.ico
+
+# Build output
+__pycache__/
+bin/
+obj/
+.godot/
+/release/

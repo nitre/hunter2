@@ -1,0 +1,203 @@
+{
+ "credits": "]]]]<----------]<HUNTER]<----------]]]<Design, programming & objects]<by]<Paul Holmes]]]<Music & sound effects]<by]<Martin Walker]*",
+ "main_menu": {
+  "y": 40,
+  "items": [
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "MAIN OPTIONS",
+    "data": 0,
+    "handler": 0
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "View soldier",
+    "data": 0,
+    "handler": 34650
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Start new game",
+    "data": 0,
+    "handler": 8976
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Disk Operation",
+    "data": 0,
+    "handler": 65866
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Demo",
+    "data": 0,
+    "handler": 8918
+   }
+  ]
+ },
+ "game_menu": {
+  "y": 40,
+  "items": [
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "AVAILABLE GAMES",
+    "data": 0,
+    "handler": 0
+   }
+  ]
+ },
+ "game_items": [
+  {
+   "style": 0,
+   "dx": 0,
+   "text": "Hunter",
+   "data": 0,
+   "handler": 9044
+  },
+  {
+   "style": 0,
+   "dx": 0,
+   "text": "Missions",
+   "data": 0,
+   "handler": 9048
+  },
+  {
+   "style": 0,
+   "dx": 0,
+   "text": "Action",
+   "data": 0,
+   "handler": 9052
+  },
+  {
+   "style": 0,
+   "dx": 0,
+   "text": "CANCEL",
+   "data": 0,
+   "handler": 8916
+  }
+ ],
+ "options_menu": {
+  "y": 40,
+  "items": [
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "IN GAME OPTIONS",
+    "data": 0,
+    "handler": 0
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Resume Game",
+    "data": 0,
+    "handler": 9170
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Re-brief",
+    "data": 0,
+    "handler": 9150
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Disk Operation",
+    "data": 0,
+    "handler": 65854
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Quit Game",
+    "data": 0,
+    "handler": 9206
+   }
+  ]
+ },
+ "confirm_menu": {
+  "y": 40,
+  "items": [
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Are you sure",
+    "data": 0,
+    "handler": 0
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Yes",
+    "data": 0,
+    "handler": 36964
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "No",
+    "data": 0,
+    "handler": 36960
+   }
+  ]
+ },
+ "disk_menu": {
+  "y": 40,
+  "items": [
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "DISK OPTIONS",
+    "data": 0,
+    "handler": 0
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Load Game",
+    "data": 0,
+    "handler": 66032
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Save Game",
+    "data": 0,
+    "handler": 66074
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "Init Disk",
+    "data": 0,
+    "handler": 65910
+   },
+   {
+    "style": 0,
+    "dx": 0,
+    "text": "End",
+    "data": 0,
+    "handler": 65890
+   }
+  ]
+ },
+ "completed_games_bits": 0,
+ "screen0": {
+  "palette_bank": 5,
+  "text": {
+   "col": 0,
+   "row": 0,
+   "cols": 40,
+   "lines": 20,
+   "line_height": 10,
+   "plane": 0
+  }
+ }
+}

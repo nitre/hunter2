@@ -1,0 +1,31 @@
+{
+ "song": 1,
+ "frames": 5761,
+ "seconds": 115.22,
+ "loop": [
+  0,
+  5760
+ ],
+ "stop_frame": 5754,
+ "writes": 128070,
+ "notes": 1417,
+ "peak": 0.462890625,
+ "samples_used": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  6
+ ],
+ "instruments_used": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  7,
+  8
+ ]
+}
