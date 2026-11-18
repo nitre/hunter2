@@ -223,7 +223,14 @@ public partial class Main : Node2D
         var dir = System.Environment.GetEnvironmentVariable("HUNTER_DATA")
                   ?? ProjectSettings.GlobalizePath("res://../game_data");
         if (!OS.HasFeature("editor") && !System.IO.Directory.Exists(dir))   // an exported release: game_data beside the exe (docs/handoff-history.md, the Windows test release)
-            dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(OS.GetExecutablePath())!, "game_data");
+        {
+            var exeDir = System.IO.Path.GetDirectoryName(OS.GetExecutablePath())!;
+            dir = System.IO.Path.Combine(exeDir, "game_data");
+            // macOS: the program is inside hunter2.app/Contents/MacOS, and files added to the bundle break its signature -
+            // the release puts game_data beside hunter2.app
+            if (OS.GetName() == "macOS" && !System.IO.Directory.Exists(dir))
+                dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(exeDir, "..", "..", "..", "game_data"));
+        }
         try
         {
             Data = GameData.Load(dir);
