@@ -25,7 +25,7 @@ public static class Glass
         [0x17] = [13, 15, 16],                      // helicopter
         [0x19] = [20, 21, 24],                      // helicopter: the windscreen and front side windows (17, 22, 23 are green body panels in the file)
         [0x1B] = [4, 13, 14, 15],                   // light aircraft
-        [0x1D] = [10, 11, 12],                      // rocket boat
+        [0x1D] = [12],                              // rocket boat: the windscreen (10, 11 are green body panels in the file)
         [0x1E] = [5],                               // ship
         [0x20] = [5, 11, 19, 21],                   // scanner van
         [0x21] = [1, 3, 4],                         // gunboat
