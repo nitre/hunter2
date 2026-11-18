@@ -31,7 +31,7 @@ stencil_mode read, write, compare_not_equal, 2;
 uniform sampler2D under_tex : hint_screen_texture, filter_nearest;
 uniform sampler2D mark_tex : filter_nearest;
 
-const float MARK_LIFE = 300.0;                    // blanks a mark lasts (GpuWorld.MarkLife)
+const float MARK_LIFE = 50.0;                     // blanks a mark lasts, one second (GpuWorld.MarkLife)
 const float CLOD_FLIGHT = 24.0, CLOD_LIFE = 50.0; // blanks a clod flies, and its whole life: it lies 26 blanks (over half a second)
 const float CLOD_HOP = 10.0;                      // world units up at the top of the hop (20 model units)
 const float CLOD_BACK = 4.0, CLOD_BACK_MAX = 32.0;   // world units back a speed step, and at most (its back corner 4 more)

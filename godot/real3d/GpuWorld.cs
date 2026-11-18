@@ -79,9 +79,10 @@ public sealed partial class GpuWorld : Node3D
     // mark_tex, column = the entry: row 0 (world x, world z, heading in radians, clock in blanks), row 1 (kind, half width,
     // half length, spare) in world units. Kind 0 is an empty entry, MarkTread a tread bar (gputracks.gdshader draws only
     // those), so other kinds of note can share the ring. 1024: a tank at full speed goes 5 world units a blank and lays a
-    // bar a side every 21 units ($16's pitch 42 model units), 2 x 72 bars in 300 blanks, so four tanks at once fit (576).
+    // bar a side every 21 units ($16's pitch 42 model units), 2 x 12 bars in the 50 blanks a bar lasts, with a clod a side
+    // about every 4 blanks beside them: room for many tanks at once.
     const int MarkRing = 1024, MarkTread = 1;
-    const float MarkLife = 300;                  // blanks a mark lasts (gputracks.gdshader MARK_LIFE)
+    const float MarkLife = 50;                   // blanks a mark lasts, one second (gputracks.gdshader MARK_LIFE)
     readonly ImageTexture markTex = ImageTexture.CreateFromImage(Image.CreateEmpty(MarkRing, 2, false, Image.Format.Rgbaf));
     readonly float[] markFloats = new float[MarkRing * 2 * 4];
     readonly byte[] markBytes = new byte[MarkRing * 2 * 4 * 4];
