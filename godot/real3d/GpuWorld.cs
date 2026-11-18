@@ -446,7 +446,9 @@ public sealed partial class GpuWorld : Node3D
         }
     }
 
-    /// <summary>TRACK MARKS: a tread bar under the middle of each track each time a tank has gone one link pitch (bar and gap
+    /// <summary>TRACK MARKS: a tread bar under each track, where the track comes up off the ground (behind the tread going
+    /// forward, ahead of it going back: TankTracks.Tread's Rear / Front - not under the tank's own place, in its middle),
+    /// each time a tank has gone one link pitch (bar and gap
     /// each half a pitch long, so they alternate along the line), placed at the exact spot along this move where the pitch was
     /// crossed, so the bars lie evenly however far a frame moves. Model x and z are twice the world's (Place $41FC).</summary>
     void TreadMarks(int r, int x, int z, int dx, int dz, double h, float clock, int model)
@@ -459,7 +461,8 @@ public sealed partial class GpuWorld : Node3D
         for (; gone >= step; gone -= step)
         {
             var back = (gone - step) / moved;                        // the pitch was crossed this share of the move back
-            double px = x - dx * back, pz = z - dz * back;
+            var end = (dx * Math.Sin(h) + dz * Math.Cos(h) >= 0 ? t.Rear : t.Front) / 2.0;   // along the tank, world units (forward is sin h, cos h)
+            double px = x - dx * back + Math.Sin(h) * end, pz = z - dz * back + Math.Cos(h) * end;
             foreach (var side in new[] { -1, 1 })
                 NoteMark(px + side * ax * t.Centre / 2.0, pz + side * az * t.Centre / 2.0, h, clock, MarkTread, t.Width / 4.0, t.Pitch / 8.0,
                     MarkLog ? $"row {r} side {side} tank {x} {z} heading {h:F4}" : null);

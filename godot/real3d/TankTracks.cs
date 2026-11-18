@@ -101,10 +101,16 @@ public static class TankTracks
     static readonly Dictionary<int, (int Inner, int Outer)> TreadX = new() { [0x15] = (64, 112), [0x16] = (48, 120) };
 
     /// <summary>TRACK MARKS: a tank model's track on the ground in model units - the middle of a track out from the tank's
-    /// middle, its width, and the link pitch (one tread bar and its gap) - or null for any other model.</summary>
-    public static (int Centre, int Width, int Pitch)? Tread(int model) =>
-        TreadX.TryGetValue(model, out var x) && Tanks.FirstOrDefault(t => t.Model == model) is { } t
-            ? ((x.Inner + x.Outer) / 2, x.Outer - x.Inner, t.Pitch) : null;
+    /// middle, its width, the pitch of the marks (one tread bar and its gap), and where the belt meets the ground along the
+    /// tank: Rear and Front, the z of the two ends of its lowest run - or null for any other model. A mark is laid where the
+    /// track comes up off the ground: behind the tread going forward (Rear), ahead of it going back (Front).</summary>
+    public static (int Centre, int Width, int Pitch, int Rear, int Front)? Tread(int model)
+    {
+        if (!TreadX.TryGetValue(model, out var x) || Tanks.FirstOrDefault(t => t.Model == model) is not { } t) return null;
+        var low = t.Belt.Min(p => p.Y);
+        var onGround = t.Belt.Where(p => p.Y == low).Select(p => p.Z).ToArray();
+        return ((x.Inner + x.Outer) / 2, x.Outer - x.Inner, t.Pitch, onGround.Min(), onGround.Max());
+    }
 
     /// <summary>A tank model's rolling circle's radius (full units), 0 for any other model: GpuWorld turns a record's rolling into 256ths of it.</summary>
     public static int Radius(int model) => Tanks.FirstOrDefault(t => t.Model == model)?.Radius ?? 0;
