@@ -22,16 +22,17 @@ public static class Glass
         [0x12] = [20],                              // truck
         [0x13] = [6, 18, 19, 21],                   // car
         [0x14] = [26],                              // ambulance
-        [0x17] = [13, 15, 16],                      // helicopter
-        [0x19] = [20, 21, 24],                      // helicopter: the windscreen and front side windows (17, 22, 23 are green body panels in the file)
-        [0x1B] = [4, 13, 14, 15],                   // light aircraft
-        [0x1D] = [12],                              // rocket boat: the windscreen (10, 11 are green body panels in the file)
+        // vehicles: the faces the file paints black or grey - its own windows - and the light aircraft's cockpit sides
+        [0x17] = [13],                              // helicopter
+        [0x19] = [24],                              // helicopter
+        [0x1B] = [4, 13, 14, 15],                   // light aircraft: its cockpit side windows too (14, 15)
+        [0x1D] = [12],                              // rocket boat
         [0x1E] = [5],                               // ship
-        [0x20] = [5, 11, 19, 21],                   // scanner van
-        [0x21] = [1, 3, 4],                         // gunboat
-        [0x22] = [6, 18, 19, 20],                   // jeep
-        [0x23] = [1, 11, 12, 13, 14],               // hovercraft
-        [0x29] = [18, 19, 20],                      // amphibious car
+        [0x20] = [19, 21],                          // scanner van
+        [0x21] = [1],                               // gunboat
+        [0x22] = [6, 20],                           // jeep
+        [0x23] = [1, 13, 14],                       // hovercraft
+                                                    // amphibious car ($29): no face painted as a window
         [0x98] = [5],                               // out post
         [0x99] = [4],                               // shed
         [0x9A] = [1, 3],                            // hospital
