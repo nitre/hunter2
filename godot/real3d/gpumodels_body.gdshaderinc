@@ -19,6 +19,9 @@
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: see-through windows (GpuWorld sets it; meta bit 12 marks the faces)
 const float GLASS_SEE = 0.35;                     // how much of the glass's own colour shows (the rest is what is behind it)
+const vec3 GLASS_TINT = vec3(0.85, 0.93, 1.1);    // the pane's light grey, a little blue
+const float GLASS_MILITARY = 0.5;                 // a military machine's panes (MODEL COLOURS machines) twice as dark
+varying flat float glass_dark;
 
 varying flat float tag;
 varying float depth_;                             // HAZE: how far ahead of the eye (POSITION.w)
@@ -82,6 +85,12 @@ void vertex() {
         if (fire) col += 64;                                             // ...and not darkened by the night
         own_tint = own_tint_of(_eb(ent_tex, row, 0x25), col, on_part(first));   // MODEL COLOURS: a machine's parts keep their paint
         bool tinted = own_tint != vec3(0.0);
+        // a tinted machine (MODEL COLOURS a = 1: helicopters, tanks): every green face one paint, the helicopter's tail green (14) -
+        // its several greens are the original's painted shading, which under the tint and the sun's own shading made patches
+        // of grey; the sun alone shades the faces apart
+        bool military = texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 0), 0).a > 0.75;
+        if (tinted && military) { col = int(texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 1), 0).r + 0.5); painted = false; }   // its Base (GpuWorld.OwnTints)
+        glass_dark = military ? GLASS_MILITARY : 1.0;              // GLASS: a military machine's panes twice as dark
         own_light = 1.0;
         if (!fire && sun_shading && sun_up && !inside_view && row != shell_row) {
             // the sun on this face (rules/SunShade.cs Pick): its direction from its own three corners, outward = away
@@ -144,6 +153,10 @@ void fragment() {
     else
         ALBEDO = world_hazed(int(round(tag)), FRAGCOORD, d);
 #ifdef GLASS_PASS
+    // the original paints its windows black, so 35% of the face's own paint only dimmed what lay behind - the panes looked
+    // like holes. A pane is the palette's light grey (8, faded with the day and hazed as any face) with a little blue:
+    // pale glass, the inside still showing through
+    ALBEDO = world_hazed(8, FRAGCOORD, d) * GLASS_TINT * glass_dark;
     ALPHA = GLASS_SEE;
 #endif
 }

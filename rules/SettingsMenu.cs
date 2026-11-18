@@ -75,7 +75,7 @@ public sealed class SettingsMenu
         ("SOUND",
         [
             new Row("a500_filter", "SOUND FILTER", Effect.Now),         // a500 (filter on) / a1200; the click applies the filter itself (F6's call)
-            new Row("sound", "SOUND", Effect.Restart),                  // MERGED: sound extras, voices, smooth music (extras and music at the next start)
+            new Row("sound", "SOUND", Effect.Restart),                  // MERGED: sound extras, voices (extras at the next start)
         ]),
         ("CONTROLS",
         [
@@ -129,9 +129,8 @@ public sealed class SettingsMenu
         ],
         ["sound"] =
         [
-            Step("ORIGINAL", ("sound_extras", "ORIGINAL"), ("sound_voices", "ORIGINAL"), ("sound_smooth", "ORIGINAL")),
-            Step("ENHANCED", ("sound_extras", "ENHANCED"), ("sound_voices", "MORE"), ("sound_smooth", "ORIGINAL")),
-            Step("FULL", ("sound_extras", "ENHANCED"), ("sound_voices", "MORE"), ("sound_smooth", "SMOOTH")),
+            Step("ORIGINAL", ("sound_extras", "ORIGINAL"), ("sound_voices", "ORIGINAL")),
+            Step("ENHANCED", ("sound_extras", "ENHANCED"), ("sound_voices", "MORE")),
         ],
     };
 
@@ -166,7 +165,6 @@ public sealed class SettingsMenu
         ["graves"] = ["NONE", "SHOWN", "WITH VULTURES"],
         ["sound_extras"] = ["ORIGINAL", "ENHANCED"],
         ["sound_voices"] = ["ORIGINAL", "MORE"],
-        ["sound_smooth"] = ["ORIGINAL", "SMOOTH"],
     };
 
     /// <summary>Whether a row is on the page: one VIEW DISTANCE, the one that applies (the flat picture's or the 3D
@@ -217,7 +215,7 @@ public sealed class SettingsMenu
         ["ground"] = ["ORIGINAL", "LIT", "FULL"],          // the merged rows: their steps' words, in Merged's order (MergedRowsTests)
         ["sky"] = ["ORIGINAL", "SMOOTH", "FULL"],
         ["world"] = ["ORIGINAL", "SOME", "MORE", "LOTS"],
-        ["sound"] = ["ORIGINAL", "ENHANCED", "FULL"],
+        ["sound"] = ["ORIGINAL", "ENHANCED"],
     };
 
     /// <summary>What every recording (film, video) runs with (owner 2026-10-30: "Can we make sure if we make a video
@@ -243,17 +241,16 @@ public sealed class SettingsMenu
         ["world"] = "MORE",                      // fuller world MORE (owner's pick for films, not LOTS), more objects, living world
                                                  // (the player's games; never the attract demo), graves with vultures
         ["finer_ground"] = "2X",                 // new games; the attract demo in the picture alone (GpuWorld.PictureLift)
-        ["sound"] = "FULL",                      // extras, voices, smooth music: the films as before; AS IT COULD BE leaves the music unsmoothed
+        ["sound"] = "ENHANCED",                  // extras, voices
         ["demo_camera"] = "MOVING",              // the attract's own camera moves (owner 2026-11-02); run_game --sway / --spin still override it
     };
 
     /// <summary>AS IT COULD BE, the first start's second answer (owner 2026-11-02): the films' extras, but the
-    /// pixel size follows the player's own window and the music is not smoothed (owner: "default sound not smoothed").
+    /// pixel size follows the player's own window.
     /// AS IT (KIND OF) WAS sets nothing: a fresh file is the original already, its always-on fixes aside.</summary>
     public static readonly IReadOnlyDictionary<string, string> AsItCouldBe = Recorded
         .Where(r => r.Key != "sea_bodies")                               // the first start's box is full at 27 rows (StartChoicePanel.ListStep): set it on the MODELS page
-        .Select(r => r.Key switch { "gpu_scale" => new KeyValuePair<string, string>(r.Key, "AUTO"),
-                                    "sound" => new KeyValuePair<string, string>(r.Key, "ENHANCED"), _ => r })   // FULL less the smooth music
+        .Select(r => r.Key switch { "gpu_scale" => new KeyValuePair<string, string>(r.Key, "AUTO"), _ => r })
         .Append(new KeyValuePair<string, string>("analog_steering", "ANALOG"))   // play input, so not in films; NEW is the game as we play it (owner 2026-11-03)
         .Append(new KeyValuePair<string, string>("aiming", "RETICLE"))   // play input too
         .ToDictionary(r => r.Key, r => r.Value);

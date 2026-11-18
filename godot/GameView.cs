@@ -1785,7 +1785,6 @@ public partial class GameView : Node2D
                 Settings.SoundPosition = Settings.SoundTails = Settings.MusicInPlay = label == "ENHANCED";
                 if (play is not null) Audio.Instance?.EnterPlay();                                           // the music in play now; the rest at the next start
                 break;
-            case "sound_smooth": Settings.SoundSmooth = label == "SMOOTH"; break;                            // the songs load at the next start
             case "sound_voices": Settings.SoundVoices = Channels.SpareVoices = label == "MORE"; break;      // the next sound left out
             case "demo_camera": Settings.DemoCamera = label == "MOVING"; break;                              // read every frame of the demo
             case "demo_world": Settings.WildDemo = label == "WILD"; break;                                    // read as the next demo starts
@@ -1867,7 +1866,6 @@ public partial class GameView : Node2D
         "clouds" => Settings.Clouds ? "CLOUDS" : "ORIGINAL",
         "sky_look" => Settings.SkySteps || Settings.SmoothLight || Settings.SkyTime ? "SMOOTH" : "ORIGINAL",   // any part on shows on (11-11: half on showed ORIGINAL); a click from it sets all off
         "sound_extras" => Settings.SoundPosition || Settings.SoundTails || Settings.MusicInPlay ? "ENHANCED" : "ORIGINAL",
-        "sound_smooth" => Settings.SoundSmooth ? "SMOOTH" : "ORIGINAL",
         "sound_voices" => Settings.SoundVoices ? "MORE" : "ORIGINAL",
         "demo_camera" => Settings.DemoCamera ? "MOVING" : "ORIGINAL",
         "demo_world" => Settings.WildDemo ? "WILD" : "ORIGINAL",

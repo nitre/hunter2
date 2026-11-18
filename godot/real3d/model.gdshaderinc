@@ -69,6 +69,7 @@ struct _Walk { ivec3 piv; ivec3 off; ivec3 art; int mode; };   // art = (pitch, 
 // speed +$3E: at 5 the tank covers ~4 world units a blank, ~6.7 model units - so 32 model units a speed step over a throw).
 // Was a fixed arc riding on the tank (readback 11-17: every clod stayed 64-131 behind its middle, never left behind).
 const int CLOD_HOP = 20, CLOD_DROP = 56, CLOD_OUT = 4, CLOD_BACK = 32;
+const int CLOD_BACK_MAX = 72;   // never further back than about two wheels' length (the wheels are 32 and 40 across)
 
 // Corner k of the model, given what the corners before it set up in w.
 ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
@@ -97,7 +98,7 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic) {
             w.off = artic[1] == 0 ? ivec3(0) : ivec3(round(vec3(          // them, so a blast's pieces start there (CheckPieces); moving, thrown along an arc
                 float(v.x < 0 ? -CLOD_OUT : CLOD_OUT) * t,
                 float(CLOD_HOP) * 4.0 * t * (1.0 - t) - float(CLOD_DROP) * t * t,
-                -float(CLOD_BACK) * sp * t)));
+                -min(float(CLOD_BACK) * sp, float(CLOD_BACK_MAX)) * t)));
             v = ivec3(_wrap16(v.x + w.off.x), _wrap16(v.y + w.off.y), _wrap16(v.z + w.off.z));
             w.mode = 4;
         } else {

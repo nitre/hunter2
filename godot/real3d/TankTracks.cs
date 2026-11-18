@@ -32,6 +32,7 @@ public static class TankTracks
 
     public const int Wheel = 8, Band = 0, Link = 8;                  // grey wheels with a black band, grey links (the panels are black 0)
     static readonly int[] ClodColours = [9, 10, 9];                  // earth: the palette's browns (MODEL COLOURS leaves them be)
+    const int ClodsATrack = 12, ClodSize = 2;
     const int Inset = 4, LinkLength = 8, Proud = 4;                  // full units
 
     /// <summary>A tank: its panel's outer face as x of y (right side; the left mirrors it), the belt's outline (z, y) in the order
@@ -129,14 +130,19 @@ public static class TankTracks
         // the clods: each a small triangle that is its own CLOD part (kind 5, card only, model.gdshaderinc): let go at the top of
         // the track's rear, a small hop, then left behind by the tank's speed - each on its own share of the throw (the flag's
         // low 4 bits x 16); still, at rest just inside the track's top rear (no offset: the rules' walk has them there too)
+        // ClodsATrack a side, spread round the three rest spots a few units apart, each on its own sixteenth of the throw (the
+        // two sides between each other), so the whole throw always has some in the air
         foreach (var side in new[] { 1, -1 })
-            for (var i = 0; i < t.Clods.Length; i++)
+            for (var i = 0; i < ClodsATrack; i++)
             {
-                var (x, y, z) = t.Clods[i];
-                var a = pile.P(side * x, y, z, 0x50 | (i * 5 + (side < 0 ? 2 : 0)) & 15);
-                var b = pile.P(side * (x + 4), y + 8, z - 4);
-                var c = pile.P(side * (x - 4), y + 4, z + 8);
-                pile.Face(ClodColours[i], [a, b, c]);
+                var (x, y, z) = t.Clods[i % t.Clods.Length];
+                x += (i / t.Clods.Length - 1) * 5;
+                y += i % 2;
+                z += i * 7 % 5 - 2;
+                var a = pile.P(side * x, y, z, 0x50 | (i * 16 / ClodsATrack + (side < 0 ? 1 : 0)) & 15);   // spread over the sixteen shares
+                var b = pile.P(side * (x + 4 * ClodSize), y + 8 * ClodSize, z - 4 * ClodSize);
+                var c = pile.P(side * (x - 4 * ClodSize), y + 4 * ClodSize, z + 8 * ClodSize);
+                pile.Face(ClodColours[i % ClodColours.Length], [a, b, c]);
             }
         md.Replace([.. md.Corners, .. pile.Corners], [.. md.Edges, .. pile.Edges], [.. md.Faces, .. pile.Faces]);
         if (origins is not null)

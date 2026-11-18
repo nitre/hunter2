@@ -612,16 +612,6 @@ public static class Settings
         set => Set("music_in_play", value);
     }
 
-    /// <summary>ENHANCEMENT, not the original: songs are the interpolated render (tools/audio
-    /// music_render.py --smooth) instead of the sample-and-hold one that bakes in the Amiga's
-    /// stepped output. Default off: with it off the loaded WAVs are the original render, unchanged.
-    /// Effects need no part of this: they are rendered interpolated already and Godot resamples a
-    /// pitched AudioStreamWav with linear interpolation too.</summary>
-    public static bool SoundSmooth
-    {
-        get => (bool)Get("sound_smooth", false);
-        set => Set("sound_smooth", value);
-    }
 
     /// <summary>A text value from any section (the key bindings), or null when never saved.</summary>
     public static string? GetString(string section, string key) =>
@@ -712,7 +702,7 @@ public static class Settings
     }
 
     /// <summary>The sound rows built at launch: a load that changes one cannot switch it live, so the caller says restart.</summary>
-    static readonly string[] SoundKeys = ["music_in_play", "sound_position", "sound_smooth", "sound_tails"];
+    static readonly string[] SoundKeys = ["music_in_play", "sound_position", "sound_tails"];
 
     /// <summary>A loaded save's options back on, each set as a menu click is (the value in, the cfg saved);
     /// a missing file changes nothing. True when a sound row changed: those are built at launch, so the

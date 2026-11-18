@@ -95,9 +95,6 @@ fire with up (take off, more power) or down; Space gets out (in the air: a parac
   taken again fades out over 80 ms on a spare player (godot/Audio.cs); off is the original's dead cut.
   ENHANCEMENT (not the original, setting music_in_play, default off): the song keeps playing during a hunt at
   12 dB down (godot/Audio.cs EnterPlay); off is the original's Music(-1) the moment play starts.
-  ENHANCEMENT (not the original, setting sound_smooth, default off): songs play the interpolated render
-  (music/song_N_smooth.wav, tools/audio/music_render.py --smooth) instead of the Amiga's stepped output;
-  effects are already smooth (render_sfx interpolates, and Godot resamples pitched WAVs linearly).
   ENHANCEMENT (not the original, setting easy_saves, DEFAULT ON): saving and loading without the disk
   handling - the first Load or Save sets the save folder up itself (nothing existing is wiped), the disk
   menu hides Init Disk (Load Game / Save Game / End keep the original's positions), a save left unnamed

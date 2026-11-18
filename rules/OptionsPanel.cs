@@ -208,7 +208,7 @@ public sealed class OptionsPanel : IMenuPanel
         ["ground"] = "The land: sun shading, colour bands, specks, finer pieces.",
         ["sky"] = "The sky: smooth colours and daylight, clouds, haze in the distance.",
         ["world"] = "More things on the islands, people and animals that notice each other, graves.",
-        ["sound"] = "Sounds left and right, more at once, smooth music. After a restart.",
+        ["sound"] = "Sounds left and right, more at once. After a restart.",
         ["living_sea"] = "A moving sea: pale by the coast, waves, or the Amiga's colour cycling.",
         ["own_colours"] = "Helicopters, tanks and soldiers in their own shades, apart from the grass.",
         ["glass"] = "Windows of vehicles and buildings drawn as see-through glass, not painted panels.",

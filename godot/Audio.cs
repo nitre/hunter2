@@ -12,7 +12,7 @@ public partial class Audio : Node
     readonly AudioStreamPlayer[] _ch = new AudioStreamPlayer[4];
     readonly AudioStreamPlayer _music = new();
     AudioStreamWav?[] _fx = [];
-    AudioStreamWav?[] _songs = [];
+    AudioStream?[] _songs = [];
     /// <summary>Each effect's own period (the manifest's, = the driver's +$430 row): what the WAV
     /// plays at PitchScale 1. The game's channel table is one row off (+$422), so an engine's live
     /// period is not this - PitchScale divides it out.</summary>
@@ -68,7 +68,6 @@ public partial class Audio : Node
         _ownPeriod = doc.RootElement.GetProperty("sfx").EnumerateArray()
             .Select(e => (float)e.GetProperty("period").GetInt32()).ToArray();
         _songs = doc.RootElement.GetProperty("music").EnumerateArray().Select(e => LoadSong(dir, e)).ToArray();
-        if (Hunter.Settings.SoundSmooth) SoundLog?.WriteLine("0 smooth");     // make_video.py mixes the smooth songs only then
         if (System.Environment.GetEnvironmentVariable("HUNTER_SLOWMO") is { } slow) SoundLog?.WriteLine("0 slowmo " + slow.Replace(':', ' '));   // from to factor: the tape slows there (make_video.py)
         for (var i = 0; i < 4; i++)
             AddChild(_ch[i] = new AudioStreamPlayer { Bus = Hunter.Settings.SoundPosition ? ChannelBus(i) : SideBus(i is 0 or 3 ? -1 : 1) });
@@ -187,17 +186,17 @@ public partial class Audio : Node
         wav.LoopEnd = end.GetInt32();
     }
 
-    /// <summary>A song, or with sound_smooth on the interpolated render beside it (music_render.py
-    /// --smooth writes name_smooth.wav: same sample count and loop points, linear interpolation
-    /// instead of the Amiga's baked-in sample-and-hold). Missing smooth file: the original render,
-    /// so a half-built smooth set degrades per song rather than to silence.</summary>
-    AudioStreamWav? LoadSong(string dir, JsonElement e)
+    /// <summary>A song: OGG Vorbis (looped whole from loop_start) or a WAV (looped at its loop points).</summary>
+    AudioStream? LoadSong(string dir, JsonElement e)
     {
         var path = System.IO.Path.Combine(dir, e.GetProperty("file").GetString()!);
-        if (Hunter.Settings.SoundSmooth)
+        if (path.EndsWith(".ogg", System.StringComparison.OrdinalIgnoreCase))
         {
-            var smooth = System.IO.Path.ChangeExtension(path, null) + "_smooth.wav";
-            if (System.IO.File.Exists(smooth)) path = smooth;
+            // the songs as OGG Vorbis (a sixth of the WAV): each file cut at its loop end, so it loops whole from loop_start
+            var ogg = AudioStreamOggVorbis.LoadFromFile(path);
+            ogg.Loop = true;
+            ogg.LoopOffset = e.GetProperty("loop_start").GetInt32() / 44100.0;
+            return ogg;
         }
         var wav = AudioStreamWav.LoadFromFile(path);
         Loop(wav, e);

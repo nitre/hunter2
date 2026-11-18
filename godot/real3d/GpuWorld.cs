@@ -195,9 +195,12 @@ public sealed partial class GpuWorld : Node3D
     public List<(int Model, int Number, int Face)> GlassWallBlocked { get; } = [];
     public int[] GlassWallTris { get; private set; } = [];
     public int GlassWallFrames { get; private set; }
-    /// <summary>How deep GLASS: SEE-THROUGH sinks a glass face, as a part of the window's smaller size (a look choice: a quarter reads as a
-    /// recess without the pane nearing the far wall); never under one model unit.</summary>
-    public const double GlassInset = 0.25;
+    /// <summary>How deep GLASS: SEE-THROUGH sinks a glass face, as a part of the window's smaller size. 0: the pane lies on the
+    /// model's outer edge, where the original's window is; the frame is then flat (GlassFrame).</summary>
+    public const double GlassInset = 0;
+    /// <summary>With the pane on the outer edge (GlassInset 0): how wide the flat frame round it is, as a part of the window's
+    /// smaller size - thin posts and rails left in the body's colour.</summary>
+    public const double GlassFrame = 0.05;
     /// <summary>Each model's back walls as baked (null: none) - CheckPieces places their extra points.</summary>
     public ModelCaps.Back?[] Backs { get; private set; } = [];
     public int TriSlots { get; private set; }
@@ -295,21 +298,27 @@ public sealed partial class GpuWorld : Node3D
     // the ground (gpumodels.gdshader). Black, grey, reds, browns, yellow stay.
     bool glassShown;                                                 // the last glass sent (the shader's default is off)
     bool ownShown;                                                   // the last own_colours sent (the shader's default is off)
-    static readonly (int Model, Color Tint, bool Machine)[] OwnTints =   // the colour a unit of brightness becomes
+    // Base: a machine's one paint for all its greens (gpumodels_body: the sun alone shades its faces apart)
+    static readonly (int Model, Color Tint, bool Machine, int Base)[] OwnTints =   // the colour a unit of brightness becomes
     {
-        (0x17, new Color(0.90f, 1.05f, 0.92f), true),                // helicopters: grey-green (owner: "greyish", then "a little too grey")
-        (0x19, new Color(0.90f, 1.05f, 0.92f), true),
-        (0x15, new Color(1.00f, 1.00f, 0.88f), true),                // tanks: khaki grey
-        (0x16, new Color(1.00f, 1.00f, 0.88f), true),
-        (0x02, new Color(0.80f, 1.10f, 0.98f), false),               // enemy soldier: blue-green fatigues, arms and legs too
-        (0x01, new Color(0.98f, 1.06f, 0.74f), false),               // you and your comrades: olive (owner 2026-11-02); in disguise you wear model 2 (FootModels)
+        (0x17, new Color(0.90f, 1.05f, 0.92f), true, 2),             // helicopters: grey-green, the middle green
+        (0x19, new Color(0.90f, 1.05f, 0.92f), true, 2),
+        (0x15, new Color(1.00f, 1.00f, 0.88f), true, 14),            // tanks: khaki grey
+        (0x16, new Color(1.00f, 1.00f, 0.88f), true, 14),
+        (0x02, new Color(0.80f, 1.10f, 0.98f), false, 0),            // enemy soldier: blue-green fatigues, arms and legs too
+        (0x01, new Color(0.98f, 1.06f, 0.74f), false, 0),            // you and your comrades: olive; in disguise you wear model 2 (FootModels)
     };
 
-    /// <summary>MODEL COLOURS as a 256 x 1 table: x = model, rgb = its tint, a = 1 a machine (its parts untinted), 0.5 not.</summary>
+    /// <summary>MODEL COLOURS as a 256 x 2 table: x = model; row 0 rgb = its tint, a = 1 a machine (its parts untinted), 0.5 not;
+    /// row 1 r = a machine's one paint (Base).</summary>
     static ImageTexture OwnTintTable()
     {
-        var img = Image.CreateEmpty(256, 1, false, Image.Format.Rgbaf);
-        foreach (var (m, tint, machine) in OwnTints) img.SetPixel(m, 0, new Color(tint.R, tint.G, tint.B, machine ? 1 : 0.5f));
+        var img = Image.CreateEmpty(256, 2, false, Image.Format.Rgbaf);
+        foreach (var (m, tint, machine, paint) in OwnTints)
+        {
+            img.SetPixel(m, 0, new Color(tint.R, tint.G, tint.B, machine ? 1 : 0.5f));
+            img.SetPixel(m, 1, new Color(paint, 0, 0, 1));
+        }
         return ImageTexture.CreateFromImage(img);
     }
 
@@ -802,7 +811,7 @@ public sealed partial class GpuWorld : Node3D
                 for (var c = 1; c < 3; c++) if (Math.Abs(out3[c]) > Math.Abs(out3[ax])) ax = c;
                 double small = double.MaxValue;
                 for (var c = 0; c < 3; c++) if (c != ax) small = Math.Min(small, hi[c] - lo[c]);
-                var inset = Math.Max(1 << shift, Math.Round(GlassInset * small));
+                var inset = GlassInset == 0 ? 0 : Math.Max(1 << shift, Math.Round(GlassInset * small));
                 var sign = towards > 0 ? 1 : -1;                                  // moved = corner less the offset: the offset points out of the model
                 var d = new Color((int)Math.Round(sign * inset * out3[0] / len), (int)Math.Round(sign * inset * out3[1] / len), (int)Math.Round(sign * inset * out3[2] / len), 0);
                 var panel = new Color(first, own - first, 0, 0);
@@ -833,8 +842,26 @@ public sealed partial class GpuWorld : Node3D
                     if (other < 0 && flatWalls.WallOf.TryGetValue(i, out var wallFace)) { other = wallFace; GlassWallFrames++; }    // flat on a wall: the wall's colour
                     var colour = other < 0 ? f.Meta & 15 : (recolour[other] >= 0 ? recolour[other] : faces[other].Meta & 15);
                     if (other < 0) GlassFrameOwn[f.Model]++;
-                    AddTri(a2, b2, b2, colour | Glass.Sunk | 0x40, d, Marks(0, 0, Moved));
-                    AddTri(a2, b2, a2, colour | Glass.Sunk | 0x40, d, Marks(0, Moved, Moved));
+                    var de = d;
+                    if (inset == 0)
+                    {
+                        colour = 0;                                                       // one frame colour round every window: black
+                        // the pane on the outer edge: the frame lies flat in the window's own plane, a thin band along this edge
+                        // moved in toward the window's middle - posts and rails in the body's colour. moved = corner less the offset
+                        double[] pa = [fm.Corners[a2].X, fm.Corners[a2].Y, fm.Corners[a2].Z], pb = [fm.Corners[b2].X, fm.Corners[b2].Y, fm.Corners[b2].Z];
+                        double[] e = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+                        double[] perp = [out3[1] * e[2] - out3[2] * e[1], out3[2] * e[0] - out3[0] * e[2], out3[0] * e[1] - out3[1] * e[0]];
+                        var pl = Math.Sqrt(perp[0] * perp[0] + perp[1] * perp[1] + perp[2] * perp[2]);
+                        if (pl > 0)
+                        {
+                            double toMid = 0;                                             // the band goes toward the window's middle
+                            for (var c = 0; c < 3; c++) toMid += (sum[c] / seen - (pa[c] + pb[c]) / 2) * perp[c];
+                            var w = Math.Max(1 << shift, Math.Round(GlassFrame * small)) * (toMid > 0 ? -1 : 1) / pl;
+                            de = new Color((int)Math.Round(w * perp[0]), (int)Math.Round(w * perp[1]), (int)Math.Round(w * perp[2]), 0);
+                        }
+                    }
+                    AddTri(a2, b2, b2, colour | Glass.Sunk | 0x40, de, Marks(0, 0, Moved));
+                    AddTri(a2, b2, a2, colour | Glass.Sunk | 0x40, de, Marks(0, Moved, Moved));
                     panels.Add(panel); panels.Add(panel);
                     count[f.Model] += 2;
                     GlassFrameTris[f.Model] += 2;
@@ -914,7 +941,9 @@ public sealed partial class GpuWorld : Node3D
         AddChild(new MeshInstance3D { Mesh = Empty(LiveRows * 30), MaterialOverride = debris, CustomAabb = Huge });
         var slotMesh = Empty(Rows * maxTris * 3);                   // one buffer for the three passes over the same triangle slots
         AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = this.models, CustomAabb = Huge });
-        AddChild(glassMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = false });   // GLASS: the glass ones alone, SEE-THROUGH only
+        // GLASS: the glass ones alone, SEE-THROUGH only. Made in the glass state Update already set: the game's first Update
+        // runs before this bake ends, so a mesh made hidden was never shown and the panes were missing in every game
+        AddChild(glassMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = glassShown });
         AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
         Ready = true;
         long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)

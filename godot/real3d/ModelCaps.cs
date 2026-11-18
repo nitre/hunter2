@@ -224,10 +224,13 @@ public static class ModelCaps
                                                      : Extra(p[i].X, p[i].Y, lo[2] + hi[2] - p[i].Z)).Reverse().ToArray(), f.Colour));
             }
         }
-        // an open bottom on a model with height: a floor round its lowest corners, coloured as its lowest face
+        // an open bottom on a model with height: a floor round its lowest corners, coloured as its lowest face. Only corners
+        // of filled faces count: a base drawn in lines alone (the tracer gun's frame, model 106) is open in the original,
+        // and a floor there drew a solid dark square under it
         if (hi[1] - lo[1] >= 2 && !Wall(1, -1))
         {
-            var low = Enumerable.Range(0, count).Where(i => p[i].Y <= lo[1] + 1).ToList();
+            var filled = all.SelectMany(f => f.Loop).ToHashSet();
+            var low = Enumerable.Range(0, count).Where(i => filled.Contains(i) && p[i].Y <= lo[1] + 1).ToList();
             var hull = Hull(low, i => (p[i].X, p[i].Z));
             if (hull.Count >= 3)
             {

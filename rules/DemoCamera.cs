@@ -24,21 +24,23 @@ public sealed class DemoCamera
     // parked vehicle near his way not shown yet is turned to (Sight, once each, one every SightGap at most, within Reach);
     // a long chase gives way to a look across his way (Side) after SideAfter; the chase leads into a bend by up to
     // LeadMax, a second's turn ahead.
-    const int SightGap = 50 * 20, SideAfter = 50 * 20, SightNear = 1500;
+    // Owner 2026-11-18 "The camera is turned too fast and too often" (the plain demo: 55 shots in 5.4 min, a new one every 6 s on
+    // the median, 26 under 4 s): the turns at half speed, every shot held twice as long, a sight at most every 45 s.
+    const int SightGap = 50 * 45, SideAfter = 50 * 40, SightNear = 1500;
     const double LeadMax = 20 * Math.PI / 180, LeadAhead = 50;
 
     const int Near = 2500;                                          // world units: what counts as near him
-    const int MinShot = 50 * 6, ChaseAfter = 50, NorthAfter = 50 * 5;   // blanks
+    const int MinShot = 50 * 12, ChaseAfter = 50 * 2, NorthAfter = 50 * 10;   // blanks
     // THE FIGHT (owner 2026-11-12: "the camera should follow aim of weapon fire", "not destroy things off screen when
     // you could rotate view and see it"; 11-17 "showcase that we now have lifted that limitation but tastefully"): a
     // blast near him, a thing near him losing energy, his own fire (bullets too) take over any other shot at once and
     // from all the way round (no Reach); a fight shot holds FightMin before another fight takes it; his fire is
     // followed while he fires and held FireHold after; fight pans may go FightTurn times as fast.
-    const int FightMin = 50 * 2, FireHold = 50 * 2;
-    const double FightTurn = 2;
+    const int FightMin = 50 * 2, FireHold = 50 * 2;                 // (held longer, the next shot elsewhere went unfollowed: 82 passes off screen)
+    const double FightTurn = 3;                                     // fights stay at 60 degrees a second (slower lost kills off screen)
     const double Deg = Math.PI / 180;
-    public const double MaxTurn = 30 * Deg / 50;                    // radians a blank: 30 degrees a second (fights: 60)
-    const double Speedup = 30 * Deg / 50 / 50;                      // radians a blank, a blank: full speed in a second
+    public const double MaxTurn = 20 * Deg / 50;                    // radians a blank: 20 degrees a second (fights: 60)
+    const double Speedup = 20 * Deg / 50 / 50;                      // radians a blank, a blank: full speed in a second
     /// <summary>A fight shot: a blast, a hit, his fire, a shell in flight.</summary>
     public bool Fighting => Playing is Shot.Blast or Shot.Hit or Shot.Fire or Shot.Flight;
     const double Reach = 90 * Deg, Deadband = 25 * Deg;
@@ -188,7 +190,10 @@ public sealed class DemoCamera
         // a calm shot plays MinShot before another calm one takes over; a fight (a new blast near him, a thing near him
         // losing energy, his fire, a new shell in flight) takes over any calm shot at once and from all the way round,
         // and another fight after FightMin (blasts and shells seen meanwhile are marked, so they don't come up later)
-        var free = first || blank - startBlank >= MinShot;
+        var free = first || blank - startBlank >= MinShot
+            // a look at a building or a group ends early once its subject can't be shown (the turn blocked, or too far round):
+            // held the whole MinShot it sat on the north view for seconds (11-18, with the longer shots)
+            || Playing is Shot.Sight or Shot.Group && Aim is { } sa && (!Reachable(sa.X - px, sa.Z - pz) || Blocked(s, Facing(sa.X - px, sa.Z - pz), Margin));
         var fightFree = first || !Fighting || blank - startBlank >= FightMin;
         if (moving) { stillSince = -1; movingSince = movingSince < 0 ? blank : movingSince; }
         else { movingSince = -1; stillSince = stillSince < 0 ? blank : stillSince; }
