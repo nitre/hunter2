@@ -31,11 +31,15 @@ bool in_sun_shadow(vec3 p, float bias) {
     return s.r + s.g / 256.0 < d - bias / shadow_box_depth;
 }
 
-// The bias for a face whose cosine to the sun is k (> 0): the picture holds one depth per pixel (4 world units a
-// side), and across half a pixel's diagonal (2.83 units) a face tilted from the sun by angle a changes its depth by
-// 2.83 tan(a). 1 shown unit for the depth's own steps (0.016) and the corners' rounding, plus 3 tan(a), tan(a) at most
-// 10 (a face within 6 degrees of edge-on to the sun: at most 31 units).
+// The bias for a face whose cosine to the sun is k (> 0): the picture holds one depth per pixel, and across half a
+// pixel's diagonal (2.83 units allowed) a face tilted from the sun by angle a changes its depth by 2.83 tan(a). 1 shown
+// unit for the depth's own steps (0.016), plus 3 tan(a) - all the way to SHADOW_EDGE_ON (1 degree from edge-on, tan
+// 57: 173 units). The cap used to be tan 10 (6 degrees): a face nearer edge-on than that shadowed itself in diagonal
+// stripes - a helicopter parked nose to the sun, its sides and tail. Nearer edge-on than SHADOW_EDGE_ON a face is not
+// tested at all (it takes almost no sun; SHADOW_UNTESTED).
+const float SHADOW_EDGE_ON = 0.0175;
+const float SHADOW_UNTESTED = -1.0;
 float shadow_face_bias(float k) {
-    float c = clamp(k, 0.0995, 1.0);
-    return 1.0 + 3.0 * min(sqrt(1.0 - c * c) / c, 10.0);
+    if (k < SHADOW_EDGE_ON) return SHADOW_UNTESTED;
+    return 1.0 + 3.0 * sqrt(1.0 - k * k) / k;
 }
