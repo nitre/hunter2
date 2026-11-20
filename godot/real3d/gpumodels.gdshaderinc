@@ -261,7 +261,7 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     if (core && !(better_fire && fire && layer == 0)) return false;                       // only the fireball look draws it (no shadow either)
     if (((meta >> 17) & 1) != 0) {                                                       // a driver's face (CarInside.Driver)
         if ((_eb(ent_tex, row, 6) & 0x10) != 0) return false;                             // d7 bit 28 set: empty, no one to draw
-        if (_eb(ent_tex, row, 1) == 1) colour = (colour & ~15) | ((meta >> 18) & 15);     // variant 1: the red look
+        if (_eb(ent_tex, row, 1) == 1 && row != 0) colour = (colour & ~15) | ((meta >> 18) & 15);   // variant 1: the red look - not the player's own machine (record 0)
         own_side = true;                                                                  // lit as wound (the figure stands off the model's middle)
     }
     int low;
