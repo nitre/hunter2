@@ -237,7 +237,7 @@ public sealed class SettingsMenu
         ["living_sea"] = "CYCLING",
         ["world"] = "MORE",                      // fuller world MORE (not LOTS), more objects, living world
                                                  // (the player's games; never the attract demo), graves with vultures
-        ["finer_ground"] = "2X",                 // new games; the attract demo in the picture alone (GpuWorld.PictureLift)
+        ["finer_ground"] = "ORIGINAL",           // off by default: 2X grows the ground 1.5x taller, the hills no longer the original's
         ["sound"] = "ENHANCED",                  // extras, voices
         ["demo_camera"] = "MOVING",              // the attract's own camera moves; run_game --sway / --spin still override it
     };
