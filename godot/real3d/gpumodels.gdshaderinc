@@ -18,6 +18,15 @@
 #include "res://real3d/debris.gdshaderinc"
 
 uniform sampler2D ent_tex : filter_nearest;
+// The rows a pass draws (GpuWorld.Update): instance n < live_rows is live record n; past them, draw_rows lists the stored
+// objects there are this frame (in view, or near enough to throw a shadow into it), 128 a texture row, in table order.
+uniform sampler2D draw_rows : filter_nearest;
+uniform int live_rows = 395;
+int slot_row(int n) {                  // n: INSTANCE_ID ("instance" is a word of the shader language)
+    if (n < live_rows) return n;
+    int k = n - live_rows;
+    return int(texelFetch(draw_rows, ivec2(k & 127, k >> 7), 0).r + 0.5);
+}
 uniform bool painted_light = false;  // the sun shades the models (GpuWorld: sun_shading, the sun up): walls with the painters' light in them are marked (PaintedLight)
 uniform sampler2D entprev_tex : filter_nearest;   // SMOOTH PARTS: the records' part bytes one step back
 uniform sampler2D anim_tex : filter_nearest;

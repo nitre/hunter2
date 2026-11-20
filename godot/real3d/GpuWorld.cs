@@ -30,6 +30,12 @@ public sealed partial class GpuWorld : Node3D
     readonly byte[] seenBytes = new byte[SeenW * SeenH], seenSent = new byte[SeenW * SeenH];
     readonly ImageTexture storedTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0 * 2, StoredTexRows, false, Image.Format.R8));
     readonly ImageTexture seenTex = ImageTexture.CreateFromImage(Image.CreateEmpty(SeenW, SeenH, false, Image.Format.R8));
+    // The stored objects each pass draws this frame (gpumodels.gdshaderinc slot_row): their rows, in table order - the ones in
+    // view (the view distance's mark) and, while the sun's picture is drawn, the ones near enough to throw a shadow into it
+    readonly float[] drawList = new float[SeenW * SeenH], drawSent = new float[SeenW * SeenH];
+    readonly byte[] drawBytes = new byte[SeenW * SeenH * 4];
+    readonly ImageTexture drawTex = ImageTexture.CreateFromImage(Image.CreateEmpty(SeenW, SeenH, false, Image.Format.Rf));
+    int drawStored, drawSentCount = -1;
     int storedUsed;
     readonly byte[] sinfile;
     byte[] map;                                                  // the ground the card draws: the played world's
@@ -134,6 +140,34 @@ public sealed partial class GpuWorld : Node3D
             var w = (short)U(o) + lift;
             rec[at + o] = (byte)(w >> 8); rec[at + o + 1] = (byte)w;
         }
+    }
+
+    /// <summary>Each frame, after the sun's picture knows whether it is drawn: every pass draws the live records and the
+    /// stored objects that can show - in view (the view distance's mark +$1C, seenBytes), or, while the sun's picture is
+    /// drawn, inside its box round the player (gpusundepth.gdshader's own test) - not the whole map's. The room stays: an
+    /// empty or far row drew nothing, but each pass still ran its corners.</summary>
+    void DrawList()
+    {
+        var sunBox = sunView is not null && sunView.RenderTargetUpdateMode == SubViewport.UpdateMode.Always;
+        int P(int o) => (int)entFloats[o] << 8 | (int)entFloats[o + 1];   // the player, record 0
+        int px = P(0x4A), pz = P(0x4E);
+        drawStored = 0;
+        for (var r = 0; r < storedUsed; r++)
+        {
+            var at = r * 0xA0;
+            var near = sunBox && Math.Abs((storedBytes[at + 0x4A] << 8 | storedBytes[at + 0x4B]) - px) < SunBoxSize
+                              && Math.Abs((storedBytes[at + 0x4E] << 8 | storedBytes[at + 0x4F]) - pz) < SunBoxSize;
+            if (seenBytes[r] != 0 || near) drawList[drawStored++] = LiveRows + r;
+        }
+        if (drawStored != drawSentCount || !drawList.AsSpan(0, drawStored).SequenceEqual(drawSent.AsSpan(0, drawStored)))
+        {
+            Buffer.BlockCopy(drawList, 0, drawBytes, 0, drawBytes.Length);
+            Put(drawTex, Image.CreateFromData(SeenW, SeenH, false, Image.Format.Rf, drawBytes));
+            Array.Copy(drawList, drawSent, drawStored);
+            drawSentCount = drawStored;
+        }
+        var drawn = LiveRows + drawStored;
+        if (slotRows is not null && slotRows.VisibleInstanceCount != drawn) { slotRows.VisibleInstanceCount = drawn; lineRows!.VisibleInstanceCount = drawn; }
     }
 
     /// <summary>Lift for a stored object's record, held as bytes (storedBytes): the same words, the same sums.</summary>
@@ -318,6 +352,8 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("ent_tex", entTex);
             m.SetShaderParameter("stored_tex", storedTex);          // the stored objects' records and in-view marks (place.gdshaderinc _eb)
             m.SetShaderParameter("stored_seen", seenTex);
+            m.SetShaderParameter("draw_rows", drawTex);             // the stored objects the passes draw this frame (slot_row)
+            m.SetShaderParameter("live_rows", LiveRows);
             m.SetShaderParameter("anim_tex", animTex);
             m.SetShaderParameter("entprev_tex", entprevTex);      // SMOOTH PARTS: record part bytes one step back
             m.SetShaderParameter("rotor_models", new Vector2I(Store.Models[0x17].Offset, Store.Models[0x19].Offset));   // FAST ROTORS: both helicopters
@@ -1914,10 +1950,6 @@ public sealed partial class GpuWorld : Node3D
             Put(seenTex, Image.CreateFromData(SeenW, SeenH, false, Image.Format.R8, seenBytes));
             seenBytes.CopyTo(seenSent, 0);
         }
-        // every pass draws the rows in use only - the live records and the stored objects there are this frame - not all
-        // 16523 (the room stays: an empty row drew nothing, but each pass still ran its corners; the sun's picture made it four)
-        var drawn = LiveRows + storedUsed;
-        if (slotRows is not null && slotRows.VisibleInstanceCount != drawn) { slotRows.VisibleInstanceCount = drawn; lineRows!.VisibleInstanceCount = drawn; }
         const int used = LiveRows;                                   // the held bytes: live records only (a stored one's "one step back" is itself, place.gdshaderinc _eb)
         // SMOOTH PARTS: the fraction restarts exactly when the table steps (Play subtracts _animBlanks then),
         // so at that moment the table and the record part bytes held until now become the previous ones
@@ -1988,6 +2020,7 @@ public sealed partial class GpuWorld : Node3D
         if (offset is { } sun) shadows.SetShaderParameter("sun_shadow", new Vector3((float)sun.DirX, (float)sun.DirZ, (float)sun.TanElev));
         if (sunView is null && RealShadows && sunSlots is not null) MakeSunDepth(sunSlots);   // SHADOWS: REAL, first asked for
         if (sunView is not null) SunDepthFrame(toward, insideView, sunShading);
+        DrawList();
 
         // The original's debris: $59FE rewrites model 0 in the session's buffer - its scale byte and the ten face
         // colours. Only that is sent over again, and only when it changed.

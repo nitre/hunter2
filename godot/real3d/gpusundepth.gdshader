@@ -49,7 +49,7 @@ bool sun_corner(int id, bool contact, vec4 fit, vec2 fc, out vec3 p) {
 }
 
 void vertex() {
-    int vid = INSTANCE_ID * tri_slots * 3 + VERTEX_ID;        // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows)
+    int vid = slot_row(INSTANCE_ID) * tri_slots * 3 + VERTEX_ID;   // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows, slot_row)
     int corner = vid - (vid / 3) * 3;
     int first = vid - corner;
     int gbits = glass_bits(first);

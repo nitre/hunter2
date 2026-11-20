@@ -78,7 +78,7 @@ void border_paint(int id, inout int colour, out vec3 tint, out float light) {
 void vertex() {
     PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int per = line_slots * 6;
-    int row = INSTANCE_ID;                                     // one row's quads drawn once a record (GpuWorld.SlotRows)
+    int row = slot_row(INSTANCE_ID);                           // one row's quads drawn once a record (GpuWorld.SlotRows, slot_row)
     int rem = VERTEX_ID;
     int slot = rem / 6;
     int c = rem - slot * 6;
