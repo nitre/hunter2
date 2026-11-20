@@ -43,29 +43,6 @@ bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out v
     return clip.w > 0.01;
 }
 
-// A window border's third window corner (line_tex alpha - 1: a corner of the window off this edge), in clip space as
-// line_end places a line's ends - so the border can lie inside the window, not half over the body round it.
-bool border_inner(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip) {
-    clip = vec4(2.0, 2.0, 2.0, 1.0);
-    int per = line_slots * 2;
-    int row = id / per;
-    int slot = (id - row * per) / 2;
-    int b25 = _eb(ent_tex, row, 0x25);
-    vec4 mi = texelFetch(model_tex, ivec2(b25, 0), 0);
-    vec4 li = texelFetch(model_tex, ivec2(b25, 1), 0);
-    vec4 seg = texelFetch(line_tex, ivec2(0, int(li.r + 0.5) + slot), 0);
-    int third = int(seg.a + 0.5) - 1;
-    if (third < 0) return false;
-    int low;
-    vec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, int(mi.r + 0.5), third, low);
-    vec3 p = entity_place(ent_tex, row, rot, low);                    // placed as gpu_line_vertex places the border's own ends
-    if (contact) p = contact_turn(fit, fc, p, p.x - float(_euw(ent_tex, row, 0x4A)), p.z - float(_euw(ent_tex, row, 0x4E)));
-    float k = (shell_row >= 0 && row == shell_row) ? 1.25 : 1.0;
-    vec3 eye = (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
-    clip = proj * vec4(eye * 0.99 * k, 1.0);
-    return clip.w > 0.01;
-}
-
 // A window border's paint and light, worked out as gpumodels_body.gdshaderinc does for a face: the tint from its colour, a
 // tinted military machine's one base paint, then the sun on the plane of the border's two ends and the window's third
 // corner (line_tex alpha - 1), outward away from the model's centre.
@@ -130,15 +107,6 @@ void vertex() {
         vec2 d = sb - sa;
         d = length(d) > 0.0001 ? normalize(d) : vec2(1.0, 0.0);
         vec2 n = vec2(-d.y, d.x) * side * 0.5 * gp;                                  // half a game pixel each side, in viewport pixels
-        vec4 inner;
-        if (border && border_inner(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, inner)) {
-            // a window border: from the window's edge one game pixel into the window (towards its third corner), so it
-            // never juts past the body round the window as a centred line did
-            vec2 s3 = inner.xy / inner.w * vp_size * 0.5 / gp;
-            vec2 perp = vec2(-d.y, d.x);
-            float inward = dot(s3 - sa, perp) >= 0.0 ? 1.0 : -1.0;
-            n = side > 0.0 ? perp * inward * gp : vec2(0.0);
-        }
         vec4 e = end == 0 ? ca : cb;
         POSITION = vec4(e.xy + n * 2.0 / vp_size * e.w, e.z, e.w);
     } else {
