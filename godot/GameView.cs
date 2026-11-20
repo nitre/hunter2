@@ -1328,6 +1328,9 @@ public partial class GameView : Node2D
             case OptionsPanel.Outcome.OpenKeys:
                 (GetParent() as Main)?.ToggleRebind();
                 break;
+            case OptionsPanel.Outcome.Preset:                          // every setting at once (OptionsPanel.AsItWasPage / NewPage)
+                if (r.Value == OptionsPanel.AsItWasPage) ApplyAsItWas(play); else ApplyNew(play);
+                break;
             default:
                 var result = r.Kind switch
                 {
@@ -1761,6 +1764,26 @@ public partial class GameView : Node2D
         ApplyAsItCouldBe();
         ApplySetting("sea_bodies", "WHOLE", null);
         GD.Print("MODERN DEFAULT " + string.Join(", ", SettingsMenu.AsItCouldBe.Keys.Append("sea_bodies").Select(k => $"{k}={SettingsValue(k)}")));
+    }
+
+    /// <summary>The settings' AS IT (MOSTLY) WAS: every row NEW changes back to the original's value, the first of its
+    /// list (the 3D world off: the flat picture, after a restart). The window's own rows (pixel size, TV look,
+    /// brightness) stay as the player has them: they have no original.</summary>
+    static void ApplyAsItWas(Play? play)
+    {
+        foreach (var key in SettingsMenu.AsItCouldBe.Keys.Append("sea_bodies"))
+        {
+            if (key == "gpu_scale") continue;
+            ApplySetting(key, SettingsMenu.Values.TryGetValue(key, out var v) ? v[0] : "OFF", play);
+        }
+    }
+
+    /// <summary>The settings' NEW: every extra on, as ApplyModernDefault sets them at a release's first start - here with
+    /// the running play, so what it reads at once changes at once.</summary>
+    static void ApplyNew(Play? play)
+    {
+        foreach (var (key, word) in SettingsMenu.AsItCouldBe) ApplySetting(key, word, play);
+        ApplySetting("sea_bodies", "WHOLE", play);
     }
 
     /// <summary>A row the 3D world draws, while it is off (SettingsMenu.ThreeDOnly).</summary>

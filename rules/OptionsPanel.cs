@@ -21,7 +21,13 @@ public sealed class OptionsPanel : IMenuPanel
 
     public enum Level { Bars, Pages, Rows }
 
-    public enum Outcome { None, Resume, Rebrief, DiskOperation, QuitGame, Changed, OpenKeys }
+    public enum Outcome { None, Resume, Rebrief, DiskOperation, QuitGame, Changed, OpenKeys, Preset }
+
+    /// <summary>Two lines after the pages that are not pages: every setting at once - AS IT (MOSTLY) WAS puts each row
+    /// back to the original game's (the flat picture too), NEW turns the extras on as a new release starts (Preset,
+    /// Value = the line).</summary>
+    public const string AsItWasPage = "AS IT (MOSTLY) WAS", NewPage = "NEW";
+    static bool IsPreset(string page) => page is AsItWasPage or NewPage;
 
     /// <summary>What a key or click did: an original choice, a setting changed to Value, the key page, or nothing.</summary>
     public sealed record Result(Outcome Kind, string? Key = null, string? Value = null)
@@ -56,10 +62,11 @@ public sealed class OptionsPanel : IMenuPanel
         _threeD = threeD;
     }
 
-    public IReadOnlyList<string> Pages => _settings.Groups;
+    public IReadOnlyList<string> Pages => [.. _settings.Groups, AsItWasPage, NewPage];
 
-    /// <summary>The rows a page shows (SettingsMenu.Shown: one VIEW DISTANCE, no two-player rows).</summary>
-    public IReadOnlyList<SettingsMenu.Row> Rows(int page) =>
+    /// <summary>The rows a page shows (SettingsMenu.Shown: one VIEW DISTANCE, no two-player rows); none on the two
+    /// all-at-once lines.</summary>
+    public IReadOnlyList<SettingsMenu.Row> Rows(int page) => IsPreset(Pages[page]) ? [] :
         _settings.Page(Pages[page]).Rows.Where(r => SettingsMenu.Shown(r.Key, _threeD)).ToList();
 
     public SettingsMenu.Row? PickedRow => At == Level.Rows ? Rows(PageIndex)[RowIndex] : null;
@@ -90,6 +97,7 @@ public sealed class OptionsPanel : IMenuPanel
                 At = Level.Pages;
                 return Result.Nothing;
             case Level.Pages:
+                if (IsPreset(Pages[PageIndex])) return new Result(Outcome.Preset, Value: Pages[PageIndex]);   // every setting at once; the pick stays here
                 At = Level.Rows;
                 RowIndex = 0;
                 return Result.Nothing;
@@ -190,6 +198,8 @@ public sealed class OptionsPanel : IMenuPanel
         "WORLD" => "What fills the islands and how it behaves. New games only.",
         "SOUND" => "The Amiga's sound filter, the extra sound and the music.",
         "CONTROLS" => "Buttons, the message log and the keys.",
+        AsItWasPage => "Every setting back to the original game's, the flat picture too.",
+        NewPage => "Every extra on, as the game starts the first time.",
         _ => "",
     };
 
@@ -495,7 +505,7 @@ public sealed class OptionsPanel : IMenuPanel
                     var picked = At == Level.Pages && i == PageIndex;
                     if (picked) g.Fill(LineBox(i), RowLit);
                     g.Text(BoxX + 12, y, Mixed(Pages[i]), picked ? TextBright : TextSoft);
-                    g.Text(BoxX + BoxW - 14 - g.Measure(">"), y, ">", picked ? White : TextDim);
+                    if (!IsPreset(Pages[i])) g.Text(BoxX + BoxW - 14 - g.Measure(">"), y, ">", picked ? White : TextDim);   // a page opens; the two all-at-once lines act
                 }
             }
         }
