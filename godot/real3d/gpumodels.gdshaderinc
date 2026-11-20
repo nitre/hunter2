@@ -75,9 +75,8 @@ bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     // placed exactly as the model's own corners are (gpu_model_vertex_rot): the same turn (fine angles) and the same lift - a
     // window's frame is part of the thing and goes wherever its faces go
     int low;
-    ivec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
-    int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
-    pos = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z) * 0.5);
+    vec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
+    pos = entity_place(ent_tex, row, rot, low);
     return true;
 }
 
@@ -145,11 +144,11 @@ uniform vec3 sun_shadow = vec3(0.0, 0.0, 1.0);   // Objects.SunOffset: DirX, Dir
 // y = the record's ground (+$74; gpushadow lays it on the ground under the corner). sun = DirX, DirZ, tan(elevation).
 // rise: how much higher above the real ground the corner is DRAWN than the game places it (the contact fit and walls
 // down, gpu_model_vertex_rot); 0 = as the game has it.
-vec3 entity_sun_shadow_corner(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, ivec3 rot, int low, vec3 sun, float rise) {
+vec3 entity_sun_shadow_corner(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, vec3 rot, int low, vec3 sun, float rise) {
     int x = _euw(ent, row, 0x4A), y = _ew(ent, row, 0x4C), z = _euw(ent, row, 0x4E), ground = _ew(ent, row, 0x74);
-    float h = float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low)) - ground) + rise;
+    float h = float(y + lift_to_ground(ground, low) - ground) + rot.y + rise;
     float d = h > 0.0 ? h / sun.z : 0.0;                                                 // SunShade.ShadowLength: no cap
-    return vec3((float(2 * x + rot.x) + sun.x * d) * 0.5, float(ground), (float(2 * z + rot.z) + sun.y * d) * 0.5);
+    return vec3((float(2 * x) + rot.x + sun.x * d) * 0.5, float(ground), (float(2 * z) + rot.z + sun.y * d) * 0.5);
 }
 
 // An extra point of the record's model (GpuWorld.Bake's back walls): a corner number at or past the model's own
@@ -157,7 +156,7 @@ vec3 entity_sun_shadow_corner(sampler2D trig, sampler2D ent, sampler2D pent, sam
 // Its place in extra_tex (model units, already shifted), turned and placed as a plain corner
 // of that model: no articulation walk, the model's own turn only. low = the model's own lowest corner as
 // entity_corner_rot finds it (moving parts included), so every corner of the record gets the same lift.
-ivec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int row, int base, int model, int vidx, out int low) {
+vec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int row, int base, int model, int vidx, out int low) {
     int at = _at(base);
     int count = _head(at).z;
     vec4 p = texelFetch(extra_tex, ivec2(vidx - count, model), 0);
@@ -165,7 +164,7 @@ ivec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int ro
     int y = _ew(ent, row, 0x4C);
     if (entity_unrotated(ent, row)) {
         low = model_min_y_plain(at, y);
-        return pt;
+        return vec3(pt);
     }
     ivec3 ang = ivec3(_eb(ent, row, 0x80), _eb(ent, row, 0x7C), _eb(ent, row, 0x7E));
     low = model_min_y(trig_tex, at, entity_artic(ent, pent, anim_tex, arow, prow, row, base), ang, 0, ivec3(0, y, 0));
@@ -192,18 +191,18 @@ float fire_age(int row, int type) {
     return clamp(1.0 - float(_ew(ent_tex, row, 0x30)) / life, 0.0, 1.0);
 }
 // The corner (rot) and colour of a blast's triangle with the fireball look.
-void fire_look(int row, int type, bool core, int slot, inout ivec3 rot, inout int colour) {
+void fire_look(int row, int type, bool core, int slot, inout vec3 rot, inout int colour) {
     float age = fire_age(row, type);
     int step = min(int(age * 3.0), 2);                              // 0, 1, 2: a third of the life each
     float size = min(1.0, 0.4 + 0.2 * floor(age * 16.0));           // the burst: 0.4 0.6 0.8 1.0, a 16th of the life a step
     if (core && step == 2) size *= 1.0 - 0.5 * min(floor((age - 2.0 / 3.0) * 9.0 + 1.0), 3.0) / 3.0;   // the fade: 5/6, 4/6, 3/6
-    rot = ivec3(round(vec3(rot) * size));
+    rot *= size;
     int heat = core ? step + (slot & 1) : max(_fire_heat(colour & 15), step + 1);   // every other core face a step cooler: the facets show (the fire takes no sun)
     colour = (colour & ~15) | FIRE_HOT[min(heat, 3)];
 }
 
-bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, out ivec3 rot, out bool own_side) {
-    pos = vec3(0.0); colour = 0; pull = false; rot = ivec3(0); own_side = false;
+bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, out vec3 rot, out bool own_side) {
+    pos = vec3(0.0); colour = 0; pull = false; rot = vec3(0.0); own_side = false;
     int per = tri_slots * 3;
     int row = id / per;
     int rem = id - row * per;
@@ -281,17 +280,16 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
     if (layer == 0) {
         if (better_fire && fire) fire_look(row, type, core, slot, rot, colour);
-        ivec3 w = ivec3(2 * x + rot.x, _wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low)), 2 * z + rot.z);   // entity_vertex2
-        pos = vec3(float(w.x) * 0.5, float(w.y), float(w.z) * 0.5);                                              // a boat floats as the original's (no sink)
+        pos = entity_place(ent_tex, row, rot, low);                                                               // a boat floats as the original's (no sink)
     } else if (!sun) {
-        pos = vec3(float(2 * x + rot.x) * 0.5, float(ground), float(2 * z + rot.z) * 0.5);                      // entity_shadow_vertex2
+        pos = vec3((float(2 * x) + rot.x) * 0.5, float(ground), (float(2 * z) + rot.z) * 0.5);                  // entity_shadow_vertex2
     } else {
         // thrown from where the thing is drawn: its height above the real ground under the corner, with the fit and walls down
         float rise = 0.0;
         vec4 fit; vec2 fc;
         if (contact_fit_row(row, fit, fc)) {
-            vec3 p = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z) * 0.5);
-            float drawn = walls_down(fc, p.x, p.z, contact_turn(fit, fc, p, float(rot.x) * 0.5, float(rot.z) * 0.5).y);   // the drawn height (a turned vehicle's small move sideways is left out of its shadow)
+            vec3 p = entity_place(ent_tex, row, rot, low);
+            float drawn = walls_down(fc, p.x, p.z, contact_turn(fit, fc, p, rot.x * 0.5, rot.z * 0.5).y);   // the drawn height (a turned vehicle's small move sideways is left out of its shadow)
             rise += drawn - p.y - float(ground_height(cam_map, int(p.x) & 0xFFFF, int(p.z) & 0xFFFF) - ground);
         }
         pos = entity_sun_shadow_corner(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, rot, low, sun_shadow, rise);
@@ -338,15 +336,15 @@ bool stays_thin(int id) {
 }
 
 bool gpu_model_vertex(int id, out vec3 pos, out int colour, out bool pull) {
-    ivec3 rot; bool own_side;
+    vec3 rot; bool own_side;
     return gpu_model_vertex_rot(id, pos, colour, pull, rot, own_side);
 }
 
 // The record's model centre (the middle of its corners at rest, GpuWorld's model_tex row 2) turned as its corners are,
 // not yet placed: the faces' "outward" is away from it.
-ivec3 entity_centre_rot(int row, int model) {
+vec3 entity_centre_rot(int row, int model) {
     vec4 c = texelFetch(model_tex, ivec2(model, 2), 0);
     ivec3 local = ivec3(int(round(c.r)), int(round(c.g)), int(round(c.b)));
-    if (entity_unrotated(ent_tex, row)) return local;
+    if (entity_unrotated(ent_tex, row)) return vec3(local);
     return corner_fine(local, ivec3(_eb(ent_tex, row, 0x80), _eb(ent_tex, row, 0x7C), _eb(ent_tex, row, 0x7E)), entity_frac(ent_tex, row), trig_tex);
 }

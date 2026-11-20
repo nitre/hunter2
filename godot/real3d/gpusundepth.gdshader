@@ -38,11 +38,11 @@ varying float sun_d;
 
 // One corner's world point as the opaque pass has it before the camera (model_clip without the view); false = not drawn.
 bool sun_corner(int id, bool contact, vec4 fit, vec2 fc, out vec3 p) {
-    int colour; ivec3 rot; bool own_side, pull;
+    int colour; vec3 rot; bool own_side, pull;
     p = vec3(0.0);
     if (!gpu_model_vertex_rot(id, p, colour, pull, rot, own_side)) return false;
     if (contact) {
-        p = contact_turn(fit, fc, p, float(rot.x) * 0.5, float(rot.z) * 0.5);
+        p = contact_turn(fit, fc, p, rot.x * 0.5, rot.z * 0.5);
         p.y = walls_down(fc, p.x, p.z, p.y);
     }
     return true;

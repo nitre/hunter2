@@ -61,12 +61,12 @@ void _piece_tri(sampler2D blast, int row, int base, int model, int tri_row, out 
     for (int i = 0; i < 3; i++) {
         int vidx = int((i == 0 ? tri.r : (i == 1 ? tri.g : tri.b)) + 0.5);   // the corner number is plain (the slab's moved-corner marks are in x 2's alpha): its plain self here
         // SMOOTH PARTS: pent = blast, prow = arow - the frozen record's parts stay at the step it blew up on
-        ivec3 rot;
+        vec3 rot;
         if (vidx >= corners)                                          // a back wall's extra point (entity_extra_rot)
             rot = entity_extra_rot(blast, blast, 0, 0, row, base, model, vidx, low);
         else
             rot = entity_corner_rot(trig_tex, blast, blast, anim_tex, 0, 0, row, base, vidx, low);
-        p[i] = vec3(float(2 * x + rot.x), float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z));
+        p[i] = vec3(float(2 * x) + rot.x, float(y + lift_to_ground(ground, low)) + rot.y, float(2 * z) + rot.z);
     }
     a = p[0]; b = p[1]; c = p[2];
 }
@@ -118,8 +118,8 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
         entity_corner_rot(trig_tex, blast, blast, anim_tex, 0, 0, row, base, c0, low);
     vec4 mc = texelFetch(model_tex, ivec2(model, 2), 0);
     ivec3 cl = ivec3(int(round(mc.r)), int(round(mc.g)), int(round(mc.b)));
-    ivec3 cr = entity_unrotated(blast, row) ? cl : corner(cl, ivec3(_eb(blast, row, 0x80), _eb(blast, row, 0x7C), _eb(blast, row, 0x7E)), 0, ivec3(0), trig_tex);
-    vec3 centre = vec3(float(2 * x + cr.x), float(_wrap16(_wrap16(cr.y + y) + lift_to_ground(ground, low))), float(2 * z + cr.z));
+    vec3 cr = entity_unrotated(blast, row) ? vec3(cl) : corner_fine(cl, ivec3(_eb(blast, row, 0x80), _eb(blast, row, 0x7C), _eb(blast, row, 0x7E)), entity_frac(blast, row), trig_tex);
+    vec3 centre = vec3(float(2 * x) + cr.x, float(y + lift_to_ground(ground, low)) + cr.y, float(2 * z) + cr.z);
 
     // BETTER EXPLOSIONS: hit by a shell, missile or blast, the
     // push comes from where that was, not the thing's middle - away from it, the nearest panels fastest

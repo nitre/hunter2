@@ -37,7 +37,7 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
     vec3 frac = entity_frac(ent_tex, row);
     int low = plain ? model_min_y_plain(at, y) : model_min_y(trig_tex, at, artic, ang, 0, ivec3(0, y, 0));
     int lift = lift_to_ground(ground, low);
-    float px[CONTACT_MAX]; float pz[CONTACT_MAX]; float pg[CONTACT_MAX]; int ph[CONTACT_MAX];
+    float px[CONTACT_MAX]; float pz[CONTACT_MAX]; float pg[CONTACT_MAX]; float ph[CONTACT_MAX];
     int n = 0;
     // a tilted thing's contacts are its bottom in its OWN frame (moving parts in, the game's tilt out): on a slope the
     // game's pitch tips one end lower, and "lowest once tilted" kept only that end - the bike's front wheel floated
@@ -58,8 +58,8 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
     w = _Walk(ivec3(0), ivec3(0), ivec3(0), 0);
     rides = true;
     for (int k = 0; k < count && n < CONTACT_MAX; k++) {
-        ivec3 v;
-        if (plain) v = _corner(at, k).xyz;
+        vec3 v;                                                                         // exact, as the picture turns it (corner_fine)
+        if (plain) v = vec3(_corner(at, k).xyz);
         else {
             int f = _corner(at, k).w;
             if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
@@ -67,11 +67,10 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
             v = corner_fine(own, ang, frac, trig_tex);
             if (!level && (own.y > bottom + 3 || (wheeled && !rides))) continue;
         }
-        int h = _wrap16(v.y + y + _waterline(at));                                      // as low: the corner's height before the lift (SeaBodies: from the water line)
-        if ((level || plain) && h > low + (level ? CONTACT_LEVEL_BAND : 3)) continue;
-        int wx = 2 * x + v.x, wz = 2 * z + v.z;                                         // doubled world place
-        px[n] = float(v.x) * 0.5; pz[n] = float(v.z) * 0.5;
-        pg[n] = float(ground_height(cam_map, (wx >> 1) & 0xFFFF, (wz >> 1) & 0xFFFF) - _wrap16(h + lift));
+        float h = v.y + float(y + _waterline(at));                                      // as low: the corner's height before the lift (SeaBodies: from the water line)
+        if ((level || plain) && h > float(low + (level ? CONTACT_LEVEL_BAND : 3))) continue;
+        px[n] = v.x * 0.5; pz[n] = v.z * 0.5;
+        pg[n] = float(ground_height(cam_map, int(floor(float(x) + px[n])) & 0xFFFF, int(floor(float(z) + pz[n])) & 0xFFFF)) - (h + float(lift));
         ph[n] = h;
         n++;
     }
@@ -89,7 +88,7 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
         }
         int step = (c0 <= 2 && c1 >= 4 && y1 - y0 == 1) ? (1 << shift) : 0;
         float d = -1e30;                                                                // the highest ground under a contact: nothing buried
-        for (int i = 0; i < n; i++) d = max(d, ph[i] >= low + step ? pg[i] : pg[i] - float(step));   // the door's foot at most one step in
+        for (int i = 0; i < n; i++) d = max(d, ph[i] >= float(low + step) ? pg[i] : pg[i] - float(step));   // the door's foot at most one step in
         fit = vec4(0.0, 0.0, d, CONTACT_NO_TURN);
         c = vec2(float(_wrap16(low + step + lift)) + d, CONTACT_LEVEL);                 // the bottom's height once placed; walls_down takes it on
         return true;
@@ -120,7 +119,7 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
     float floor_ = CONTACT_NO_TURN;
     if (_ew(ent_tex, row, 4) <= CONTACT_TURNS_TO) {                                     // a vehicle: the height its contacts stand at, the turn's middle
         floor_ = 0.0;
-        for (int i = 0; i < n; i++) floor_ += float(_wrap16(ph[i] + lift));
+        for (int i = 0; i < n; i++) floor_ += ph[i] + float(lift);
         floor_ /= float(n);
         // the lift for the TURNED body: EVERY corner it stands on (fixed parts and wheels, as the contacts - a bike's
         // pedals left out) where contact_turn puts it (without D), against the ground under THAT place - no corner in the
@@ -134,8 +133,8 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
         _Walk w2 = _Walk(ivec3(0), ivec3(0), ivec3(0), 0);
         bool rides2 = true;
         for (int i = 0; i < count; i++) {
-            ivec3 v;
-            if (plain) v = _corner(at, i).xyz;
+            vec3 v;
+            if (plain) v = vec3(_corner(at, i).xyz);
             else {
                 int f = _corner(at, i).w;
                 if (f != 0) rides2 = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
@@ -143,8 +142,8 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
                 if (wheeled && !rides2) continue;
                 v = corner_fine(own, ang, frac, trig_tex);
             }
-            float h = float(_wrap16(_wrap16(v.y + y + _waterline(at)) + lift));
-            vec3 r = vec3(float(v.x) * 0.5 - cx, (h - floor_) * 0.5, float(v.z) * 0.5 - cz);
+            float h = v.y + float(y + _waterline(at) + lift);
+            vec3 r = vec3(v.x * 0.5 - cx, (h - floor_) * 0.5, v.z * 0.5 - cz);
             float f = (ax * r.x + az * r.z) / (1.0 + nn.y);
             vec3 t = vec3(r.x * nn.y - az * r.y + ax * f, r.y * nn.y + az * r.x - ax * r.z, r.z * nn.y + ax * r.y + az * f);
             int gx = int(floor(float(x) + cx + t.x)), gz = int(floor(float(z) + cz + t.z));
@@ -191,7 +190,7 @@ float walls_down(vec2 c, float x, float z, float y) {
 }
 
 // The same for a corner rot as turned, not placed (x and z doubled).
-float contact_lift(vec4 fit, vec2 c, ivec3 rot) { return contact_lift_at(fit, c, float(rot.x) * 0.5, float(rot.z) * 0.5); }
+float contact_lift(vec4 fit, vec2 c, vec3 rot) { return contact_lift_at(fit, c, rot.x * 0.5, rot.z * 0.5); }
 
 // The fit of record row's main model (+$25), false when it stands as the game has it (no model, debris, not drawn).
 bool contact_fit_row(int row, out vec4 fit, out vec2 c) {

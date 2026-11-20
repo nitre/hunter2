@@ -36,13 +36,13 @@ varying vec3 shadow_p;                            // ...the pixel's world point,
 
 // One corner of a triangle in clip space (the id's own world point moved to the eye, nearer if a detail face, back with
 // the shell indoors), sat on the real ground when contact (ground_contact.gdshaderinc); false = this triangle is not drawn.
-bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out ivec3 rot, out bool own_side, out vec3 p) {
+bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out vec3 rot, out bool own_side, out vec3 p) {
     bool pull;
     clip = vec4(2.0, 2.0, 2.0, 1.0);
     if (!gpu_model_vertex_rot(id, p, colour, pull, rot, own_side)) return false;
     if (contact) {
-        vec3 q = contact_turn(fit, fc, p, float(rot.x) * 0.5, float(rot.z) * 0.5);
-        rot += ivec3(int(round((q.x - p.x) * 2.0)), int(round(q.y - p.y)), int(round((q.z - p.z) * 2.0)));   // the sun's face direction leans (a vehicle: turns) with it
+        vec3 q = contact_turn(fit, fc, p, rot.x * 0.5, rot.z * 0.5);
+        rot += vec3((q.x - p.x) * 2.0, q.y - p.y, (q.z - p.z) * 2.0);   // the sun's face direction leans (a vehicle: turns) with it
         p = q;
         p.y = walls_down(fc, p.x, p.z, p.y);
     }
@@ -61,7 +61,7 @@ void vertex() {
     int first = vid - corner;
     vec4 c0, c1, c2;
     int col0, col1, col2;
-    ivec3 r0, r1, r2;
+    vec3 r0, r1, r2;
     vec4 fit; vec2 fc;
     bool own_side;
     vec3 w0, w1, w2;                                           // the corners' world points (SHADOWS: REAL)
@@ -108,7 +108,7 @@ void vertex() {
         if (!fire && sun_shading && sun_up && !inside_view && row != shell_row) {
             // the sun on this face (rules/SunShade.cs Pick): its direction from its own three corners, outward = away
             // from the model's centre, the light the cosine to the sun
-            vec3 a = vec3(r0), b = vec3(r1), cc = vec3(r2);
+            vec3 a = r0, b = r1, cc = r2;
             vec3 n = cross(b - a, cc - a);
             float len = length(n);
             if (len > 0.0) {

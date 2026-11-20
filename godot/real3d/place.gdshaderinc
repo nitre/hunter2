@@ -117,14 +117,15 @@ vec3 entity_frac(sampler2D ent, int row) {
 // Corner vidx of the record's model turned into place but not yet put at the record's position: the
 // vector from the record's centre (x and z still doubled on the game's scale). low = the lowest placed
 // corner of the whole model (the game's $1580), for the lift.
-ivec3 entity_corner_rot(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, int vidx, out int low) {
+// Exact (corner_fine, not rounded); low stays the game's whole-number lowest corner.
+vec3 entity_corner_rot(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, int vidx, out int low) {
     int at = _at(base);
     int y = _ew(ent, row, 0x4C);
     ivec4 artic = entity_artic(ent, pent, anim, arow, prow, row, base);
     ivec3 ang = ivec3(_eb(ent, row, 0x80), _eb(ent, row, 0x7C), _eb(ent, row, 0x7E));
-    ivec3 rot;
+    vec3 rot;
     if (entity_unrotated(ent, row)) {
-        rot = _corner(at, vidx).xyz;
+        rot = vec3(_corner(at, vidx).xyz);
         low = model_min_y_plain(at, y);
     } else {
         rot = corner_fine(model_local(trig, at, vidx, artic), ang, entity_frac(ent, row), trig);
@@ -137,23 +138,17 @@ ivec3 entity_corner_rot(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D
 // rest direction, already scaled - the thickness 1 model unit before the model's scale shift.  Turned
 // by the part's articulation and then as the corner is, so the slab rides a turning part (a rotor
 // blade) and banks with the whole thing, whatever way the sheet faces.
-ivec3 entity_corner_rot_thick(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, int vidx, ivec3 thick, out int low) {
-    ivec3 rot = entity_corner_rot(trig, ent, pent, anim, arow, prow, row, base, vidx, low);
-    ivec3 d = thick;
-    if (!entity_unrotated(ent, row)) {
-        d = model_artic_dir(trig, _at(base), vidx, entity_artic(ent, pent, anim, arow, prow, row, base), d);
-        d = corner_fine(d, ivec3(_eb(ent, row, 0x80), _eb(ent, row, 0x7C), _eb(ent, row, 0x7E)), entity_frac(ent, row), trig);
-    }
-    return rot - d;
+vec3 entity_corner_rot_thick(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, int vidx, ivec3 thick, out int low) {
+    vec3 rot = entity_corner_rot(trig, ent, pent, anim, arow, prow, row, base, vidx, low);
+    if (entity_unrotated(ent, row)) return rot - vec3(thick);
+    ivec3 d = model_artic_dir(trig, _at(base), vidx, entity_artic(ent, pent, anim, arow, prow, row, base), thick);
+    return rot - corner_fine(d, ivec3(_eb(ent, row, 0x80), _eb(ent, row, 0x7C), _eb(ent, row, 0x7E)), entity_frac(ent, row), trig);
 }
 
-// Corner vidx of the record's model: x and z doubled, y whole (the model's own turn is 0 here; the
-// camera's half turn belongs to the view). ground = +$74, y = +$4C, position = +$4A / +$4E.
-ivec3 entity_vertex2(sampler2D trig, sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base, int vidx) {
+// A turned corner (entity_corner_rot) put at the record's place: world units, x and z halved back, y with the lift.
+// ground = +$74, y = +$4C, position = +$4A / +$4E.
+vec3 entity_place(sampler2D ent, int row, vec3 rot, int low) {
     int x = _euw(ent, row, 0x4A), y = _ew(ent, row, 0x4C), z = _euw(ent, row, 0x4E);
-    int low;
-    ivec3 rot = entity_corner_rot(trig, ent, pent, anim, arow, prow, row, base, vidx, low);
-    int lift = lift_to_ground(_ew(ent, row, 0x74), low);
-    return ivec3(2 * x + rot.x, _wrap16(_wrap16(rot.y + y) + lift), 2 * z + rot.z);
+    return vec3((float(2 * x) + rot.x) * 0.5, float(y + lift_to_ground(_ew(ent, row, 0x74), low)) + rot.y, (float(2 * z) + rot.z) * 0.5);
 }
 

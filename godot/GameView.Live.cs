@@ -135,14 +135,14 @@ public partial class GameView
         void fragment() {
             ivec2 fc = ivec2(FRAGCOORD.xy);
             int id = live_row * tri_slots * 3 + fc.y;
-            vec3 p; int colour; bool pull; ivec3 rot; bool own_side;
+            vec3 p; int colour; bool pull; vec3 rot; bool own_side;
             bool ok;
             if (layer == 0) {
                 ok = gpu_model_vertex_rot(id, p, colour, pull, rot, own_side);
                 vec4 fit; vec2 c;
                 if (ok && live_raw != 1 && contact_fit_row(live_row, fit, c)) {
                     if (live_raw == 2) fit.w = CONTACT_NO_TURN;
-                    p = contact_turn(fit, c, p, float(rot.x) * 0.5, float(rot.z) * 0.5); p.y = walls_down(c, p.x, p.z, p.y);
+                    p = contact_turn(fit, c, p, rot.x * 0.5, rot.z * 0.5); p.y = walls_down(c, p.x, p.z, p.y);
                 }
             } else {
                 ok = gpu_model_vertex(id, p, colour, pull);
@@ -185,15 +185,15 @@ public partial class GameView
                 }
                 vec4 fit2; vec2 c2; float ty = -9999.0;
                 if (mine && contact_fit_row(live_row, fit2, c2)) {
-                    ivec3 vv = corner_fine(own, ang, entity_frac(ent_tex, live_row), trig_tex);   // as contact_fit turns it
-                    float h = float(_wrap16(_wrap16(vv.y + ey + _waterline(at)) + lift));
-                    ty = contact_turn(fit2, c2, vec3(float(ex) + float(vv.x) * 0.5, h, float(ez) + float(vv.z) * 0.5), float(vv.x) * 0.5, float(vv.z) * 0.5).y;
+                    vec3 vv = corner_fine(own, ang, entity_frac(ent_tex, live_row), trig_tex);    // as contact_fit turns it
+                    float h = vv.y + float(ey + _waterline(at) + lift);
+                    ty = contact_turn(fit2, c2, vec3(float(ex) + vv.x * 0.5, h, float(ez) + vv.z * 0.5), vv.x * 0.5, vv.z * 0.5).y;
                 }
                 float tf = -9999.0;                             // the same with the drawing's corner (fine angles, place.gdshaderinc entity_corner_rot)
                 if (mine && contact_fit_row(live_row, fit2, c2)) {
-                    ivec3 vf = corner_fine(model_local(trig_tex, at, vidx, artic), ang, entity_frac(ent_tex, live_row), trig_tex);
-                    float h = float(_wrap16(_wrap16(vf.y + ey + _waterline(at)) + lift));
-                    tf = contact_turn(fit2, c2, vec3(float(ex) + float(vf.x) * 0.5, h, float(ez) + float(vf.z) * 0.5), float(vf.x) * 0.5, float(vf.z) * 0.5).y;
+                    vec3 vf = corner_fine(model_local(trig_tex, at, vidx, artic), ang, entity_frac(ent_tex, live_row), trig_tex);
+                    float h = vf.y + float(ey + _waterline(at) + lift);
+                    tf = contact_turn(fit2, c2, vec3(float(ex) + vf.x * 0.5, h, float(ez) + vf.z * 0.5), vf.x * 0.5, vf.z * 0.5).y;
                 }
                 bool contact = mine && own.y <= bottom + 3 && (!wheeled || rides);
                 p = vec3(ty, p.y, tf);

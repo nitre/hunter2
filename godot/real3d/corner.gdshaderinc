@@ -48,15 +48,17 @@ ivec3 corner(ivec3 p, ivec3 angles, int turn, ivec3 origin, sampler2D trig) {
     return ivec3(_wrap16(p.x + origin.x), _wrap16(p.y + origin.y), _wrap16(p.z + origin.z));
 }
 
-// ENHANCEMENT (FINE ANGLES, the card): the same three turns at a finer angle - frac = each angle's part of a step past
-// its byte (roll, pitch, yaw; 1/256 steps, from the record's fine angles, Entity.PitchFine etc.). No fraction: the exact
-// path above, number for number. With one: real sines (the table's are the same to its precision), rounded once at the end.
-ivec3 corner_fine(ivec3 p, ivec3 angles, vec3 frac, sampler2D trig) {
-    if (frac == vec3(0.0)) return corner(p, angles, 0, ivec3(0), trig);
+// The card's turn for drawing: the same three turns with real sines (the table's are the same to its precision) at the
+// byte's angle plus frac = each angle's part of a step past it (roll, pitch, yaw; 1/256 steps, from the record's fine
+// angles, Entity.PitchFine etc.; 0 when there are none). NOT rounded: the whole-number turn above lands each corner on
+// the nearest whole step, which bends a flat face out of flat, and two faces lying in one plane (a wheel's halves over
+// its disc) then cross - the hidden one shows through. Exact corners keep every plane flat. trig is unused (kept so the
+// callers read as corner() does).
+vec3 corner_fine(ivec3 p, ivec3 angles, vec3 frac, sampler2D trig) {
     vec3 a = (vec3(angles) + frac / 256.0) * (6.28318530718 / 256.0);
     float x = float(p.x), y = float(p.y), z = float(p.z), c, s, t;
     c = cos(a.x); s = sin(a.x); t = c * x + s * y; y = c * y - s * x; x = t;   // roll  (_roll)
     c = cos(a.y); s = sin(a.y); t = c * z + s * y; y = c * y - s * z; z = t;   // pitch (_pitch)
     c = cos(a.z); s = sin(a.z); t = c * x + s * z; z = c * z - s * x; x = t;   // yaw   (_yaw)
-    return ivec3(_wrap16(int(round(x))), _wrap16(int(round(y))), _wrap16(int(round(z))));
+    return vec3(x, y, z);
 }
