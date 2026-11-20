@@ -75,7 +75,7 @@ turn them on.
 Windows and Linux builds are on the [Releases](../../releases) page.
 
 - Windows: unzip and run `hunter2.exe`.
-- Linux (64-bit): unpack and run `./hunter2.x86_64`.
+- Linux (64-bit): unpack and run `./hunter2.x86_64`. It needs a Vulkan graphics driver (any recent card with the usual drivers); nothing else to install.
 
 There is no Mac build for now; on a Mac, build it yourself (see [On a Mac](#on-a-mac) below).
 

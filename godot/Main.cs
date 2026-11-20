@@ -240,6 +240,7 @@ public partial class Main : Node2D
         {
             Data = GameData.Load(dir);
             GD.Print($"HUNTER: game data loaded from {dir}: {Data.Worlds.Count} worlds");
+            GD.Print($"HUNTER: .NET text invariant (no system ICU): {(System.AppContext.TryGetSwitch("System.Globalization.Invariant", out var inv) && inv)}");
             SetWindowIcon(dir);
             if (System.Environment.GetEnvironmentVariable("HUNTER_RECORDED") is not null) GameView.ApplyRecorded();   // before the sound builds its extras
             else if (Settings.ModernDefault && Settings.FirstStart) GameView.ApplyModernDefault();   // the test release: full modern, no question

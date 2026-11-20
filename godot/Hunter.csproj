@@ -4,6 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <RootNamespace>Hunter</RootNamespace>
+    <!-- no system ICU needed (Linux): the game's text is plain English -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- writes Hunter.runtimeconfig.json, which the export copies beside the code: it carries the switch above -->
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
 
   <ItemGroup>
