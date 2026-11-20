@@ -1840,7 +1840,7 @@ public partial class GameView : Node2D
             case "more_objects": Settings.MoreObjects = label == "MORE"; break;
             case "finer_ground":                                                                          // read at a new game
                 Settings.FinerGround = label == "ORIGINAL" ? 0 : 2;                                       // 2 points a cell at every word
-                Settings.GroundRelief = label == "HILLS" ? 1 : label == "CLIFFS" ? 2 : 0;                 // RELIEF: 2X is today's gentle store
+                Settings.GroundRelief = label switch { "HILLS" => 1, "CLIFFS" => 2, "FINER" => 3, _ => 0 };   // RELIEF (FineGround.Reliefs): 2X 0, FINER 3 (the original's height)
                 break;
             case "ground_seed": Settings.GroundSeed = label == "RANDOM" ? "random" : label == "LAST" ? "last" : "world"; break;   // read at a new game
             case "living_world": Settings.LivingWorld = label == "ON"; break;            // read at the next game
@@ -1913,7 +1913,7 @@ public partial class GameView : Node2D
         "own_shadows" => Settings.OwnShadows ? (Settings.RealShadows ? "REAL" : "MORE") : "ORIGINAL",
         "fuller_world" => Settings.FullerWorld switch { 1 => "SOME", 2 => "MORE", 3 => "LOTS", _ => "ORIGINAL" },
         "more_objects" => Settings.MoreObjects ? "MORE" : "ORIGINAL",
-        "finer_ground" => Settings.FinerGround == 0 ? "ORIGINAL" : Settings.GroundRelief switch { 1 => "HILLS", 2 => "CLIFFS", _ => "2X" },
+        "finer_ground" => Settings.FinerGround == 0 ? "ORIGINAL" : Settings.GroundRelief switch { 1 => "HILLS", 2 => "CLIFFS", 3 => "FINER", _ => "2X" },
         "ground_seed" => Settings.GroundSeed switch { "random" => "RANDOM", "last" => "LAST", _ => "WORLD" },
         "living_world" => Settings.LivingWorld ? "ON" : "ORIGINAL",
         "leave_behind" => Settings.LeaveBehind ? "BEHIND" : "ORIGINAL",

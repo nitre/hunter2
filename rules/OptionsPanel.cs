@@ -228,7 +228,7 @@ public sealed class OptionsPanel : IMenuPanel
         ["demo_world"] = "The title demo in a busy world: herds, trees, boats along the way.",
         ["own_shadows"] = "Every thing casts a shadow of its own shape.",
         ["card_pieces"] = "Things blow apart into their own panels, not ten triangles. Lasting: the pieces stay where they fall.",
-        ["finer_ground"] = "The land grown finer between the map's points, hills a little taller. At a new game.",
+        ["finer_ground"] = "The land grown finer between the map's points; 2X and up also make the hills taller. At a new game.",
         ["ground_seed"] = "The same hills between the map's points every game, or new ones each new game.",
         ["leave_behind"] = "Step out behind a vehicle, not on its east side: a moving boat will not run you down.",
         ["aiming"] = "On foot the soldier turns to a reticle you move with the mouse or right stick, and shoots at the point under it.",
@@ -281,6 +281,7 @@ public sealed class OptionsPanel : IMenuPanel
         ["finer_ground"] = new Dictionary<string, string>
         {
             ["ORIGINAL"] = "The map's own points, flat-sided squares, as the original.",
+            ["FINER"] = "Gentle rolls between the map's points, the hills as tall as the original's. At a new game.",
             ["2X"] = "Gentle rolls between the map's points, hills 1.5x as tall. At a new game.",
             ["HILLS"] = "Rougher ground between the points, hills twice as tall. At a new game.",
             ["CLIFFS"] = "Craggy ground, hills three times as tall: steep faces, hard falls. At a new game.",

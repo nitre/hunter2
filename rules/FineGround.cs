@@ -120,6 +120,7 @@ public sealed class FineGround
         ("2X", FactorNum, FactorDen, Dimension, Gentle),
         ("HILLS", 2, 1, 96, 21),
         ("CLIFFS", 3, 1, 256, 63),
+        ("FINER", 1, 1, Dimension, Gentle),                     // the gentle detail only: factor 1 and no rise, the hills the original's height
     ];
 
     /// <summary>The hold on a square's edge points for a hold on its inner ones: half, even (so a square's detail can sum
@@ -198,6 +199,8 @@ public sealed class FineGround
     public static int[] Rise(byte[] map, int num, int den)
     {
         const int L = 129;
+        if (num == den) return new int[L * L];                  // factor 1 (FINER): the original's heights, no rise - a load rebuilds the same from Num / Den
+
         bool Sea(int c, int r) => c < 0 || r < 0 || c > 127 || r > 127 || map[(r * 128 + c) * 2 + 1] == 0;
         var seaPoint = new bool[L * L];
         for (var r = 0; r < L; r++)

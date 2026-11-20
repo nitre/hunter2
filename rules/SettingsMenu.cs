@@ -201,7 +201,7 @@ public sealed class SettingsMenu
         ["players"] = ["1", "2"],
         ["split_layout"] = ["SIDE", "STACKED"],
         ["own_shadows"] = ["ORIGINAL", "MORE", "REAL"],   // REAL: true shadows from the sun's picture (3D view; the rules keep MORE)
-        ["finer_ground"] = ["ORIGINAL", "2X", "HILLS", "CLIFFS"],   // (the store takes any power of two; FineGround.Reliefs)
+        ["finer_ground"] = ["ORIGINAL", "FINER", "2X", "HILLS", "CLIFFS"],   // FINER: the detail at the original's height; 2X on: taller (FineGround.Reliefs)
         ["ground_seed"] = ["WORLD", "RANDOM", "LAST"],
         ["leave_behind"] = ["ORIGINAL", "BEHIND"],
         ["analog_steering"] = ["ORIGINAL", "ANALOG"],
@@ -237,7 +237,7 @@ public sealed class SettingsMenu
         ["living_sea"] = "CYCLING",
         ["world"] = "MORE",                      // fuller world MORE (not LOTS), more objects, living world
                                                  // (the player's games; never the attract demo), graves with vultures
-        ["finer_ground"] = "ORIGINAL",           // off by default: 2X grows the ground 1.5x taller, the hills no longer the original's
+        ["finer_ground"] = "FINER",              // the finer detail at the original's height (2X and up also make the hills taller)
         ["sound"] = "ENHANCED",                  // extras, voices
         ["demo_camera"] = "MOVING",              // the attract's own camera moves; run_game --sway / --spin still override it
     };
