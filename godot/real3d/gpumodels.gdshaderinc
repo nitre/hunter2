@@ -51,14 +51,6 @@ uniform int shell_row = -1;     // inside a building: the building's own record,
 uniform sampler2D line_tex : filter_nearest;
 uniform int line_slots = 1;
 
-// ENHANCEMENT: a boat drawn sitting in the water, not on it - the game lifts every thing till its
-// lowest corner touches the ground ($51F8), so a hull floated on its keel with its bow in the air; drawn a third of that lift
-// lower, the sea hides the part under the waterline. Boat: movement mode 10 (kind flags +$08, no higher mode bit).
-float boat_sink(int row, int ground, int low) {
-    if ((_eb(ent_tex, row, 0x08) & 0xFC) != 0x04) return 0.0;
-    return float(lift_to_ground(ground, low) / 3);
-}
-
 // VERTEX_ID of the line mesh (two per segment) -> a world point and the colour.
 bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     pos = vec3(0.0); colour = 0;
@@ -80,12 +72,12 @@ bool gpu_line_vertex(int id, out vec3 pos, out int colour) {
     vec4 seg = texelFetch(line_tex, ivec2(0, start + slot), 0);
     int vidx = int((end == 0 ? seg.r : seg.g) + 0.5);
     colour = int(seg.b + 0.5);
-    // placed exactly as the model's own corners are (gpu_model_vertex_rot): the same turn (fine angles), the same lift and a
-    // boat's same sink - a window's frame is part of the thing and goes wherever its faces go
+    // placed exactly as the model's own corners are (gpu_model_vertex_rot): the same turn (fine angles) and the same lift - a
+    // window's frame is part of the thing and goes wherever its faces go
     int low;
     ivec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
-    pos = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))) - boat_sink(row, ground, low), float(2 * z + rot.z) * 0.5);
+    pos = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z) * 0.5);
     return true;
 }
 
@@ -290,12 +282,12 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     if (layer == 0) {
         if (better_fire && fire) fire_look(row, type, core, slot, rot, colour);
         ivec3 w = ivec3(2 * x + rot.x, _wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low)), 2 * z + rot.z);   // entity_vertex2
-        pos = vec3(float(w.x) * 0.5, float(w.y) - boat_sink(row, ground, low), float(w.z) * 0.5);
+        pos = vec3(float(w.x) * 0.5, float(w.y), float(w.z) * 0.5);                                              // a boat floats as the original's (no sink)
     } else if (!sun) {
         pos = vec3(float(2 * x + rot.x) * 0.5, float(ground), float(2 * z + rot.z) * 0.5);                      // entity_shadow_vertex2
     } else {
         // thrown from where the thing is drawn: its height above the real ground under the corner, with the fit and walls down
-        float rise = -boat_sink(row, ground, low);
+        float rise = 0.0;
         vec4 fit; vec2 fc;
         if (contact_fit_row(row, fit, fc)) {
             vec3 p = vec3(float(2 * x + rot.x) * 0.5, float(_wrap16(_wrap16(rot.y + y) + lift_to_ground(ground, low))), float(2 * z + rot.z) * 0.5);
