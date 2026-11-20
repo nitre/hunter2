@@ -226,10 +226,15 @@ public partial class Main : Node2D
         {
             var exeDir = System.IO.Path.GetDirectoryName(OS.GetExecutablePath())!;
             dir = System.IO.Path.Combine(exeDir, "game_data");
-            // macOS: the program is inside hunter2.app/Contents/MacOS, and files added to the bundle break its signature -
-            // the release puts game_data beside hunter2.app
+            // macOS: the program is inside Hunter.app/Contents/MacOS. The export puts game_data in Contents/Resources before
+            // it signs the app (addons/mac_game_data), so it travels with the app, also into the hidden temporary copy
+            // macOS runs a downloaded app from; an older layout kept it beside Hunter.app
             if (OS.GetName() == "macOS" && !System.IO.Directory.Exists(dir))
-                dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(exeDir, "..", "..", "..", "game_data"));
+            {
+                dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(exeDir, "..", "Resources", "game_data"));
+                if (!System.IO.Directory.Exists(dir))
+                    dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(exeDir, "..", "..", "..", "game_data"));
+            }
         }
         try
         {
@@ -257,7 +262,9 @@ public partial class Main : Node2D
                 ? "macOS is running Hunter from a temporary copy, away from its game_data folder. To fix it once: quit, open Terminal, type  xattr -cr  and a space, drag the folder that holds Hunter.app and game_data into the Terminal window, press Return, then open Hunter.app again."
                 : OS.HasFeature("editor")
                     ? "Build it from the original disk: see README.md, Game data."
-                    : "Keep the game_data folder next to the program (on a Mac, next to Hunter.app).";
+                    : OS.GetName() == "macOS"
+                        ? "The game_data folder belongs inside Hunter.app (Contents/Resources). Download the Mac zip again and use the Hunter.app in it."
+                        : "Keep the game_data folder next to the program.";
             AddChild(new Label
             {
                 Text = $"Game data missing.\n\nLooked in:\n{dir}\n\n{hint}",
