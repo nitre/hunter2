@@ -38,7 +38,7 @@ void vertex() {
     vec3 p; int colour; bool pull;
     paint_ = 0;
     ground_xz = vec2(0.0);
-    if (gpu_model_vertex(VERTEX_ID, p, colour, pull)) {
+    if (gpu_model_vertex(INSTANCE_ID * tri_slots * 3 + VERTEX_ID, p, colour, pull)) {   // the slot's number (GpuWorld.SlotRows)
         paint_ = colour;
         ground_xz = p.xz;
         if (cam_on && !inside_view) p.y = float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF));

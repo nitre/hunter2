@@ -33,7 +33,7 @@ public sealed partial class GpuWorld : Node3D
     readonly byte[] entBytes = new byte[Records * 0xA0 * 4];       // entFloats as the texture takes them: one buffer kept, not 10 MB new a frame
     readonly byte[] entSent = new byte[Records * 0xA0 * 4], animSent = new byte[320 * 2 * 4];   // what the card holds now: the same is not sent again
     readonly ShaderMaterial ground, models, glassFaces, shadows, lines, dots, debris;   // glassFaces: the models' glass faces, see-through (gpuglass.gdshader)
-    MeshInstance3D? glassMesh;
+    MultiMeshInstance3D? glassMesh;
     int leanShown, leanRowShown;                                  // the stick lean (and its row) last given to the shaders
 
     /// <summary>The record row the stick lean turns (the player's, 0); CheckCarInside points it at one of its own rows.</summary>
@@ -605,6 +605,17 @@ public sealed partial class GpuWorld : Node3D
         return mesh;
     }
 
+    /// <summary>The slots for rows of perRow corners each: ONE row's corners drawn once a row (instancing), not every row's
+    /// corners in one buffer. The corners hold nothing (the shaders place them from VERTEX_ID and INSTANCE_ID, the row), so
+    /// the same room costs one row's buffer, not 16523 rows' (the model slots were 272 MB). Every instance stands where the
+    /// mesh does (identity): the shaders' MODELVIEW_MATRIX takes it in.</summary>
+    internal static MultiMesh SlotRows(int perRow, int rows)
+    {
+        var mm = new MultiMesh { TransformFormat = MultiMesh.TransformFormatEnum.Transform3D, Mesh = Empty(perRow), InstanceCount = rows, CustomAabb = Huge };
+        for (var i = 0; i < rows; i++) mm.SetInstanceTransform(i, Transform3D.Identity);
+        return mm;
+    }
+
     // The bake: row = one filled face, two pixels a triangle t (px 2t, 2t+1): the three corner numbers' high bytes, then their low bytes
     // (16 bits each, 8-bit colour channels /255); no triangle = both pixels white (high bytes 255,255,255 - no real corner number is that high).
     /// <summary>The bake's picture: two pixels a triangle (high and low bytes of its corners), as many triangles as the biggest face
@@ -1081,7 +1092,7 @@ public sealed partial class GpuWorld : Node3D
         var triTex = ImageTexture.CreateFromImage(table);
         var infoTex = ImageTexture.CreateFromImage(info);
         (TriTable, ModelTable, TriSlots, TriCount) = (triTex, infoTex, maxTris, tris.Count);
-        AddChild(new MeshInstance3D { Mesh = Empty(Blasts * maxTris * 3), MaterialOverride = pieces, CustomAabb = Huge });
+        AddChild(new MultiMeshInstance3D { Multimesh = SlotRows(maxTris * 3, Blasts), MaterialOverride = pieces, CustomAabb = Huge });
         foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces })
         {
             m.SetShaderParameter("tri_tex", triTex);
@@ -1091,20 +1102,22 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("line_tex", lineTex);
             m.SetShaderParameter("line_slots", maxLines);
         }
-        AddChild(new MeshInstance3D { Mesh = Empty(Rows * maxLines * 6), MaterialOverride = lines, CustomAabb = Huge });   // a quad a segment (gpulines.gdshader)
+        AddChild(new MultiMeshInstance3D { Multimesh = SlotRows(maxLines * 6, Rows), MaterialOverride = lines, CustomAabb = Huge });   // a quad a segment (gpulines.gdshader)
         AddChild(new MeshInstance3D { Mesh = Empty(LiveRows * 2, Mesh.PrimitiveType.Points), MaterialOverride = dots, CustomAabb = Huge });
         AddChild(new MeshInstance3D { Mesh = Empty(LiveRows * 30), MaterialOverride = debris, CustomAabb = Huge });
-        var slotMesh = Empty(Rows * maxTris * 3);                   // one buffer for the three passes over the same triangle slots
-        AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = this.models, CustomAabb = Huge });
+        var slotMesh = SlotRows(maxTris * 3, Rows);                 // one set of slots for the passes over the same triangle slots
+        AddChild(new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = this.models, CustomAabb = Huge });
         // GLASS: the glass ones alone, SEE-THROUGH only. Made in the glass state Update already set: the game's first Update
         // runs before this bake ends, so a mesh made hidden was never shown and the panes were missing in every game
-        AddChild(glassMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = glassShown });
-        AddChild(shadowMesh = new MeshInstance3D { Mesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
+        AddChild(glassMesh = new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = glassFaces, CustomAabb = Huge, Visible = glassShown });
+        AddChild(shadowMesh = new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = shadows, CustomAabb = Huge });
         sunSlots = slotMesh;
         if (SunDepthPath is not null) MakeSunDepth(slotMesh);
         Ready = true;
-        long rowBytes = Rows * (0xA0L * 4 + maxTris * 3L * 12 + maxLines * 6L * 12);   // the room's card memory: ent_tex + the slot mesh (models, glass, shadows) and lines (a vertex is 12 bytes)
-        long blastBytes = Blasts * (0xA0L * 4 + 16 + maxTris * 3L * 12);                   // a blast's: the two blast textures + its share of the pieces mesh
+        // the room's card memory: ent_tex + two instance transforms a row (model slots, lines; 48 bytes each) + one row of each
+        // slot mesh (a vertex is 12 bytes) - SlotRows: the corners are drawn once a row, not stored for every row
+        long rowBytes = Rows * (0xA0L * 4 + 2 * 48) + maxTris * 3L * 12 + maxLines * 6L * 12;
+        long blastBytes = Blasts * (0xA0L * 4 + 16 + 48) + maxTris * 3L * 12;            // the two blast textures + a transform a blast + one blast's mesh
         GD.Print($"GpuWorld ready: {tris.Count} of {MaxTriangles} triangles (GpuWorld.MaxTriangles; table {table.GetWidth() * table.GetHeight() * 16 / 1048576.0:F1} MB of {4L * MaxTriangles * 16 / 1048576.0:F0} MB), up to {maxTris} a model; caps a model {CardModels.MaxCorners} corners, {CardModels.MaxEdges} edges, {CardModels.MaxFaces} faces, up to {maxLines} lines; card room {Rows} rows = {rowBytes / 1048576.0:F1} MB, {Blasts} blasts = {blastBytes / 1048576.0:F1} MB; model store {Store.Used} texels in {Store.Rows} rows = {Store.Rows * CardModels.Width * 16 / 1048576.0:F2} MB (cap {CardModels.Width * CardModels.Height * 16 / 1048576.0:F0} MB)");
         GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers");
         GD.Print($"GpuWorld rods: {rodsOf.Sum(g => g.Count())} free-standing lines made solid, {segments.Count} lines on faces left flat, {lineFaces.Count} in all");
@@ -1634,12 +1647,12 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>SHADOWS: REAL (GameView sets it each frame): the sun's picture is made the first frame it is asked for.</summary>
     public bool RealShadows;
     bool realShown;                                  // real_shadows as last sent (and the flat pass hidden)
-    MeshInstance3D? shadowMesh;                      // the flat pressed-down shadow pass (gpushadow.gdshader)
-    Mesh? sunSlots;                                  // the triangle slots, for a sun pass made later
+    MultiMeshInstance3D? shadowMesh;                 // the flat pressed-down shadow pass (gpushadow.gdshader)
+    MultiMesh? sunSlots;                             // the triangle slots, for a sun pass made later
     // HUNTER_SHADOW_FORCE=dark|lit (a debug aid for checking REAL): every tested spot in shadow / none
     static readonly int ShadowForce = System.Environment.GetEnvironmentVariable("HUNTER_SHADOW_FORCE") switch { "dark" => 1, "lit" => 2, _ => 0 };
 
-    void MakeSunDepth(Mesh slotMesh)
+    void MakeSunDepth(MultiMesh slotMesh)
     {
         sunDepth = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/gpusundepth.gdshader") };
         sunDepth.SetShaderParameter("sun_box_size", SunBoxSize);
@@ -1656,7 +1669,7 @@ public sealed partial class GpuWorld : Node3D
         };
         AddChild(sunView);
         sunView.AddChild(new Camera3D { Current = true });           // a camera for the world to be drawn at all; the shader writes POSITION itself
-        sunView.AddChild(new MeshInstance3D { Mesh = slotMesh, MaterialOverride = sunDepth, CustomAabb = Huge });
+        sunView.AddChild(new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = sunDepth, CustomAabb = Huge });
         sunOwner = this;
         // SHADOWS: REAL - the receivers read the picture (sunshadow.gdshaderinc), with the same box
         var picture = sunView.GetTexture();

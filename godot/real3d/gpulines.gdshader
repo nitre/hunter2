@@ -77,8 +77,8 @@ void border_paint(int id, inout int colour, out vec3 tint, out float light) {
 
 void vertex() {
     int per = line_slots * 6;
-    int row = VERTEX_ID / per;
-    int rem = VERTEX_ID - row * per;
+    int row = INSTANCE_ID;                                     // one row's quads drawn once a record (GpuWorld.SlotRows)
+    int rem = VERTEX_ID;
     int slot = rem / 6;
     int c = rem - slot * 6;
     int end = (c == 0 || c == 1 || c == 3) ? 0 : 1;                                  // a, a, b, a, b, b

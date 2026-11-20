@@ -28,8 +28,8 @@ varying flat vec3 own_tint;                       // MODEL COLOURS: the blown-up
 
 void vertex() {
     int per = tri_slots * 3;
-    int row = VERTEX_ID / per;
-    int rem = VERTEX_ID - row * per;
+    int row = INSTANCE_ID;                                     // one blast's corners drawn once a blast (GpuWorld.SlotRows)
+    int rem = VERTEX_ID;
     int slot = rem / 3;
     int k = rem - slot * 3;
     vec4 info = texelFetch(blast_info, ivec2(row, 0), 0);

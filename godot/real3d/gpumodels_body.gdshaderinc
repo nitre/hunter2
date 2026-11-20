@@ -55,8 +55,9 @@ bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out
 }
 
 void vertex() {
-    int corner = VERTEX_ID - (VERTEX_ID / 3) * 3;
-    int first = VERTEX_ID - corner;
+    int vid = INSTANCE_ID * tri_slots * 3 + VERTEX_ID;        // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows)
+    int corner = vid - (vid / 3) * 3;
+    int first = vid - corner;
     vec4 c0, c1, c2;
     int col0, col1, col2;
     ivec3 r0, r1, r2;

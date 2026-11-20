@@ -49,8 +49,9 @@ bool sun_corner(int id, bool contact, vec4 fit, vec2 fc, out vec3 p) {
 }
 
 void vertex() {
-    int corner = VERTEX_ID - (VERTEX_ID / 3) * 3;
-    int first = VERTEX_ID - corner;
+    int vid = INSTANCE_ID * tri_slots * 3 + VERTEX_ID;        // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows)
+    int corner = vid - (vid / 3) * 3;
+    int first = vid - corner;
     int gbits = glass_bits(first);
     bool ok = glass ? (gbits & 0x9000) == 0 : (gbits & 0x2000) == 0;       // the opaque pass's own test (no glass faces)
     int per = tri_slots * 3, row0 = first / per, b25 = _eb(ent_tex, row0, 0x25);
