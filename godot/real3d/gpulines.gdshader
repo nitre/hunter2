@@ -43,21 +43,10 @@ bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out v
     return clip.w > 0.01;
 }
 
-// A model-turned point (entity_corner_rot's) placed and taken to the eye, as line_end places a line's ends.
-vec3 border_eye(int row, vec3 rot, int low, mat4 mv, bool contact, vec4 fit, vec2 fc) {
-    vec3 p = entity_place(ent_tex, row, rot, low);
-    if (contact) p = contact_turn(fit, fc, p, p.x - float(_euw(ent_tex, row, 0x4A)), p.z - float(_euw(ent_tex, row, 0x4E)));
-    return (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
-}
-
 // A window border's third window corner (line_tex alpha - 1: a corner of the window off this edge), in clip space as
-// line_end places a line's ends - so the border can lie inside the window, not half over the body round it; and whether
-// the window faces the eye (its outward side - away from the model's centre - towards the eye). A window turned away is
-// hidden behind the body, and so is its border: drawn pulled nearer as every line is, it showed through thin parts (a
-// jeep's rear screen's posts past its roof and sides, seen from the front).
-bool border_inner(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out bool facing) {
+// line_end places a line's ends - so the border can lie inside the window, not half over the body round it.
+bool border_inner(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip) {
     clip = vec4(2.0, 2.0, 2.0, 1.0);
-    facing = true;
     int per = line_slots * 2;
     int row = id / per;
     int slot = (id - row * per) / 2;
@@ -67,20 +56,13 @@ bool border_inner(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, o
     vec4 seg = texelFetch(line_tex, ivec2(0, int(li.r + 0.5) + slot), 0);
     int third = int(seg.a + 0.5) - 1;
     if (third < 0) return false;
-    int base = int(mi.r + 0.5), low, la, lb;
-    vec3 rc = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, third, low);
-    vec3 ra = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, int(seg.r + 0.5), la);
-    vec3 rb = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, int(seg.g + 0.5), lb);
+    int low;
+    vec3 rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, int(mi.r + 0.5), third, low);
+    vec3 p = entity_place(ent_tex, row, rot, low);                    // placed as gpu_line_vertex places the border's own ends
+    if (contact) p = contact_turn(fit, fc, p, p.x - float(_euw(ent_tex, row, 0x4A)), p.z - float(_euw(ent_tex, row, 0x4E)));
     float k = (shell_row >= 0 && row == shell_row) ? 1.25 : 1.0;
-    vec3 eye = border_eye(row, rc, low, mv, contact, fit, fc);
+    vec3 eye = (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
     clip = proj * vec4(eye * 0.99 * k, 1.0);
-    vec3 n = cross(rb - ra, rc - ra);
-    if (length(n) > 0.0) {
-        n = normalize(n);
-        if (dot(n, (ra + rb + rc) / 3.0 - vec3(entity_centre_rot(row, b25))) < 0.0) n = -n;
-        vec3 out_eye = border_eye(row, rc + n * 8.0, low, mv, contact, fit, fc);   // 8 units out of the window
-        facing = length(out_eye) < length(eye);                                   // nearer the eye: the outward side faces it
-    }
     return clip.w > 0.01;
 }
 
@@ -149,22 +131,16 @@ void vertex() {
         d = length(d) > 0.0001 ? normalize(d) : vec2(1.0, 0.0);
         vec2 n = vec2(-d.y, d.x) * side * 0.5 * gp;                                  // half a game pixel each side, in viewport pixels
         vec4 inner;
-        bool facing;
-        if (border && border_inner(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, inner, facing)) {
-            if (!facing) ok = false;                                                 // a window turned away: its border hidden with it
-            // a window border: from the window's edge into the window (towards its third corner), so it never juts past
-            // the body round the window as a centred line did
+        if (border && border_inner(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, inner)) {
+            // a window border: from the window's edge one game pixel into the window (towards its third corner), so it
+            // never juts past the body round the window as a centred line did
             vec2 s3 = inner.xy / inner.w * vp_size * 0.5 / gp;
             vec2 perp = vec2(-d.y, d.x);
-            float across = dot(s3 - sa, perp);                                       // how deep the window is from this edge, on screen
-            float inward = across >= 0.0 ? 1.0 : -1.0;
-            // one game pixel wide, but never more than a quarter of the window's depth on screen: a window seen nearly
-            // edge-on (a rear screen past the roof) is a thin sliver, and a full pixel ran off its far side, past the body
-            float width = min(1.0, 0.25 * abs(across));
-            n = side > 0.0 ? perp * inward * width * gp : vec2(0.0);
+            float inward = dot(s3 - sa, perp) >= 0.0 ? 1.0 : -1.0;
+            n = side > 0.0 ? perp * inward * gp : vec2(0.0);
         }
         vec4 e = end == 0 ? ca : cb;
-        POSITION = ok ? vec4(e.xy + n * 2.0 / vp_size * e.w, e.z, e.w) : vec4(2.0, 2.0, 2.0, 1.0);
+        POSITION = vec4(e.xy + n * 2.0 / vp_size * e.w, e.z, e.w);
     } else {
         POSITION = vec4(2.0, 2.0, 2.0, 1.0);
     }
