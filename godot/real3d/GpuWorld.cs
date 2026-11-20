@@ -437,8 +437,50 @@ public sealed partial class GpuWorld : Node3D
                 changed++;
             }
         }
+        return changed + PlainSkins(faces, rows, recolour);
+    }
+
+    /// <summary>The people's browns (skin, and some clothes and robes) have the same painted-in light: one piece - its
+    /// brown faces joined by shared corners, a forearm, a face, a robe - in two or three shades of the ramp, darker to the
+    /// front and lighter to the side. Such a piece takes the middle brown, PlainBrown, and the sun shades it; a piece in
+    /// one brown is that paint and stays. Pieces, not the whole model, so a brown robe and the skin beside it keep apart.
+    /// Returns the faces changed.</summary>
+    int PlainSkins(List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, int rows, int[] recolour)
+    {
+        var changed = 0;
+        foreach (var model in PeopleModels)
+        {
+            if (model >= Store.Models.Length) continue;
+            var fm = Store.Models[model];
+            var rowsOf = new Dictionary<int, List<int>>();                  // face ordinal -> its rows (a face can have more than one)
+            var shade = new Dictionary<int, int>();
+            for (var i = 0; i < rows; i++)
+            {
+                if (faces[i].Model != model || faces[i].Ordinal >= fm.Faces.Length || (faces[i].Meta & CarInside.Bit) != 0) continue;
+                var colour = recolour[i] >= 0 ? recolour[i] : faces[i].Meta & 15;
+                if (Array.IndexOf(Browns, colour) < 0) continue;
+                if (!rowsOf.TryGetValue(faces[i].Ordinal, out var list)) rowsOf[faces[i].Ordinal] = list = [];
+                list.Add(i);
+                shade[faces[i].Ordinal] = colour;
+            }
+            var ords = rowsOf.Keys.ToList();
+            var cornersOf = ords.ToDictionary(o => o, o => fm.Faces[o].Edges.Where(e => e < fm.Edges.Length)
+                .SelectMany(e => new[] { fm.Edges[e].A, fm.Edges[e].B }).ToHashSet());
+            var piece = ords.ToDictionary(o => o, o => o);
+            int Find(int o) { while (piece[o] != o) o = piece[o] = piece[piece[o]]; return o; }
+            for (var a = 0; a < ords.Count; a++)
+                for (var b = a + 1; b < ords.Count; b++)
+                    if (cornersOf[ords[a]].Overlaps(cornersOf[ords[b]])) piece[Find(ords[a])] = Find(ords[b]);
+            foreach (var g in ords.GroupBy(Find))
+            {
+                if (g.Select(o => shade[o]).Distinct().Count() < 2) continue;  // one brown: its paint
+                foreach (var o in g)
+                    foreach (var i in rowsOf[o]) { recolour[i] = PlainBrown; changed++; }
+            }
+        }
         return changed;
     }
+    static readonly int[] PeopleModels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];   // you, the soldiers and the people (models.json's users)
     static readonly int[] PlainGreenModels = [0x17, 0x19];
     static readonly int[] Greens = [1, 2, 3, 4, 12, 13, 14];             // both green ramps (SunShade's families)
     const int PlainGreen = 2;                                            // the middle green: the sun takes it up the ramp or down
@@ -928,7 +970,7 @@ public sealed partial class GpuWorld : Node3D
             if (frontOnly[i]) frontWay[i] = Plane(WoundPoints(Store, faces[i]));
         GD.Print($"GpuWorld back to back: {frontOnly.Count(v => v)} faces drawn from their front only");
         var plain = PlainGreens(faces, rows, recolour);
-        GD.Print($"GpuWorld plain greens: {plain} helicopter faces one green, shaded by the sun alone");
+        GD.Print($"GpuWorld plain paint: {plain} faces whose painted-in light went (the helicopters' greens and browns, the people's two- and three-shade browns), shaded by the sun alone");
         for (var i = 0; i < rows; i++)
         {
             var f = faces[i];
