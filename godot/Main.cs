@@ -370,7 +370,10 @@ public partial class Main : Node2D
                 GD.Print($"HUNTER: frame {frame} live {gv.LiveCount} play {gv.InPlay} type {gv.PlayerType:X2} {gv.Whereabouts}");
                 if (gv.Frames3D > 0)
                     GD.Print($"HUNTER: 3d over {gv.Frames3D} frames: card feed {gv.Frame3DTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency / gv.Frames3D:F2} ms a frame; " +
-                             $"process {Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000:F2} ms, fps {Performance.GetMonitor(Performance.Monitor.TimeFps)}");
+                             $"process {Performance.GetMonitor(Performance.Monitor.TimeProcess) * 1000:F2} ms, fps {Performance.GetMonitor(Performance.Monitor.TimeFps)}; " +
+                             // the engine's own memory count (MB): all of the card's, its textures, its buffers (meshes); the program's own
+                             $"card memory {Performance.GetMonitor(Performance.Monitor.RenderVideoMemUsed) / 1048576:F1} MB (textures {Performance.GetMonitor(Performance.Monitor.RenderTextureMemUsed) / 1048576:F1}, " +
+                             $"buffers {Performance.GetMonitor(Performance.Monitor.RenderBufferMemUsed) / 1048576:F1}), program {Performance.GetMonitor(Performance.Monitor.MemoryStatic) / 1048576:F1} MB, managed {System.GC.GetTotalMemory(false) / 1048576:F1} MB");
             }
             if (window)   // the next finished draw is the first with this step in it (steps run after a draw); the PNG is written on a thread
             {
