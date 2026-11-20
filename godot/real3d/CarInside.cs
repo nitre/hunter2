@@ -20,6 +20,11 @@ public static class CarInside
     /// across the inside (x +-ShelfX) from behind the seat backs (ShelfFront) to the rear window (ShelfBack).</summary>
     const int ShelfY = 32, ShelfX = 56, ShelfFront = -34, ShelfBack = -108, Shelf = 8;
 
+    /// <summary>The ambulance's curtain (model units), light grey: the cab's open back closed off from the patients' box - a wall
+    /// at the box's front (CurtainZ, its outside wall face 6 above the cab roof), the cab's full width (x +-CurtainX, the sides)
+    /// from the floor to the cab roof (CurtainTop), facing the cab.</summary>
+    const int CurtainZ = 92, CurtainX = 120, CurtainTop = 140, Curtain = 8;
+
     /// <summary>Which side the driver sits on: -1 left (x &lt; 0), 1 right. Not known from the original.</summary>
     public const int DriverSide = -1;
 
@@ -225,6 +230,12 @@ public static class CarInside
                 var a = Corner(0, -ShelfX, ShelfY, ShelfFront); var b = Corner(0, ShelfX, ShelfY, ShelfFront);
                 var c = Corner(0, ShelfX, ShelfY, ShelfBack); var e = Corner(0, -ShelfX, ShelfY, ShelfBack);
                 Face(Shelf, a, b, c, e);
+            }
+            if (model == Ambulance)                                  // the curtain behind the seats, facing forward (as the cab's front face 25)
+            {
+                var a = Corner(0, CurtainX, 0, CurtainZ); var b = Corner(0, CurtainX, CurtainTop, CurtainZ);
+                var c = Corner(0, -CurtainX, CurtainTop, CurtainZ); var e = Corner(0, -CurtainX, 0, CurtainZ);
+                Face(Curtain, a, b, c, e);
             }
             {                                                        // the dash: its top and the face to the driver
                 var tfl = Corner(0, -p.DashX, p.DashTop, p.DashFront); var tfr = Corner(0, p.DashX, p.DashTop, p.DashFront);
