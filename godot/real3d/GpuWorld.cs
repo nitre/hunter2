@@ -412,9 +412,10 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>Which of a model's corners sit on a moving part: the walk of model.gdshaderinc, a flagged corner of kind 1
     /// (the pivot) or 2 starts a part, the unflagged corners after it are on it, any other flag ends it.</summary>
     /// <summary>The helicopters' greens are shading painted in for a fixed light - the tops the lightest, the sides darker,
-    /// the tail between, each left and right pair alike - not paint. In the 3D view the sun shades them, so every green
-    /// face of their fixed body (not the rotors) takes one green, PlainGreen, and only the sun makes it lighter or darker.
-    /// Through recolour[], so the window borders read the same green. Returns the faces changed.</summary>
+    /// the tail between, each left and right pair alike - not paint; so are the three browns of the belly. In the 3D view
+    /// the sun shades them, so every green face of the file's fixed body (not the rotors, not the cab we add) takes one
+    /// green, PlainGreen, every brown one brown, PlainBrown, and only the sun makes them lighter or darker. Through
+    /// recolour[], so the window borders read the same green. Returns the faces changed.</summary>
     int PlainGreens(List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, int rows, int[] recolour)
     {
         var changed = 0;
@@ -424,14 +425,15 @@ public sealed partial class GpuWorld : Node3D
             var part = PartCorners(fm);
             for (var i = 0; i < rows; i++)
             {
-                if (faces[i].Model != model || faces[i].Ordinal >= fm.Faces.Length) continue;
+                if (faces[i].Model != model || faces[i].Ordinal >= fm.Faces.Length || (faces[i].Meta & CarInside.Bit) != 0) continue;
                 var colour = recolour[i] >= 0 ? recolour[i] : faces[i].Meta & 15;
-                if (Array.IndexOf(Greens, colour) < 0) continue;
+                var plainColour = Array.IndexOf(Greens, colour) >= 0 ? PlainGreen : Array.IndexOf(Browns, colour) >= 0 ? PlainBrown : -1;
+                if (plainColour < 0) continue;
                 var onPart = true;                                           // every corner on a moving part: a rotor, left alone
                 foreach (var e in fm.Faces[faces[i].Ordinal].Edges)
                     if (e < fm.Edges.Length && !(fm.Edges[e].A < part.Length && part[fm.Edges[e].A] && fm.Edges[e].B < part.Length && part[fm.Edges[e].B])) onPart = false;
                 if (onPart) continue;
-                recolour[i] = PlainGreen;
+                recolour[i] = plainColour;
                 changed++;
             }
         }
@@ -440,6 +442,8 @@ public sealed partial class GpuWorld : Node3D
     static readonly int[] PlainGreenModels = [0x17, 0x19];
     static readonly int[] Greens = [1, 2, 3, 4, 12, 13, 14];             // both green ramps (SunShade's families)
     const int PlainGreen = 2;                                            // the middle green: the sun takes it up the ramp or down
+    static readonly int[] Browns = [9, 10, 11];
+    const int PlainBrown = 10;                                           // the middle brown
 
     static bool[] PartCorners(CardModels.Model md)
     {
