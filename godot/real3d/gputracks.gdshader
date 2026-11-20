@@ -41,6 +41,7 @@ varying float age_;                               // the mark's age, 0..1 of MAR
 varying float clod_;                              // a clod's palette colour, -1 for a tread bar
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int i = VERTEX_ID / 6, k = VERTEX_ID % 6;
     vec4 a = texelFetch(mark_tex, ivec2(i, 0), 0);
     vec4 b = texelFetch(mark_tex, ivec2(i, 1), 0);

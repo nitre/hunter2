@@ -27,6 +27,7 @@ varying flat float own_light;                     // past the ramp's lightest pa
 varying flat vec3 own_tint;                       // MODEL COLOURS: the blown-up model's tint, as its faces had it; 0 = none
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int per = tri_slots * 3;
     int row = INSTANCE_ID;                                     // one blast's corners drawn once a blast (GpuWorld.SlotRows)
     int rem = VERTEX_ID;

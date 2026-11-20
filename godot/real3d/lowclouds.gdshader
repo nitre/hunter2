@@ -22,6 +22,7 @@ uniform bool sun_up = false;         // the sun is up (Objects.SunOffset not nul
 uniform vec3 sun_dir = vec3(0.0, 1.0, 0.0);   // toward the sun, unit length, x east / y up / z north (SunShade.Toward)
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int k = VERTEX_ID % 6;
     cid = VERTEX_ID / 6;
     vec2 corner = k == 0 || k == 3 ? vec2(0.0) : k == 1 ? vec2(1.0, 0.0) : k == 5 ? vec2(0.0, 1.0) : vec2(1.0);
@@ -41,7 +42,7 @@ void fragment() {
     int level = low_cloud_level(c, uv, sun_x);                              // -1 sky, 0 base shadow .. 4 bright top
     if (level < 0) discard;
     float keep = clamp((from_eye - low_fade_near) / max(1.0, low_fade_far - low_fade_near), 0.0, 1.0);
-    ivec2 g = ivec2(floor(FRAGCOORD.xy / gpu_px));                           // near the camera: the classic dot dissolve
+    ivec2 g = ivec2(floor(FRAGCOORD.xy / vec2(gpu_px_x, gpu_px)));                           // near the camera: the classic dot dissolve
     if (keep * 16.0 <= float(LOW_CLOUD_DOTS[(g.y & 3) * 4 + (g.x & 3)])) discard;
     ALBEDO = to_linear(low_cloud_rgb8(level, depth_, FRAGCOORD.x) / 255.0);
 }

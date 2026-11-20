@@ -76,6 +76,7 @@ void border_paint(int id, inout int colour, out vec3 tint, out float light) {
 }
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int per = line_slots * 6;
     int row = INSTANCE_ID;                                     // one row's quads drawn once a record (GpuWorld.SlotRows)
     int rem = VERTEX_ID;
@@ -101,10 +102,11 @@ void vertex() {
     own_light = light;
     tag = float(colour);
     if (ok) {
-        vec2 sa = ca.xy / ca.w * vp_size * 0.5, sb = cb.xy / cb.w * vp_size * 0.5;   // the two ends in pixels
+        vec2 gp = vec2(gpu_px_x, gpu_px);                                            // viewport pixels a game pixel (wide in the TV looks)
+        vec2 sa = ca.xy / ca.w * vp_size * 0.5 / gp, sb = cb.xy / cb.w * vp_size * 0.5 / gp;   // the two ends in game pixels
         vec2 d = sb - sa;
         d = length(d) > 0.0001 ? normalize(d) : vec2(1.0, 0.0);
-        vec2 n = vec2(-d.y, d.x) * side * gpu_px * 0.5;                              // half a game pixel each side
+        vec2 n = vec2(-d.y, d.x) * side * 0.5 * gp;                                  // half a game pixel each side, in viewport pixels
         vec4 e = end == 0 ? ca : cb;
         POSITION = vec4(e.xy + n * 2.0 / vp_size * e.w, e.z, e.w);
     } else {

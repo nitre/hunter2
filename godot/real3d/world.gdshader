@@ -16,6 +16,7 @@ varying vec2 sea_at;   // the sea pixel's world x and z: its shore distance and 
 varying float depth_;  // HAZE: how far ahead of the eye (POSITION.w), as groundgpu.gdshader
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     // (POSITION is set for EVERY vertex: a shader that writes it takes over the projection for all of them)
     vec3 eye;
     if (force_idx == 16) {
@@ -36,7 +37,7 @@ void fragment() {
     // original's sea starts below its own edge (sky_line 5): above that the plane shows the sky's band there
     int idx = force_idx == 16 && floor(FRAGCOORD.y) <= sky_line(5) ? 15 : force_idx;
     bool backdrop = idx == 15 && force_idx == 15;
-    int gx = int(floor(FRAGCOORD.x / gpu_px)), gy = int(floor(FRAGCOORD.y / gpu_px));
+    int gx = int(floor(FRAGCOORD.x / gpu_px_x)), gy = int(floor(FRAGCOORD.y / gpu_px));
     int cloud = backdrop ? cloud_at(gx, gy) : 0;                     // CLOUDS: on the sky backdrop only
     ALBEDO = cloud > 0 ? to_linear(cloud_rgb8(world_rgb8(15, FRAGCOORD), cloud) / 255.0)
            : backdrop && cloud_on ? to_linear(night_rgb8(world_rgb8(15, FRAGCOORD), gx, gy) / 255.0)   // CLOUDS' night: the stars and the moon, behind the clouds (stars.gdshaderinc)

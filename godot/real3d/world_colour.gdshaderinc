@@ -18,6 +18,17 @@ uniform int height0e = 0;    // the camera's height ($E): the shader works the 6
 uniform bool sky_steps = false;                  // SKY: SMOOTH - the stepped full-colour bands (sky_aga), not the 6 flat ones
 uniform sampler2D sky_tex : filter_nearest;      // the A500 gradient's 140 row colours: the overlay map's marks only (mapmarks.gdshader)
 uniform float gpu_px = 1.0;                      // viewport pixels per game row
+// The view drawn at the screen's own pixels in the TV looks, where a game pixel is wider than tall (16/15, Display):
+// gpu_px_x viewport pixels per game column (= gpu_px with square pixels), and gpu_wide = gpu_px_x / gpu_px, the
+// projection's sideways squeeze so the wider viewport shows the same world as a square-pixel one (Camera3D keeps the
+// height: more width would otherwise be more world). Real3DView sets all three.
+uniform float gpu_px_x = 1.0;
+uniform float gpu_wide = 1.0;
+
+// Each 3D pass's vertex() starts with PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX). The camera keeps its
+// height (Real3DView: frustum, KeepAspect Height), so a viewport gpu_wide times wider only divides the sideways scale
+// [0][0] by gpu_wide (the frustum's sideways offset term [2][0] stays as it is): this puts it back.
+mat4 wide_projection(mat4 p) { p[0][0] *= gpu_wide; return p; }
 
 vec3 nibbles(int c) { return vec3(float((c >> 8) & 15), float((c >> 4) & 15), float(c & 15)); }
 
@@ -81,7 +92,7 @@ const int TOD_BELT[6] = int[6](0x124, 0x236, 0x979, 0xB89, 0x537, 0x426);   // a
 float tod_smooth(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 
 // The direction of viewport column fx from the sun's, radians (the clouds' own column turn, clouds.gdshaderinc cloud_in).
-float tod_d(float fx) { return tod_yaw - atan((floor(fx / gpu_px) + 0.5 - 160.0) / 256.0) - tod_sun_az; }
+float tod_d(float fx) { return tod_yaw - atan((floor(fx / gpu_px_x) + 0.5 - 160.0) / 256.0) - tod_sun_az; }
 
 // Band k's colour (0 the top .. 5 at the horizon) d radians from the sun's direction, at full light: nibbles 0..15, unrounded.
 vec3 tod_band(int k, float d) {

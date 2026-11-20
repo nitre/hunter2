@@ -35,6 +35,7 @@ varying flat int paint_;                          // the face's own colour (SHAD
 varying vec2 ground_xz;                           // where on the map the shadow lies, world units
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     vec3 p; int colour; bool pull;
     paint_ = 0;
     ground_xz = vec2(0.0);

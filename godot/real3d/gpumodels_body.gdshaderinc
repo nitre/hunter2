@@ -55,6 +55,7 @@ bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out
 }
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int vid = INSTANCE_ID * tri_slots * 3 + VERTEX_ID;        // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows)
     int corner = vid - (vid / 3) * 3;
     int first = vid - corner;
@@ -135,7 +136,7 @@ void vertex() {
             }
         }
         tag = float(col);
-        vec2 half_vp = vp_size * 0.5;
+        vec2 half_vp = vp_size * 0.5 / vec2(gpu_px_x, gpu_px);  // in GAME pixels (wide in the TV looks): the sums below are in them
         vec2 s0 = c0.xy / c0.w * half_vp, s1 = c1.xy / c1.w * half_vp, s2 = c2.xy / c2.w * half_vp;
         // the longest edge (i, j) and the corner k opposite it
         float l01 = length(s1 - s0), l12 = length(s2 - s1), l20 = length(s0 - s2);
@@ -152,13 +153,13 @@ void vertex() {
             vec2 n = vec2(-d.y, d.x);
             float t = dot(sk - si, n);
             float h = abs(t);
-            if (h < gpu_px && !stays_thin(first)) {                                       // a sheet's side and resting copy stay as thin as they are
+            if (h < 1.0 && !stays_thin(first)) {                                          // a sheet's side and resting copy stay as thin as they are
                 // one game pixel across, widened evenly about the triangle's own line: an edge-on face's two
                 // triangles then widen alike
-                vec2 out_ = n * (t >= 0.0 ? 1.0 : -1.0) * (gpu_px - h) * 0.5;
+                vec2 out_ = n * (t >= 0.0 ? 1.0 : -1.0) * (1.0 - h) * 0.5;
                 if (corner == k) mine_px += out_;                                     // the far corner out half the shortfall
-                else if (corner == i) mine_px += -out_ - d * 0.5 * gpu_px;            // the long edge back the other half,
-                else mine_px += -out_ + d * 0.5 * gpu_px;                             // and half a pixel longer each end
+                else if (corner == i) mine_px += -out_ - d * 0.5;                     // the long edge back the other half,
+                else mine_px += -out_ + d * 0.5;                                      // and half a pixel longer each end
             }
         }
         POSITION = vec4(mine_px / half_vp * mine.w, mine.z, mine.w);

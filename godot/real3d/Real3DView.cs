@@ -41,13 +41,18 @@ public sealed partial class Real3DView : Node
     public float CloseUp = 1;
     /// <summary>The showcase's camera instead of the game's (null = the game's).</summary>
     public FreeCamera? Free;
-    int scale;
+    int scale;                                                          // viewport pixels a game row
+    float scaleX;                                                       // ... and a game column: wider in the TV looks (16/15), = scale with square pixels
+
+    /// <summary>The view's width in viewport pixels at sx a game column (the screen's own pixels: no stretch after).</summary>
+    public static int Across(float sx) => (int)System.Math.Round(Rules.View.Width * sx);
 
     /// <summary>GPU SCALE changed (GameView.FollowScale): the view drawn at the new size; gpu_px follows next Frame.</summary>
-    public void Rescale(int s)
+    public void Rescale(float sx, int s)
     {
-        scale = s;
-        Viewport.Size = new Vector2I(Rules.View.Width * s, Rules.View.Height * s);
+        (scaleX, scale) = (sx, s);
+        Viewport.Size = new Vector2I(Across(sx), Rules.View.Height * s);
+        GD.Print($"3D VIEW: {Viewport.Size.X} x {Viewport.Size.Y}, {sx:F3} x {s} viewport pixels a game pixel");
     }
     const float Near = 16f, Far = 100000f;                             // just past the map's diagonal (~92700): depth precision kept fine
 
@@ -56,11 +61,11 @@ public sealed partial class Real3DView : Node
     public GpuWorld Gpu { get; }
     ShaderMaterial[]? viewed, painted;   // made once: the camera's materials (the sea + the world's) and the palette's (+ the sky)
 
-    public Real3DView(byte[] map, int scale, GpuWorld gpu)
+    public Real3DView(byte[] map, float scaleX, int scale, GpuWorld gpu)
     {
         Viewport = new SubViewport
         {
-            Size = new Vector2I(Rules.View.Width * scale, Rules.View.Height * scale),
+            Size = new Vector2I(Across(scaleX), Rules.View.Height * scale),
             OwnWorld3D = true,
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
         };
@@ -71,6 +76,8 @@ public sealed partial class Real3DView : Node
         Sea = new ShaderMaterial { Shader = shader };
         Sea.SetShaderParameter("force_idx", 16);                         // the sea: one colour out to the real horizon
         this.scale = scale;
+        this.scaleX = scaleX;
+        GD.Print($"3D VIEW: {Viewport.Size.X} x {Viewport.Size.Y}, {scaleX:F3} x {scale} viewport pixels a game pixel");
 
         var world = new Node3D { Scale = new Vector3(1, 0.5f, 1) };    // heights halved: the original's 128 vs 256
         Viewport.AddChild(world);
@@ -224,6 +231,8 @@ public sealed partial class Real3DView : Node
             m.SetShaderParameter("tod_sun_az", sunAz);
             m.SetShaderParameter("tod_yaw", todYaw);
             m.SetShaderParameter("gpu_px", (float)scale);
+            m.SetShaderParameter("gpu_px_x", scaleX);                // a game column: wider than a row in the TV looks
+            m.SetShaderParameter("gpu_wide", scaleX / scale);        // the projection's sideways squeeze (world_colour.gdshaderinc wide_projection)
             m.SetShaderParameter("haze_mode", haze);                 // HAZE: off / bands / fine
             m.SetShaderParameter("haze_far", hazeFar);               // the chosen distance's far edge (ViewDistance.FarEdge)
             m.SetShaderParameter("sea_living", livingSea);           // SEA: original / living (the sea plane and the card's coast water)

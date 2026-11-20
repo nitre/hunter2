@@ -80,6 +80,7 @@ varying vec2 pat_at;                              // GROUND PATTERN (SPECKS): th
 varying vec2 sea_at;                              // SEA: LIVING - the water's world x and z, as the sea plane's (world.gdshader)
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int n = max(cuts, 1);                             // pieces per triangle side
     int id = VERTEX_ID;
     int cell = id / (6 * n * n);

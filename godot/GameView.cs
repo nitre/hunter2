@@ -96,6 +96,7 @@ public partial class GameView : Node2D
     bool help;
     HelpOverlay? helpOverlay;
     int gpuScale = 1;                                        // gpu_scale: the 3D view's SubViewport at s, its sprite back at 1/s (game pixels on screen)
+    float gpuScaleX = 1;                                     // ... and its viewport pixels a game column: wider in the TV looks (WantedScale)
     Sky? gpuSky;
     Image? gpuSkyImage;                                      // sky_steps: 1 x 140 row colours, uploaded each frame
     ImageTexture? gpuSkyTex;
@@ -305,7 +306,7 @@ public partial class GameView : Node2D
     /// software picture underneath shows every full screen, and the panel when the card's own (PanelGpu) is not up.</summary>
     void Setup3D()
     {
-        gpuScale = WantedScale();
+        (gpuScaleX, gpuScale) = WantedScale();
         var fine = play.State.Ground.Fine;
         (cardFine, cardMap) = (fine, play.State.Terrain.Map);            // what the card's ground was built from (live "eye")
         if (System.Environment.GetEnvironmentVariable("HUNTER_LIVE") is not null)   // live "wire": Godot keeps each mesh's edges only when asked
@@ -317,7 +318,7 @@ public partial class GameView : Node2D
             var lvl = FineGround.Reliefs[Math.Clamp(Settings.GroundRelief, 0, FineGround.Reliefs.Count - 1)];
             fine = FineGround.Grow(play.State.Terrain, seed, Settings.FinerGround, lvl.Num, lvl.Den, seed, lvl.Dim, lvl.Hold);
         }
-        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
+        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScaleX, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
         var card = real3d.Gpu;
         if (pictureOnly) card.PictureLift = (x, z) => fine!.Height(x, z) - play.State.Ground.Height(x, z);
         Objects.Exploded = (record, from) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
@@ -330,7 +331,7 @@ public partial class GameView : Node2D
             Texture = real3d.Viewport.GetTexture(),
             Centered = false,
             TextureFilter = TextureFilterEnum.Nearest,
-            Scale = new Vector2(1f / gpuScale, 1f / gpuScale),
+            Scale = new Vector2(1f / gpuScaleX, 1f / gpuScale),
             Visible = false,
         };
         AddChild(real3dSprite);
@@ -471,7 +472,7 @@ public partial class GameView : Node2D
                 System.Enum.TryParse(kv[0], true, out Shots.Kind kind);
                 cinemaShots[i] = (kind, int.Parse(kv[1]));
             }
-            real3d!.Viewport.Size = new Vector2I(View.Width * gpuScale, (Play.PanelTop + Rules.Panel.Rows) * gpuScale);   // the panel's 60 rows join the view: the whole picture
+            real3d!.Viewport.Size = new Vector2I(Real3DView.Across(gpuScaleX), (Play.PanelTop + Rules.Panel.Rows) * gpuScale);   // the panel's 60 rows join the view: the whole picture
             shots ??= new Shots();
             shots.Cut(cinemaShots[0].Kind);
             cinemaAt = Audio.Frame;
@@ -506,13 +507,18 @@ public partial class GameView : Node2D
     bool filmScreen;
     int filmKills = -1;
 
-    /// <summary>GPU SCALE: the chosen 1 / 2 / 4, or AUTO - the window's own whole scale (Display's layout: game rows to
-    /// screen rows), so a drawn pixel is a screen pixel; 1 before the window is laid out.</summary>
-    static int WantedScale()
+    /// <summary>GPU SCALE: the chosen 1 / 2 / 4 (square, drawn at that and stretched), or AUTO - the screen's own pixels
+    /// (Display's layout): Y the window's whole scale (game rows to screen rows), X the picture's width over 320 - wider in
+    /// the TV looks, whose game pixels are 16/15 as wide as tall - so a drawn pixel is a screen pixel both ways and nothing
+    /// is stretched after (at Y alone the view was drawn 7 wide and stretched to 7.47 at 1440 rows); 1 before the window
+    /// is laid out.</summary>
+    static (float X, int Y) WantedScale()
     {
-        if (Settings.GpuScale > 0) return Settings.GpuScale;
-        var h = Display.I.Picture.H;
-        return h > 0 ? System.Math.Max(1, h / Display.FrameRows(Display.I.Look)) : 1;
+        if (Settings.GpuScale > 0) return (Settings.GpuScale, Settings.GpuScale);
+        var (w, h) = (Display.I.Picture.W, Display.I.Picture.H);
+        if (h <= 0 || w <= 0) return (1, 1);
+        var y = System.Math.Max(1, h / Display.FrameRows(Display.I.Look));
+        return (w / 320f, y);
     }
 
     /// <summary>The 3D view follows GPU SCALE as it changes (the menu, the window's size, F10's look); not while a
@@ -520,10 +526,10 @@ public partial class GameView : Node2D
     void FollowScale()
     {
         var want = WantedScale();
-        if (want == gpuScale || cinema is not null) return;
-        gpuScale = want;
-        real3d!.Rescale(want);
-        real3dSprite!.Scale = new Vector2(1f / want, 1f / want);
+        if (want == (gpuScaleX, gpuScale) || cinema is not null) return;
+        (gpuScaleX, gpuScale) = want;
+        real3d!.Rescale(want.X, want.Y);
+        real3dSprite!.Scale = new Vector2(1f / want.X, 1f / want.Y);
     }
 
     /// <summary>NEW, not the original (VIEW: WIDE): the 3D view as wide as the window, centred on the 320-wide
@@ -532,11 +538,11 @@ public partial class GameView : Node2D
     void Wide3D()
     {
         var open = showcase ? showWide : wide3d ? 1f : 0f;               // the showcase opens it like curtains
-        if (open <= 0 && real3d!.Viewport.Size.X == View.Width * gpuScale) return;
+        if (open <= 0 && real3d!.Viewport.Size.X == Real3DView.Across(gpuScaleX)) return;
         var picture = Display.I.Picture;
         if (picture.W <= 0) return;
         var across = View.Width + (View.Width * (float)GetWindow().Size.X / picture.W - View.Width) * open;   // in game pixels
-        var w = (int)Math.Round(across * gpuScale);
+        var w = (int)Math.Round(across * gpuScaleX);
         if (real3d!.Viewport.Size.X != w) real3d.Viewport.Size = new Vector2I(w, View.Height * gpuScale);
         real3dSprite!.Position = new Vector2(-(across - View.Width) / 2, 0);
     }
@@ -605,7 +611,7 @@ public partial class GameView : Node2D
         play.WithInBetweenPoses(() =>                                                   // the card reads the records itself: at their in-between places, as the camera
             real3d!.Gpu.Update(play.State.Entities, play.State.Anim, inside, shell, play.State.Models.Buf, play.State.DebrisPos, real3d.Gpu is { Ready: true } ? play.StoredLooks() : null,
                 play.State, Settings.SunShading, play.OwnShadows, Settings.ViewDistance, play.PictureCamera ?? play.State.Camera,
-                real3d.Viewport.Size.X / (double)(View.Width * gpuScale), Settings.CardPieces, Settings.GroundCuts, TurnedView(play.PictureCamera ?? play.State.Camera), clock,
+                real3d.Viewport.Size.X / (double)Real3DView.Across(gpuScaleX), Settings.CardPieces, Settings.GroundCuts, TurnedView(play.PictureCamera ?? play.State.Camera), clock,
                 play.AnimFraction, Settings.OwnColours, Settings.SeeThroughGlass));                  // SMOOTH PARTS: the step's fraction, the card slides the moving parts across it
         real3d!.Frame(play.PictureCamera ?? play.State.Camera, ViewDistanceNow().Distance, ViewDistanceNow().Lift, inside ? shell : 0, inside, play.State.Horizon1518, raw,
             play.SkySteps,                                                                  // SKY: SMOOTH - the stepped full-colour bands

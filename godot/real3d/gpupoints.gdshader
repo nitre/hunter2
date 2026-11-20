@@ -13,6 +13,7 @@ varying flat float tag;
 varying float depth_;                             // HAZE: how far ahead of the eye (POSITION.w)
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     vec3 p; int colour;
     if (gpu_dot_vertex(VERTEX_ID, p, colour)) {
         tag = float(colour);
@@ -20,7 +21,7 @@ void vertex() {
         POSITION = PROJECTION_MATRIX * vec4(eye * 0.996, 1.0);
         ivec2 pix;                                    // on the game's camera: the original's own pixel (whole-number divide)
         if (view_pixel(int(p.x), int(p.y), int(p.z), pix)) {
-            float vx = (float(pix.x) + 0.5) * gpu_px + (VIEWPORT_SIZE.x - 320.0 * gpu_px) * 0.5;   // column $A0 stays mid-picture
+            float vx = (float(pix.x) + 0.5) * gpu_px_x + (VIEWPORT_SIZE.x - 320.0 * gpu_px_x) * 0.5;   // column $A0 stays mid-picture
             float vy = (float(pix.y) + 0.5) * gpu_px;
             POSITION.xy = (vec2(vx / VIEWPORT_SIZE.x, vy / VIEWPORT_SIZE.y) * 2.0 - 1.0) * POSITION.w;
         }

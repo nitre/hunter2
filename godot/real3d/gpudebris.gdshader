@@ -14,6 +14,7 @@ varying float depth_;                             // HAZE: how far ahead of the 
 uniform bool debris_off = false;     // EXPLOSIONS: PIECES - the card's own pieces (gpupieces.gdshader) stand in for these
 
 void vertex() {
+    PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     vec3 p; int colour;
     if (!debris_off && gpu_debris_vertex(VERTEX_ID, p, colour)) {
         tag = float(colour);
