@@ -295,6 +295,9 @@ public partial class GameView : Node2D
         ? (turn, secs) : (0f, 1f);
     DemoCamera? demoCamera;                                         // DEMO CAMERA: MOVING (rules/DemoCamera.cs), made at the demo's first frame
     static readonly bool traceDemo = System.Environment.GetEnvironmentVariable("HUNTER_TRACE_DEMO") is not null;
+    // test only (HUNTER_DAY_SPEED=n, run_game --day-speed): the clock n minutes on a frame - the whole day goes by while
+    // the player stands still, to watch the sun and the shadows go round
+    static readonly int DaySpeed = int.TryParse(System.Environment.GetEnvironmentVariable("HUNTER_DAY_SPEED"), out var ds) ? ds : 0;
     static readonly bool noPaint = System.Environment.GetEnvironmentVariable("HUNTER_NO_PAINT") is not null;   // verification: the 3D view's pass (no flat painting) on a headless run
     readonly float spin3d = float.TryParse(System.Environment.GetEnvironmentVariable("HUNTER_SPIN"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var s) ? s : 0;
     Sprite2D? real3dSprite;
@@ -598,6 +601,12 @@ public partial class GameView : Node2D
             real3dSprite.Visible = false;
             real3d.Viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
             return;
+        }
+        if (DaySpeed > 0)                                                // the day test: the clock runs fast, the hour logged with its frame
+        {
+            var hour = play.State.Hour;
+            Hunter.Rules.Blank.FastClock(play.State, DaySpeed);
+            if (play.State.Hour != hour) GD.Print($"DAYTEST: {play.State.Hour:D2}:{play.State.Minute:D2} at frame {Audio.Frame}");
         }
         var raw = new RawPalette(rawView, rawSky,
             fade, play.SkyLevel, play.DeathStep, play.State.DaylightLevel, play.SmoothDrawLevel, play.PanelLevel);   // the game's own words and levels: the shaders fade them (the screen's fade too, as the original's Faded)
@@ -1110,7 +1119,11 @@ public partial class GameView : Node2D
     {
         live?.Pump(LiveRun);                               // development only: HUNTER_LIVE's commands (GameView.Live.cs)
         LiveWatch();
-        if (LiveFrozen()) return;
+        if (LiveFrozen())
+        {
+            if (DaySpeed > 0 && real3d is not null && InPlay) { play.DayTestLight(); Real3DFrame(); }   // the day test: the world stands, the clock, its light and the picture go on
+            return;
+        }
         if (!scripted) { TrackMouse(); Hover(); UpdateReticle(); }   // $C77C: the pointer moves every blank
         play.HasSecondView = false;                            // mp_views: true again only if his pass draws this frame
         var rgb = frame;

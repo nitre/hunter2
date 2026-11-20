@@ -533,6 +533,16 @@ public sealed partial class Play
     public int PanelLevel => _panelFades ? FadeLevel : 15;
     /// <summary>PlayStart's fade runs: no pass meanwhile.</summary>
     public bool Starting => _playStarting;
+
+    /// <summary>Test only (the day test, a frozen game whose clock runs on): the blank's light steps alone - the fade
+    /// toward the hour's light and the sky's level following it - so the picture brightens and darkens with the hours.</summary>
+    public void DayTestLight()
+    {
+        Fade.FadeTarget = State.DaylightLevel;
+        if (FadeTarget != _lastFadeTarget) { _lastFadeTarget = FadeTarget; Fade.FadeToLight(2); }
+        Fade.Blank();
+        if ((State.Light184 & 0x8000) == 0 && !_deathFadeOn) SkyLevel = FadeLevel;
+    }
     /// <summary>A screen's waited fade runs (a store's door, the store's, the map's, the log book's):
     /// the original takes no click until its WaitFade spin lets go.</summary>
     public bool ScreenFading => Mode == PlayMode.Screen && (_storeOpening || _logOpening || Fade.FadeActive);

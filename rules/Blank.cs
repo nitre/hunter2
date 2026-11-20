@@ -165,6 +165,13 @@ public static class Blank
         s.Panel.Clock(s);
     }
 
+    /// <summary>Test only (HUNTER_DAY_SPEED, the day test): the clock moved on that many minutes at once, each as
+    /// AdvanceClockMinute moves it (the panel and the hour's light with it); nothing else a minute does runs.</summary>
+    public static void FastClock(WorldState s, int minutes)
+    {
+        for (var i = 0; i < minutes; i++) Clock(s);
+    }
+
     /// <summary>$2F56 (from the player set-up $2E52): the camera's base distance from the size of
     /// the player's model (+$25): half-sizes from its header +4/+8 ($3346), the larger, << 4,
     /// + $20F, rounded down to 16. Target = base, step $10, zoom 0.</summary>
