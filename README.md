@@ -72,10 +72,9 @@ turn them on.
 
 ## Download
 
-Windows and Mac builds are on the [Releases](../../releases) page.
+Windows builds are on the [Releases](../../releases) page: unzip and run `hunter2.exe`.
 
-- Windows: unzip and run `hunter2.exe`.
-- Mac (untested, not yet run on a Mac): unzip and follow `READ ME FIRST - Mac.txt`. Please report whether it works.
+The Mac download does not work yet. Build it yourself instead (see [On a Mac](#on-a-mac) below).
 
 There is no Linux build yet.
 
@@ -95,7 +94,35 @@ dotnet build
 On Windows, `hunter2.bat` does the same if the `GODOT` environment variable points at the Godot executable.
 
 To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (Windows Desktop and macOS
-presets are included). Copy `game_data/` next to the exported executable, or on a Mac next to `Hunter.app`.
+presets are included). Copy `game_data/` next to the exported executable, or on a Mac next to `hunter2.app`.
+
+### On a Mac
+
+1. Install the .NET 10 SDK from <https://dotnet.microsoft.com/download/dotnet/10.0> (Arm64 for an M1/M2/M3/M4 Mac,
+   x64 for an Intel Mac). In Terminal, `dotnet --version` should then print 10.something.
+2. Download `Godot_v4.7.2-stable_mono_macos.universal.zip` from
+   <https://github.com/godotengine/godot/releases/tag/4.7.2-stable>, unzip it and move `Godot_mono.app` to
+   Applications.
+3. Get this repository: `git clone https://github.com/nitre/hunter2.git`, or Code > Download ZIP on this page and unzip
+   (the folder is then called `hunter2-main`; use that name below).
+4. In Terminal:
+
+   ```
+   cd hunter2/godot
+   dotnet build
+   /Applications/Godot_mono.app/Contents/MacOS/Godot --path .
+   ```
+
+   The game starts in a window. Run the last two lines again to start it later.
+
+If macOS says Godot can't be opened, Control-click `Godot_mono.app` in Finder, choose Open, then try step 4 again.
+
+To make your own `hunter2.app` instead:
+
+1. Open the project in the Godot editor: `/Applications/Godot_mono.app/Contents/MacOS/Godot --path . -e`
+2. Editor > Manage Export Templates > Download and Install.
+3. Project > Export, pick macOS, Export Project, and save it as `hunter2.app`.
+4. Copy the repository's `game_data` folder into the same folder as `hunter2.app`.
 
 ## Game data
 
