@@ -251,7 +251,20 @@ public partial class Main : Node2D
         catch (GameDataMissingException e)
         {
             GD.Print("HUNTER: " + e.Message);
-            AddChild(new Label { Text = "Game data missing.\nRun the asset build\n(see godot/README.md).", Position = new Vector2(8, 8) });
+            // where it looked, and what to do: macOS runs a downloaded app it has not cleared from a hidden temporary copy
+            // (/AppTranslocation/), which holds the app alone, so the game_data beside it is never found there
+            var hint = dir.Contains("/AppTranslocation/")
+                ? "macOS is running Hunter from a temporary copy, away from its game_data folder. To fix it once: quit, open Terminal, type  xattr -cr  and a space, drag the folder that holds Hunter.app and game_data into the Terminal window, press Return, then open Hunter.app again."
+                : OS.HasFeature("editor")
+                    ? "Build it from the original disk: see README.md, Game data."
+                    : "Keep the game_data folder next to the program (on a Mac, next to Hunter.app).";
+            AddChild(new Label
+            {
+                Text = $"Game data missing.\n\nLooked in:\n{dir}\n\n{hint}",
+                Position = new Vector2(8, 8), Size = new Vector2(304, 184),
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,   // a long folder path is broken where it must be
+                LabelSettings = new LabelSettings { FontSize = 8 },
+            });
             return;
         }
 

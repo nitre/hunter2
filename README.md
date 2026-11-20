@@ -94,7 +94,7 @@ dotnet build
 On Windows, `hunter2.bat` does the same if the `GODOT` environment variable points at the Godot executable.
 
 To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (Windows Desktop and macOS
-presets are included). Copy `game_data/` next to the exported executable, or on a Mac next to `hunter2.app`.
+presets are included). Copy `game_data/` next to the exported executable, or on a Mac next to `Hunter.app`.
 
 ### On a Mac
 
@@ -117,12 +117,12 @@ presets are included). Copy `game_data/` next to the exported executable, or on 
 
 If macOS says Godot can't be opened, Control-click `Godot_mono.app` in Finder, choose Open, then try step 4 again.
 
-To make your own `hunter2.app` instead:
+To make your own `Hunter.app` instead:
 
 1. Open the project in the Godot editor: `/Applications/Godot_mono.app/Contents/MacOS/Godot --path . -e`
 2. Editor > Manage Export Templates > Download and Install.
-3. Project > Export, pick macOS, Export Project, and save it as `hunter2.app`.
-4. Copy the repository's `game_data` folder into the same folder as `hunter2.app`.
+3. Project > Export, pick macOS, Export Project, and save it as `Hunter.app`.
+4. Copy the repository's `game_data` folder into the same folder as `Hunter.app`.
 
 ## Game data
 
