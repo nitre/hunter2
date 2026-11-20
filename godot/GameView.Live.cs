@@ -72,7 +72,8 @@ public partial class GameView
         get ROW OFF [N]           N bytes (default 2) of record ROW from OFF, hex
         set ROW OFF HEXBYTES      write bytes into record ROW from OFF (e.g. set 0 0x25 3c)
         move ROW X Z [Y]          place record ROW (Y default: the ground there)
-        place REC X Z [TURN]      move world grid record REC (tools/probes/world_types.py's number)
+        place REC X Z [TURN] [keep] [y=H]  move world grid record REC (tools/probes/world_types.py's number); keep: it stays
+                                  in its own slot, only its place changes (a frozen still: past the 8 a patch holds); y=H: H above the ground
         setting KEY LABEL         a setting as the menu words it (e.g. setting haze FINE)
         ground X Z [X Z ...]      the ground's height at each place
         clock HOUR MINUTE         the game clock (the sun follows)
@@ -109,12 +110,12 @@ public partial class GameView
     /// <summary>Moves world grid record rec (tools/probes/world_types.py's number) to x:z - into the first free slot
     /// of that place's cell ($82BA), as a write-back would; the old slot freed; turn: the turn byte (0 = north,
     /// growing east). HUNTER_PLACE and the live "place".</summary>
-    string PlaceRecord(int rec, int x, int z, int? turn)
+    string PlaceRecord(int rec, int x, int z, int? turn, bool keep = false, int lift = 0)
     {
         var grid = play.State.Grid;
         var from = rec * 16;
         var cell = ((z >> 1) & 0x7800) + ((x >> 5) & 0x780);
-        var to = Enumerable.Range(0, 8).Select(k => cell + k * 16).FirstOrDefault(r => (grid[r] | grid[r + 1]) == 0, -1);
+        var to = keep ? from : Enumerable.Range(0, 8).Select(k => cell + k * 16).FirstOrDefault(r => (grid[r] | grid[r + 1]) == 0, -1);
         if (to < 0) return $"cell of {x}:{z} full";
         Array.Copy(grid, from, grid, to, 16);
         if (to != from) Array.Clear(grid, from, 16);
@@ -122,7 +123,7 @@ public partial class GameView
         grid[to + 10] = (byte)(z >> 8); grid[to + 11] = (byte)z;
         // its height too (+8): the ground at the new place. Left as the old place's, the thing hung in the air or sat in
         // the ground there, and the game's pitch for a parked vehicle ($42A6: its height less the ground ahead) came out steep
-        var h = play.State.Ground.Height((ushort)x, (ushort)z);
+        var h = play.State.Ground.Height((ushort)x, (ushort)z) + lift;   // y=: that far above the ground (a bird in the sky)
         grid[to + 8] = (byte)(h >> 8); grid[to + 9] = (byte)h;
         if (turn is { } t) grid[to + 12] = (byte)t;
         return $"record {rec} -> slot {to / 16} at {x}:{z}";
@@ -297,7 +298,13 @@ public partial class GameView
                 e.SetW(0x74, g);                                                        // the ground under it, as the game keeps it
                 return "ok";
             }
-            case "place": return PlaceRecord(N(1), N(2), N(3), a.Length > 4 ? N(4) : null);
+            case "place":
+            {
+                var extra = a.Skip(4).ToList();                             // [TURN] [keep] [y=HEIGHT above the ground]
+                var lift = extra.FirstOrDefault(e => e.StartsWith("y=")) is { } ys ? int.Parse(ys[2..]) : 0;
+                var turnArg = extra.FirstOrDefault(e => e != "keep" && !e.StartsWith("y="));
+                return PlaceRecord(N(1), N(2), N(3), turnArg is null ? null : ParseNum(turnArg), extra.Contains("keep"), lift);
+            }
             case "setting": SettingsApply(a[1], string.Join(' ', a.Skip(2))); return "ok";
             case "ground": return string.Join(" ", Enumerable.Range(0, (a.Length - 1) / 2).Select(i =>   // height, and L (land) or S (sea) as movement's $36AA sees it
             {

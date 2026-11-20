@@ -390,8 +390,8 @@ public sealed partial class GpuWorld : Node3D
     {
         (0x17, new Color(0, 0, 0), true, 2, 0.70f, 0.25f),               // helicopters: no tint - the original's own greens, face by face (the grey-green
         (0x19, new Color(0, 0, 0), true, 2, 0.70f, 0.25f),               // one-paint look was too far from it); their panes paler and clearer than the tanks': the pilot shows
-        (0x15, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),  // tanks: khaki grey
-        (0x16, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),
+        (0x15, new Color(0.85f, 1.00f, 0.60f), true, 3, 0.30f, 0.50f),   // tanks: khaki green, on the light green paint (14 drew them near black)
+        (0x16, new Color(0.85f, 1.00f, 0.60f), true, 3, 0.30f, 0.50f),
         (0x02, new Color(0.80f, 1.10f, 0.98f), false, 0, 1f, 0.35f),     // enemy soldier: blue-green fatigues, arms and legs too
         (0x01, new Color(0.98f, 1.06f, 0.74f), false, 0, 1f, 0.35f),     // you and your comrades: olive; in disguise you wear model 2 (FootModels)
     };
@@ -481,7 +481,10 @@ public sealed partial class GpuWorld : Node3D
         return changed;
     }
     static readonly int[] PeopleModels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];   // you, the soldiers and the people (models.json's users)
-    static readonly int[] PlainGreenModels = [0x17, 0x19];
+    // the helicopters, and the gun emplacements and radars (portable radar, SAM launcher, rocket launcher, machine gun,
+    // tracer gun, radar unit): their darkest greens shaded the sides away from the sun near black - a rocket launcher seen
+    // end-on read as its shadow and its stand
+    static readonly int[] PlainGreenModels = [0x17, 0x19, 82, 100, 101, 104, 106, 141];
     static readonly int[] Greens = [1, 2, 3, 4, 12, 13, 14];             // both green ramps (SunShade's families)
     const int PlainGreen = 2;                                            // the middle green: the sun takes it up the ramp or down
     static readonly int[] Browns = [9, 10, 11];
@@ -970,8 +973,7 @@ public sealed partial class GpuWorld : Node3D
             if (frontOnly[i]) frontWay[i] = Plane(WoundPoints(Store, faces[i]));
         GD.Print($"GpuWorld back to back: {frontOnly.Count(v => v)} faces drawn from their front only");
         var plain = PlainGreens(faces, rows, recolour);
-        GD.Print($"GpuWorld plain paint: {plain} faces whose painted-in light went (the helicopters' greens and browns, the people's two- and three-shade browns), shaded by the sun alone");
-        for (var i = 0; i < rows; i++)
+        GD.Print($"GpuWorld plain paint: {plain} faces whose painted-in light went (the helicopters' greens and browns, the people's two- and three-shade browns), shaded by the sun alone");        for (var i = 0; i < rows; i++)
         {
             var f = faces[i];
             if (recolour[i] >= 0) f.Meta = (f.Meta & ~15) | recolour[i];
