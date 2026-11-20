@@ -411,6 +411,36 @@ public sealed partial class GpuWorld : Node3D
 
     /// <summary>Which of a model's corners sit on a moving part: the walk of model.gdshaderinc, a flagged corner of kind 1
     /// (the pivot) or 2 starts a part, the unflagged corners after it are on it, any other flag ends it.</summary>
+    /// <summary>The helicopters' greens are shading painted in for a fixed light - the tops the lightest, the sides darker,
+    /// the tail between, each left and right pair alike - not paint. In the 3D view the sun shades them, so every green
+    /// face of their fixed body (not the rotors) takes one green, PlainGreen, and only the sun makes it lighter or darker.
+    /// Through recolour[], so the window borders read the same green. Returns the faces changed.</summary>
+    int PlainGreens(List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, int rows, int[] recolour)
+    {
+        var changed = 0;
+        foreach (var model in PlainGreenModels)
+        {
+            var fm = Store.Models[model];
+            var part = PartCorners(fm);
+            for (var i = 0; i < rows; i++)
+            {
+                if (faces[i].Model != model || faces[i].Ordinal >= fm.Faces.Length) continue;
+                var colour = recolour[i] >= 0 ? recolour[i] : faces[i].Meta & 15;
+                if (Array.IndexOf(Greens, colour) < 0) continue;
+                var onPart = true;                                           // every corner on a moving part: a rotor, left alone
+                foreach (var e in fm.Faces[faces[i].Ordinal].Edges)
+                    if (e < fm.Edges.Length && !(fm.Edges[e].A < part.Length && part[fm.Edges[e].A] && fm.Edges[e].B < part.Length && part[fm.Edges[e].B])) onPart = false;
+                if (onPart) continue;
+                recolour[i] = PlainGreen;
+                changed++;
+            }
+        }
+        return changed;
+    }
+    static readonly int[] PlainGreenModels = [0x17, 0x19];
+    static readonly int[] Greens = [1, 2, 3, 4, 12, 13, 14];             // both green ramps (SunShade's families)
+    const int PlainGreen = 2;                                            // the middle green: the sun takes it up the ramp or down
+
     static bool[] PartCorners(CardModels.Model md)
     {
         var on = new bool[md.Corners.Length];
@@ -893,6 +923,8 @@ public sealed partial class GpuWorld : Node3D
         for (var i = 0; i < faces.Count; i++)
             if (frontOnly[i]) frontWay[i] = Plane(WoundPoints(Store, faces[i]));
         GD.Print($"GpuWorld back to back: {frontOnly.Count(v => v)} faces drawn from their front only");
+        var plain = PlainGreens(faces, rows, recolour);
+        GD.Print($"GpuWorld plain greens: {plain} helicopter faces one green, shaded by the sun alone");
         for (var i = 0; i < rows; i++)
         {
             var f = faces[i];
