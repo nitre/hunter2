@@ -72,11 +72,9 @@ turn them on.
 
 ## Download
 
-Windows and Mac builds are on the [Releases](../../releases) page.
+The Windows build is on the [Releases](../../releases) page: unzip and run `hunter2.exe`.
 
-- Windows: unzip and run `hunter2.exe`.
-- Mac (untested): unzip and open `Hunter.app`; see `READ ME FIRST - Mac.txt`. Or build it yourself (see
-  [On a Mac](#on-a-mac) below).
+There is no Mac build for now; on a Mac, build it yourself (see [On a Mac](#on-a-mac) below).
 
 There is no Linux build yet.
 
