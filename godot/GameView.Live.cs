@@ -9,7 +9,17 @@ namespace Hunter;
 public partial class GameView
 {
     readonly Live? live = System.Environment.GetEnvironmentVariable("HUNTER_LIVE") is { } port ? new Live(int.Parse(port)) : null;
-    FreeCamera? liveCam;                                   // cam: held over every other camera until "cam off"
+    FreeCamera? liveCam = HeldCamera();                    // cam: held over every other camera until "cam off"
+
+    /// <summary>Recording only (HUNTER_CAM=x,y,z,yaw,pitch[,zoom], set by run_game --cam): the 3D camera held there for the whole
+    /// run, as the live "cam" command holds it - world units (x east, y height, z north), radians (yaw 0 north, pitch down).</summary>
+    static FreeCamera? HeldCamera()
+    {
+        if (System.Environment.GetEnvironmentVariable("HUNTER_CAM") is not { Length: > 0 } s) return null;
+        var a = s.Split(',').Select(v => double.Parse(v, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        GD.Print($"HUNTER_CAM: held at {a[0]},{a[1]},{a[2]} yaw {a[3]} pitch {a[4]}");
+        return new FreeCamera((a[0], a[1], a[2]), (float)a[3], (float)a[4], a.Length > 5 ? (float)a[5] : 1f);
+    }
     Joystick liveJoy;                                      // joy: held over the real stick for liveJoyLeft passes
     int liveJoyLeft;
 
