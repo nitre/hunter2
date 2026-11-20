@@ -1740,7 +1740,10 @@ public partial class GameView : Node2D
     /// calls it ahead of the sound, whose extras (music in play, stereo, tails) are built once at launch.</summary>
     public static void ApplyRecorded()
     {
-        foreach (var (key, word) in SettingsMenu.Recorded) ApplySetting(key, word, null);
+        // HUNTER_KEEP (run_game: the keys given with --set): those keep the settings file's value - a film can then compare one
+        // extra on and off, or run without one (--set demo_camera=false: the original's fixed camera)
+        var keep = (System.Environment.GetEnvironmentVariable("HUNTER_KEEP") ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        foreach (var (key, word) in SettingsMenu.Recorded) if (!keep.Contains(key)) ApplySetting(key, word, null);
         // HUNTER_SHADOWS=ORIGINAL|MORE|REAL: a recording's SHADOWS row instead of Recorded's (a check of one choice; a debug aid)
         if (System.Environment.GetEnvironmentVariable("HUNTER_SHADOWS") is { Length: > 0 } shadows) ApplySetting("own_shadows", shadows.ToUpperInvariant(), null);
         GD.Print("RECORDED SETTINGS " + string.Join(", ", SettingsMenu.Recorded.Select(r => $"{r.Key}={SettingsValue(r.Key)}")));
