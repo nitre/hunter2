@@ -560,6 +560,7 @@ public partial class GameView : Node2D
     }
     float gameClock;
     int clockSeen;
+    bool cardReadyBefore;                                  // the card held a real upload last frame (Real3DFrame: its picture shows only then)
 
     /// <summary>After a pass: the 3D camera follows the game's (the picture's) camera, with the game's own palette
     /// words; the card-built world draws outdoors and, inside a building, the room.</summary>
@@ -641,6 +642,11 @@ public partial class GameView : Node2D
         var items = screen && play.Screens.Routine == ItemTableRoutine;                     // item table: the frozen view above its row 92 split
         real3dSprite!.Visible = (cinema is not null || !showcase || showStep >= 1) && (!screen || items);   // indoors too (the card draws the room); cinema: 3D from the first frame, the showcase opens on the original picture
         if (!real3dSprite.Visible) real3d!.Viewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;   // map, log book, store: nothing of it shows, so it is not drawn
+        // until the card has held the world for a whole frame its picture is not the world's (the demo's first frame showed a
+        // big grey slab: drawn before the first upload): black till then - the fade-in starts from black anyway
+        var readyNow = real3d!.Gpu is { Ready: true };
+        if (!readyNow || !cardReadyBefore) real3dSprite.Modulate = new Color(0, 0, 0);
+        cardReadyBefore = readyNow;
         real3dSprite!.RegionEnabled = true;                                               // the texture's own width: the wide view too
         var viewRows = items ? ItemTableTop : cinema is not null ? Play.PanelTop + Rules.Panel.Rows : Rules.View.Height - 1;   // row 139 is the mode 3 copper's black planes-off line (rules/Play.cs), not view; cinema: the whole picture,
                                                                                     // the panel's rows too (its viewport is that tall - with 140 the old panel picture showed under it)
