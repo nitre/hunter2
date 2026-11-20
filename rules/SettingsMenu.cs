@@ -223,8 +223,8 @@ public sealed class SettingsMenu
         ["renderer"] = "ON",
         ["gpu_scale"] = "4",
         ["sky"] = "FULL",                        // smooth sky, clouds, fine haze (as the films had them row by row)
-        ["own_shadows"] = "MORE",
-        ["view_distance"] = "11",                // the shorter distance with fine haze, not the longest
+        ["own_shadows"] = "REAL",                // the 3D view's sun shadows; the flat renderer keeps MORE (GameView: REAL turns OwnShadows on too)
+        ["view_distance"] = "11",               // the shorter distance with fine haze, not the longest
         ["ground"] = "FULL",                     // lit, bands, specks, 32X
         ["card_pieces"] = "PIECES",
         ["own_colours"] = "AGA",
