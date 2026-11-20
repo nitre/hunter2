@@ -9,8 +9,23 @@
 
 #include "res://real3d/model.gdshaderinc"
 
-// A texture row holds width / 160 records side by side (GpuWorld.PerRow; a check's own table: 1).
-int _eb(sampler2D ent, int row, int off) { int per = textureSize(ent, 0).x / 160; return int(round(texelFetch(ent, ivec2(off + row % per * 160, row / per), 0).r)); }
+// The map's stored objects (GpuWorld): their records as bytes (R8, two a texture row), sent only when they change,
+// and their in-view marks (+$1C, 128 a row) sent apart - only the marks change as the view moves.
+uniform sampler2D stored_tex : filter_nearest;
+uniform sampler2D stored_seen : filter_nearest;
+
+// A texture row holds width / 160 records side by side (GpuWorld.PerRow; a check's own table: 1). A row past the
+// table's own rows (ent_tex and entprev_tex hold the live records only) is a stored object, read from stored_tex /
+// stored_seen; its "one step back" is as it is now (the rules never move a stored object). blast_tex never gets there.
+int _eb(sampler2D ent, int row, int off) {
+    ivec2 size = textureSize(ent, 0);
+    int per = size.x / 160;
+    if (row / per < size.y) return int(round(texelFetch(ent, ivec2(off + row % per * 160, row / per), 0).r));
+    int s = row - size.y * per;
+    if (off == 0x1C) return int(round(texelFetch(stored_seen, ivec2(s & 127, s >> 7), 0).r * 255.0));
+    int sp = textureSize(stored_tex, 0).x / 160;
+    return int(round(texelFetch(stored_tex, ivec2(off + s % sp * 160, s / sp), 0).r * 255.0));
+}
 int _ew(sampler2D ent, int row, int off) { return _wrap16(_eb(ent, row, off) * 256 + _eb(ent, row, off + 1)); }
 int _euw(sampler2D ent, int row, int off) { return _eb(ent, row, off) * 256 + _eb(ent, row, off + 1); }
 int _ab(sampler2D anim, int arow, int i) { return int(round(texelFetch(anim, ivec2(i, arow), 0).r)); }   // arow: 0 in play, 1 one step back

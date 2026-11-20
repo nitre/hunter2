@@ -19,10 +19,17 @@ public sealed partial class GpuWorld : Node3D
     public const int LiveRows = EntityTable.MaxCount;   // the live records
     public const int StoredRows = 2048 + 14080;        // after them, the map's stored objects (the grid's 16 x 16 cells of 8, then a large fixed overflow - maths32.md group 3: the room is sized up front, never grown)
     const int Rows = LiveRows + StoredRows;      // entity records the texture holds
-    /// <summary>Records side by side in a texture row: a card's texture is at most 16384 rows tall, so the
-    /// records past that share rows (place.gdshaderinc _eb). Record r is texel (r % PerRow * $A0 + offset, r / PerRow).</summary>
-    public const int PerRow = 2;
-    const int TexRows = (Rows + PerRow - 1) / PerRow, Records = TexRows * PerRow;   // the texture's rows; the records its buffers hold (the last row filled out)
+    /// <summary>Records side by side in a texture row of ent_tex (the live records only: a row each). Record r is texel
+    /// (r % PerRow * $A0 + offset, r / PerRow); a row past them is a stored object (place.gdshaderinc _eb).</summary>
+    public const int PerRow = 1;
+    const int TexRows = LiveRows, Records = LiveRows;           // ent_tex / entprev_tex: the live records, as floats (the fine angle parts are -128..255)
+    // The map's stored objects: bytes (R8), two records a texture row, sent only when they change (they did go as 10 MB
+    // of floats every frame); their in-view marks +$1C, which change as the view moves, in a strip of their own
+    const int StoredTexRows = (StoredRows + 1) / 2, SeenW = 128, SeenH = (StoredRows + SeenW - 1) / SeenW;
+    readonly byte[] storedBytes = new byte[StoredTexRows * 2 * 0xA0], storedSent = new byte[StoredTexRows * 2 * 0xA0];
+    readonly byte[] seenBytes = new byte[SeenW * SeenH], seenSent = new byte[SeenW * SeenH];
+    readonly ImageTexture storedTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0 * 2, StoredTexRows, false, Image.Format.R8));
+    readonly ImageTexture seenTex = ImageTexture.CreateFromImage(Image.CreateEmpty(SeenW, SeenH, false, Image.Format.R8));
     int storedUsed;
     readonly byte[] sinfile;
     byte[] map;                                                  // the ground the card draws: the played world's
@@ -62,7 +69,7 @@ public sealed partial class GpuWorld : Node3D
     readonly byte[] animHeld = new byte[320], animHeldPrev = new byte[320];
     const int Held = 9;                                                  // a record's held bytes: +$84..+$8B, then the steering byte +$18 (CarInside's wheel)
     static int HeldAt(int o) => o < 8 ? 0x84 + o : 0x18;
-    readonly byte[] recHeld = new byte[Rows * Held], recHeldPrev = new byte[Rows * Held];
+    readonly byte[] recHeld = new byte[LiveRows * Held], recHeldPrev = new byte[LiveRows * Held];   // live records only (stored ones never step)
     readonly ImageTexture entprevTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0 * PerRow, TexRows, false, Image.Format.Rf));   // record-shaped, the bytes at their true offsets, so it drops in anywhere ent_tex does
     readonly float[] entprevFloats = new float[Records * 0xA0];
     readonly byte[] entprevBytes = new byte[Records * 0xA0 * 4];
@@ -120,6 +127,19 @@ public sealed partial class GpuWorld : Node3D
     {
         if (PictureLift is null || rec[at] == 0) return;
         int U(int o) => (int)rec[at + o] << 8 | (int)rec[at + o + 1];
+        var lift = PictureLift((ushort)U(0x4A), (ushort)U(0x4E));
+        foreach (var o in LiftedWords)
+        {
+            var w = (short)U(o) + lift;
+            rec[at + o] = (byte)(w >> 8); rec[at + o + 1] = (byte)w;
+        }
+    }
+
+    /// <summary>Lift for a stored object's record, held as bytes (storedBytes): the same words, the same sums.</summary>
+    void Lift(byte[] rec, int at)
+    {
+        if (PictureLift is null || rec[at] == 0) return;
+        int U(int o) => rec[at + o] << 8 | rec[at + o + 1];
         var lift = PictureLift((ushort)U(0x4A), (ushort)U(0x4E));
         foreach (var o in LiftedWords)
         {
@@ -295,6 +315,8 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("mdl_at", atTex);
             m.SetShaderParameter("trig_tex", trigTex);
             m.SetShaderParameter("ent_tex", entTex);
+            m.SetShaderParameter("stored_tex", storedTex);          // the stored objects' records and in-view marks (place.gdshaderinc _eb)
+            m.SetShaderParameter("stored_seen", seenTex);
             m.SetShaderParameter("anim_tex", animTex);
             m.SetShaderParameter("entprev_tex", entprevTex);      // SMOOTH PARTS: record part bytes one step back
             m.SetShaderParameter("rotor_models", new Vector2I(Store.Models[0x17].Offset, Store.Models[0x19].Offset));   // FAST ROTORS: both helicopters
@@ -1797,7 +1819,7 @@ public sealed partial class GpuWorld : Node3D
         if (viewCamera == null || world == null) viewRows = 0;
         if (stored != null)                                           // the map's stored objects, shown where they stand (Play.StoredLooks)
         {
-            Array.Clear(entFloats, LiveRows * 0xA0, entFloats.Length - LiveRows * 0xA0);
+            Array.Clear(storedBytes);
             storedUsed = Math.Min(stored.Count, StoredRows);
             if (stored.Count > StoredRows && !StoredOverflowWarned)
             {
@@ -1807,10 +1829,11 @@ public sealed partial class GpuWorld : Node3D
             for (var r = 0; r < storedUsed; r++)
             {
                 var b = stored[r];
-                for (var o = 0; o < 0xA0; o++) entFloats[(LiveRows + r) * 0xA0 + o] = b[o];
-                Fine(entFloats, (LiveRows + r) * 0xA0, null);
-                Lift(entFloats, (LiveRows + r) * 0xA0);
-                entFloats[(LiveRows + r) * 0xA0 + 0x1C] = 0xFF;      // in view: the card places every one
+                var at = r * 0xA0;
+                Array.Copy(b, 0, storedBytes, at, 0xA0);
+                storedBytes[at + 0x7D] = storedBytes[at + 0x7F] = storedBytes[at + 0x81] = 0;   // Fine with no record: no fine angle parts
+                Lift(storedBytes, at);
+                storedBytes[at + 0x1C] = 0xFF;                       // in view: the card places every one (the shaders read the mark from seenBytes)
             }
         }
         if (!logged) { logged = true; GD.Print($"GpuWorld first update: {entities.Count} records, record 0 alive {entities.All[0].B[0]} seen {entities.All[0].B[0x1C]} models {entities.All[0].B[0x24]}/{entities.All[0].B[0x25]}"); }
@@ -1829,12 +1852,13 @@ public sealed partial class GpuWorld : Node3D
             }
             else entFloats[r * 0xA0 + 0x1C] = Seen(entities.All[r].UW(0x4A), entities.All[r].UW(0x4E), entities.All[r].W(0x72)) ? 0xFF : 0;
         }
+        Array.Clear(seenBytes);
         for (var r = 0; r < storedUsed; r++)                          // the map's stored objects: none at ORIGINAL, all at ALL, else in the grown box
         {
-            var at = (LiveRows + r) * 0xA0;
-            int U(int o) => (int)entFloats[at + o] << 8 | (int)entFloats[at + o + 1];
-            entFloats[at + 0x1C] = viewRows == 0 ? (viewCamera != null && ViewDistance.AroundCamera(viewCamera, U(0x4A), U(0x4E), (short)U(0x6E), (short)U(0x72)) ? 0 : 0xFF)
-                : viewRows != 7 && !insideView && Seen(U(0x4A), U(0x4E), (short)U(0x72)) ? 0xFF : 0;
+            var at = r * 0xA0;
+            int U(int o) => storedBytes[at + o] << 8 | storedBytes[at + o + 1];
+            seenBytes[r] = (byte)(viewRows == 0 ? (viewCamera != null && ViewDistance.AroundCamera(viewCamera, U(0x4A), U(0x4E), (short)U(0x6E), (short)U(0x72)) ? 0 : 0xFF)
+                : viewRows != 7 && !insideView && Seen(U(0x4A), U(0x4E), (short)U(0x72)) ? 0xFF : 0);
         }
         // Q / E turned: inside the turned view (a cell's margin round each thing); else Place's box grown to this distance
         bool Seen(int x, int z, short near72) => turn is { } t
@@ -1879,7 +1903,17 @@ public sealed partial class GpuWorld : Node3D
             Put(entTex, Image.CreateFromData(0xA0 * PerRow, TexRows, false, Image.Format.Rf, entBytes));
             entBytes.CopyTo(entSent, 0);
         }
-        var used = LiveRows + storedUsed;                            // rows past these are empty: their held bytes never matter
+        if (!storedBytes.AsSpan().SequenceEqual(storedSent))         // the stored objects: only when one came, went or changed
+        {
+            Put(storedTex, Image.CreateFromData(0xA0 * 2, StoredTexRows, false, Image.Format.R8, storedBytes));
+            storedBytes.CopyTo(storedSent, 0);
+        }
+        if (!seenBytes.AsSpan().SequenceEqual(seenSent))             // their in-view marks: as the view moves
+        {
+            Put(seenTex, Image.CreateFromData(SeenW, SeenH, false, Image.Format.R8, seenBytes));
+            seenBytes.CopyTo(seenSent, 0);
+        }
+        const int used = LiveRows;                                   // the held bytes: live records only (a stored one's "one step back" is itself, place.gdshaderinc _eb)
         // SMOOTH PARTS: the fraction restarts exactly when the table steps (Play subtracts _animBlanks then),
         // so at that moment the table and the record part bytes held until now become the previous ones
         // (first update: the previous is the current, nothing slides yet)
