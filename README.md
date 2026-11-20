@@ -76,17 +76,7 @@ Windows, Linux and Mac builds are on the [Releases](../../releases) page.
 
 - Windows: unzip and run `hunter2.exe`.
 - Linux (64-bit): unpack and run `./hunter2.x86_64`. It needs a Vulkan graphics driver (any recent card with the usual drivers); nothing else to install.
-- Mac: needs two Terminal commands the first time (below). Or build it yourself (see [On a Mac](#on-a-mac)).
-
-### Mac: the first start
-
-macOS refuses to start a free game that is not paid-signed by Apple. Once, after unzipping:
-
-1. Open Terminal, type `cd` and a space, drag the folder that holds `Hunter.app` into the window, press Return.
-   This moves Terminal into that folder.
-2. `xattr -cr Hunter.app` - removes the "downloaded from the internet" mark that makes macOS block it.
-3. `codesign --force --deep -s - Hunter.app` - signs the app again on your own Mac, so macOS lets it run.
-4. Double-click `Hunter.app`. From then on it opens normally.
+- Mac: unzip; the first start needs two Terminal commands (see [On a Mac](#on-a-mac)).
 
 ## Building
 
@@ -108,6 +98,16 @@ presets are included). On Windows, copy `game_data/` next to the exported execut
 `Hunter.app` by itself (`addons/mac_game_data`).
 
 ### On a Mac
+
+The download: macOS refuses to start a free game that is not paid-signed by Apple. Once, after unzipping:
+
+1. Open Terminal, type `cd` and a space, drag the folder that holds `Hunter.app` into the window, press Return.
+   This moves Terminal into that folder.
+2. `xattr -cr Hunter.app` - removes the "downloaded from the internet" mark that makes macOS block it.
+3. `codesign --force --deep -s - Hunter.app` - signs the app again on your own Mac, so macOS lets it run.
+4. Double-click `Hunter.app`. From then on it opens normally.
+
+To build it yourself instead:
 
 1. Install the .NET 10 SDK from <https://dotnet.microsoft.com/download/dotnet/10.0> (Arm64 for an M1/M2/M3/M4 Mac,
    x64 for an Intel Mac). In Terminal, `dotnet --version` should then print 10.something.
