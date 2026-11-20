@@ -24,7 +24,7 @@ public static class Glass
         [0x14] = [26],                              // ambulance
         // vehicles: the faces the file paints black or grey - its own windows - and the light aircraft's cockpit sides
         [0x17] = [13],                              // helicopter
-        [0x19] = [24],                              // helicopter: the nose pane (the pilot sits behind it)
+        [0x19] = [20, 21, 24],                      // helicopter: the nose pane and its two side windows (the pilot sits behind them)
         [0x1B] = [4, 13, 14, 15],                   // light aircraft: its cockpit side windows too (14, 15)
         [0x1D] = [12],                              // rocket boat
         [0x1E] = [5],                               // ship
