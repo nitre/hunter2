@@ -69,7 +69,6 @@ public sealed class SettingsMenu
             new Row("ground_seed", "GROUND SEED", Effect.NewGame),      // world / random / last: where finer ground's detail grows from - the world's own seed, a fresh one each new game, the last drawn one again (the coast and every placed thing stay the world's)
             new Row("leave_behind", "LEAVING A VEHICLE", Effect.Now),   // original (you step out on its east side first) / behind: on the side away from its heading, so a moving boat does not run you down (LeaveBehind)
             new Row("bullet_box", "BULLET BOX", Effect.Now),            // original (model 0's: 0 wide, 288 long - bullets jam on north-south lines) / small: 16 across, the height kept; new bullets, the attract demo too (DemoFollow)
-            new Row("a500_pace", "A500 PACE", Effect.Now),              // off / on: what the original does once a pass (hurt by a touch, a hard landing, ...) at the A500's ~7 blanks a pass, not every blank (WorldState.A500Pace); the attract demo too (DemoFollow)
         ]),
         ("SOUND",
         [
@@ -209,7 +208,6 @@ public sealed class SettingsMenu
         ["analog_steering"] = ["ORIGINAL", "ANALOG"],
         ["aiming"] = ["ORIGINAL", "RETICLE"],
         ["bullet_box"] = ["ORIGINAL", "SMALL"],
-        ["a500_pace"] = ["OFF", "ON"],   // its own list as every recorded row has (the shared on/off one is only a fallback)
         ["far_view"] = ["ORIGINAL", "FAR"],
         ["a500_filter"] = ["A500", "A1200"],
         ["ground"] = ["ORIGINAL", "LIT", "FULL"],          // the merged rows: their steps' words, in Merged's order (MergedRowsTests)
@@ -234,7 +232,6 @@ public sealed class SettingsMenu
         ["sea_bodies"] = "WHOLE",
         ["leave_behind"] = "BEHIND",            // In films too (the attract demo itself never takes it - GameView)
         ["bullet_box"] = "SMALL",
-        ["a500_pace"] = "ON",
         ["smooth_animation"] = "SMOOTH",
         ["living_sea"] = "CYCLING",
         ["world"] = "MORE",                      // fuller world MORE (not LOTS), more objects, living world

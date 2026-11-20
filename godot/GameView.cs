@@ -1848,7 +1848,6 @@ public partial class GameView : Node2D
             case "analog_steering": Settings.AnalogSteering = label == "ANALOG"; if (play is not null && !play.State.DemoMode) play.AnalogSteering = Settings.AnalogSteering; break;   // input, not a look; never the attract demo
             case "aiming": Settings.AimReticle = label == "RETICLE"; if (play is not null && !play.State.DemoMode) play.AimReticle = Settings.AimReticle; break;   // input, not a look; never the attract demo
             case "bullet_box": Settings.BulletBox = label == "SMALL"; if (play is not null && !play.State.DemoMode) play.BulletBox = Settings.BulletBox; break;   // new bullets; never the attract demo
-            case "a500_pace": Settings.A500Pace = label == "ON"; if (play is not null && !play.State.DemoMode) play.A500Pace = Settings.A500Pace; break;   // rules only; never the attract demo
             case "far_view": Settings.FarView = label == "FAR"; if (play is not null) play.FarView = Settings.FarView; break;               // handed to the RUNNING play: draw bounds only, nothing is sized by it
             case "graves": Settings.Graves = label != "NONE"; Settings.VultureGraves = label == "WITH VULTURES"; if (play is not null) { play.Graves = Settings.Graves; play.VultureGraves = Settings.VultureGraves; } break;   // read at the next paid death / new grave
             case "a500_filter": Settings.A500Filter = label == "A500"; Audio.ApplyFilter(Settings.A500Filter); break;  // the filter itself, at once - F6's own call (Main.cs:127)
@@ -1920,7 +1919,6 @@ public partial class GameView : Node2D
         "analog_steering" => Settings.AnalogSteering ? "ANALOG" : "ORIGINAL",
         "aiming" => Settings.AimReticle ? "RETICLE" : "ORIGINAL",
         "bullet_box" => Settings.BulletBox ? "SMALL" : "ORIGINAL",
-        "a500_pace" => Settings.A500Pace ? "ON" : "OFF",
         "far_view" => Settings.FarView ? "FAR" : "ORIGINAL",
         "graves" => !Settings.Graves ? "NONE" : Settings.VultureGraves ? "WITH VULTURES" : "SHOWN",
         "a500_filter" => Settings.A500Filter ? "A500" : "A1200",

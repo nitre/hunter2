@@ -418,12 +418,8 @@ public static class Settings
 
     /// <summary>A500 PACE - what the original does once a pass (a touch's hurt, a record's end,
     /// a hard landing, ...) at the A500's ~7 blanks a pass (rules WorldState.A500Pace); never the attract demo (it plays the
-    /// recording exactly). Default on. Off / On.</summary>
-    public static bool A500Pace
-    {
-        get => (bool)Get("a500_pace", true);
-        set => Set("a500_pace", value);
-    }
+    /// recording exactly). Always on: not a setting (a file's old a500_pace is not read).</summary>
+    public static bool A500Pace => true;
 
     public static bool MoreObjects
     {

@@ -233,7 +233,6 @@ public sealed class OptionsPanel : IMenuPanel
         ["leave_behind"] = "Step out behind a vehicle, not on its east side: a moving boat will not run you down.",
         ["aiming"] = "On foot the soldier turns to a reticle you move with the mouse or right stick, and shoots at the point under it.",
         ["bullet_box"] = "Bullets hit only what they fly into. The original's jam on north-south lines.",
-        ["a500_pace"] = "Blasts, rams and falls hurt as often as on the A500. Off: blasts hurt 7x as often.",
         ["analog_steering"] = "A gamepad stick turns a vehicle by as much as it leans. Keys and d-pad turn fully; on foot is the same.",
         ["a500_filter"] = "The Amiga 500's soft sound, or the clearer Amiga 1200's.",
         ["message_log"] = "Keep the last messages to read again.",
