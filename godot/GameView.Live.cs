@@ -80,6 +80,7 @@ public partial class GameView
         cam X Y Z YAW PITCH [ZOOM] | cam off   hold the 3D camera (world units, radians)
         pause                     press p: the game's own pause, on/off (the clock stops)
         shot PATH                 the window as a PNG
+        shot3d PATH               the 3D view alone at its own size (HUNTER_VIEW_SCALE=n: n x the game's pixels, past the window)
         frame                     the frame number, clock, player place
         wire on|off               Godot's own wireframe of the 3D view (a test)
         eye                       the camera's eye height, its place, the smooth and drawn ground there, the highest ground to the player
@@ -424,6 +425,11 @@ public partial class GameView
             }
             case "pause": KeyDown(0x19); return play.State.PauseKey ? "paused" : "running";   // the 'p' key ($B33A raw $19): PauseLoop's own way in and out
             case "shot": GetViewport().GetTexture().GetImage().SavePng(a[1]); return "ok";
+            case "shot3d":                                                                  // the 3D view's own picture at its own size (HUNTER_VIEW_SCALE: larger than the window)
+                if (real3d is null) return "no 3D view";
+                var img3d = real3d.Viewport.GetTexture().GetImage();
+                img3d.SavePng(a[1]);
+                return $"ok {img3d.GetWidth()} x {img3d.GetHeight()}";
             case "carry":                                                                   // the player's item table: count +$00, most +$02 per item ($A240)
             {
                 var t = play.State.PlayerAt(0).Items;

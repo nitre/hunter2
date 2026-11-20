@@ -515,8 +515,13 @@ public partial class GameView : Node2D
     /// the TV looks, whose game pixels are 16/15 as wide as tall - so a drawn pixel is a screen pixel both ways and nothing
     /// is stretched after (at Y alone the view was drawn 7 wide and stretched to 7.47 at 1440 rows); 1 before the window
     /// is laid out.</summary>
+    // test only (HUNTER_VIEW_SCALE=n): the 3D view drawn at n viewport pixels a game pixel whatever the window - a still
+    // larger than the screen, saved by the live tool's shot3d
+    static readonly int ViewScaleForced = int.TryParse(System.Environment.GetEnvironmentVariable("HUNTER_VIEW_SCALE"), out var vsf) ? vsf : 0;
+
     static (float X, int Y) WantedScale()
     {
+        if (ViewScaleForced > 0) return (ViewScaleForced, ViewScaleForced);
         if (Settings.GpuScale > 0) return (Settings.GpuScale, Settings.GpuScale);
         var (w, h) = (Display.I.Picture.W, Display.I.Picture.H);
         if (h <= 0 || w <= 0) return (1, 1);
