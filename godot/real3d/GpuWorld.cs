@@ -275,8 +275,14 @@ public sealed partial class GpuWorld : Node3D
     public int[] GlassWallTris { get; private set; } = [];
     public int GlassWallFrames { get; private set; }
     /// <summary>How deep GLASS: SEE-THROUGH sinks a glass face, as a part of the window's smaller size. 0: the pane lies on the
-    /// model's outer edge, where the original's window is; its edges then get borders (GlassBorders).</summary>
+    /// model's outer edge, where the original's window is; its edges then get a flat frame (GlassFrame).</summary>
     public const double GlassInset = 0;
+    /// <summary>With the pane on the outer edge (GlassInset 0): how wide the flat frame round it is, as a part of the window's
+    /// smaller size (at least one unit of the model's scale).</summary>
+    public const double GlassFrame = 0.05;
+    /// <summary>A window frame's colour: the panel colour round it one shade darker in its ramp (the sun shades it as the
+    /// faces round it); black, grey and the sky stay.</summary>
+    static int Darker(int colour) => colour switch { 2 or 3 or 4 or 13 or 14 or 10 or 11 => colour - 1, 5 => 6, _ => colour };   // ramps 1-4, 12-14, 9-11, 6-5 (PaintedLight.Families)
     /// <summary>Each model's back walls as baked (null: none) - CheckPieces places their extra points.</summary>
     public ModelCaps.Back?[] Backs { get; private set; } = [];
     public int TriSlots { get; private set; }
@@ -1137,18 +1143,28 @@ public sealed partial class GpuWorld : Node3D
                     var roundIt = fm.Faces[f.Ordinal].Edges.Select(ei => OtherOf(fm.Edges[ei].A, fm.Edges[ei].B)).Where(o => o >= 0)
                         .GroupBy(ColourOf).OrderByDescending(g => g.Count()).ToList();
                     var tied = roundIt.Where(g => g.Count() == roundIt[0].Count()).Select(g => g.Key).OrderBy(Brightness).ToList();
-                    var frameColour = tied.Count == 0 ? f.Meta & 15 : tied[(tied.Count - 1) / 2];
-                    var seenEdges = borderEdges[f.Model] ??= [];
-                    var windowCorners = fm.Faces[f.Ordinal].Edges.SelectMany(ei => new[] { fm.Edges[ei].A, fm.Edges[ei].B }).Distinct().ToArray();
+                    var frameColour = Darker(tied.Count == 0 ? f.Meta & 15 : tied[(tied.Count - 1) / 2]);
+                    // the frame is the model's own: a thin band flat in the window's plane along each edge, toward the window's middle,
+                    // GlassFrame of the window's smaller size wide (world units - it scales with the thing), drawn with the faces at
+                    // their depth and lit by the sun as they are (as before d6f5d9a; the one-game-pixel screen lines it was swapped for
+                    // were a whole game pixel thick at any size, floated in front of the body and met at no corner)
                     foreach (var ei in fm.Faces[f.Ordinal].Edges)
                     {
                         int a2 = fm.Edges[ei].A, b2 = fm.Edges[ei].B;
-                        if (!seenEdges.Add((Math.Min(a2, b2), Math.Max(a2, b2)))) continue;   // a post two windows share: one border
-                        // alpha 1 + a third corner of the window: a border, and with its two ends the window's plane - the shader lights
-                        // it by the sun on that plane, as it lights the faces round it
-                        var third = windowCorners.First(c => c != a2 && c != b2);
-                        (borders[f.Model] ??= []).Add(new Color(a2, b2, frameColour, 1 + third));
-                        GlassBorders[f.Model]++;
+                        double[] pa = [fm.Corners[a2].X, fm.Corners[a2].Y, fm.Corners[a2].Z], pb = [fm.Corners[b2].X, fm.Corners[b2].Y, fm.Corners[b2].Z];
+                        double[] e = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+                        double[] perp = [out3[1] * e[2] - out3[2] * e[1], out3[2] * e[0] - out3[0] * e[2], out3[0] * e[1] - out3[1] * e[0]];
+                        var pl = Math.Sqrt(perp[0] * perp[0] + perp[1] * perp[1] + perp[2] * perp[2]);
+                        if (pl <= 0) continue;
+                        double toMid = 0;                                                 // the band goes toward the window's middle
+                        for (var c = 0; c < 3; c++) toMid += (sum[c] / seen - (pa[c] + pb[c]) / 2) * perp[c];
+                        var w = Math.Max(1 << shift, Math.Round(GlassFrame * small)) * (toMid > 0 ? -1 : 1) / pl;   // moved = corner less the offset
+                        var de = new Color((int)Math.Round(w * perp[0]), (int)Math.Round(w * perp[1]), (int)Math.Round(w * perp[2]), 0);
+                        AddTri(a2, b2, b2, frameColour | Glass.Sunk | 0x40, de, Marks(0, 0, Moved));
+                        AddTri(a2, b2, a2, frameColour | Glass.Sunk | 0x40, de, Marks(0, Moved, Moved));
+                        panels.Add(panel); panels.Add(panel);
+                        count[f.Model] += 2;
+                        GlassFrameTris[f.Model] += 2;
                     }
                 }
                 else foreach (var ei in fm.Faces[f.Ordinal].Edges)
