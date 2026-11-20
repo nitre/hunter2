@@ -794,7 +794,11 @@ public sealed partial class GpuWorld : Node3D
         var found = FindSheets(Store, faces, slab, slabOff, twin, recolour);
         var sticker = new bool[faces.Count];                 // STICKERS: drawn only as a copy moved onto the face under them
         var stickers = FindStickers(Store, faces, sticker, slab, slabOff);
-        var frontOnly = FindBacks(Store, faces, slab, sticker, twin);   // BACK TO BACK: faces drawn from their front only
+        // BACK TO BACK: OFF. The original has no front-only faces: its filler ($7800) swaps a span's ends when they come out
+        // reversed ($7906), so it fills a face whichever way it looks, and a model's faces paint over one another in file
+        // order from either side. Drawing FindBacks' pairs from their front only showed the wrong one of some (the wind
+        // surfer's sail turned from yellow to grey); the faces of one plane keep the later-is-nearer order instead.
+        var frontOnly = new bool[faces.Count];
         // GLASS: SEE-THROUGH, a window painted flat on a wall: the wall to be drawn with a hole (GlassWalls)
         var notPlain = new bool[faces.Count];
         for (var i = 0; i < faces.Count; i++) notPlain[i] = slab[i] || twin[i] >= 0 || sticker[i];
