@@ -1635,7 +1635,7 @@ public sealed partial class GpuWorld : Node3D
     // (OwnWorld3D): the player's camera never sees these triangles and the sun's picture holds nothing else. Made only
     // with HUNTER_SUN_DEPTH=<png path> set (a debug aid): a normal run builds none of it.
     public static readonly string? SunDepthPath = System.Environment.GetEnvironmentVariable("HUNTER_SUN_DEPTH");
-    public const int SunDepthPixels = 1024;          // the picture, square
+    public const int SunDepthPixels = 2048;          // the picture, square: 2 world units a pixel (at 1024, 4: a thin thing's shadow edge stair-stepped; 4096 cost 684 MB more card memory than 1024)
     public const float SunBoxSize = 4096f;           // the ground square round the player it covers, world units a side
     public const float SunBoxDepth = 8192f;          // the depth range 0..1 covers along the sun (shown units: x, height / 2, z)
     static GpuWorld? sunOwner;                       // the live one, for Main's capture (SaveSunDepth)
