@@ -320,7 +320,6 @@ public sealed class OptionsPanel : IMenuPanel
         {
             ["ORIGINAL"] = "The Amiga's four sounds, as the original.",
             ["ENHANCED"] = "Sounds left and right, softer cuts, music in play, none drop out. After a restart.",
-            ["FULL"] = "As ENHANCED, and the songs played smoothly. After a restart.",
         },
     };
 
