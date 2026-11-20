@@ -41,6 +41,7 @@ public sealed partial class GpuWorld : Node3D
     readonly byte[] entSent = new byte[Records * 0xA0 * 4], animSent = new byte[320 * 2 * 4];   // what the card holds now: the same is not sent again
     readonly ShaderMaterial ground, models, glassFaces, shadows, lines, dots, debris;   // glassFaces: the models' glass faces, see-through (gpuglass.gdshader)
     MultiMeshInstance3D? glassMesh;
+    MultiMesh? slotRows, lineRows;                                // the model slots (models, glass, shadows, the sun's picture) and the lines: each frame only the rows in use are drawn
     int leanShown, leanRowShown;                                  // the stick lean (and its row) last given to the shaders
 
     /// <summary>The record row the stick lean turns (the player's, 0); CheckCarInside points it at one of its own rows.</summary>
@@ -1124,10 +1125,10 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("line_tex", lineTex);
             m.SetShaderParameter("line_slots", maxLines);
         }
-        AddChild(new MultiMeshInstance3D { Multimesh = SlotRows(maxLines * 6, Rows), MaterialOverride = lines, CustomAabb = Huge });   // a quad a segment (gpulines.gdshader)
+        AddChild(new MultiMeshInstance3D { Multimesh = lineRows = SlotRows(maxLines * 6, Rows), MaterialOverride = lines, CustomAabb = Huge });   // a quad a segment (gpulines.gdshader)
         AddChild(new MeshInstance3D { Mesh = Empty(LiveRows * 2, Mesh.PrimitiveType.Points), MaterialOverride = dots, CustomAabb = Huge });
         AddChild(new MeshInstance3D { Mesh = Empty(LiveRows * 30), MaterialOverride = debris, CustomAabb = Huge });
-        var slotMesh = SlotRows(maxTris * 3, Rows);                 // one set of slots for the passes over the same triangle slots
+        var slotMesh = slotRows = SlotRows(maxTris * 3, Rows);      // one set of slots for the passes over the same triangle slots
         AddChild(new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = this.models, CustomAabb = Huge });
         // GLASS: the glass ones alone, SEE-THROUGH only. Made in the glass state Update already set: the game's first Update
         // runs before this bake ends, so a mesh made hidden was never shown and the panes were missing in every game
@@ -1913,6 +1914,10 @@ public sealed partial class GpuWorld : Node3D
             Put(seenTex, Image.CreateFromData(SeenW, SeenH, false, Image.Format.R8, seenBytes));
             seenBytes.CopyTo(seenSent, 0);
         }
+        // every pass draws the rows in use only - the live records and the stored objects there are this frame - not all
+        // 16523 (the room stays: an empty row drew nothing, but each pass still ran its corners; the sun's picture made it four)
+        var drawn = LiveRows + storedUsed;
+        if (slotRows is not null && slotRows.VisibleInstanceCount != drawn) { slotRows.VisibleInstanceCount = drawn; lineRows!.VisibleInstanceCount = drawn; }
         const int used = LiveRows;                                   // the held bytes: live records only (a stored one's "one step back" is itself, place.gdshaderinc _eb)
         // SMOOTH PARTS: the fraction restarts exactly when the table steps (Play subtracts _animBlanks then),
         // so at that moment the table and the record part bytes held until now become the previous ones
