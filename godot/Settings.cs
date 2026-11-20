@@ -25,8 +25,21 @@ public static class Settings
 
     static readonly System.Collections.Generic.Dictionary<string, Variant> read = [];   // each value read once: the getters run every frame
 
+    /// <summary>THE FLAT PICTURE IS THE ORIGINAL: with the 3D world off these read as the original's (each one's own
+    /// default), whatever the file holds - the smooth sky, the far view, more shadows, the fuller and living world,
+    /// graves, finer ground, the sound extras, stick steering, the reticle. The file keeps the player's words for the
+    /// 3D world. The flat picture keeps what is not a change to the game: the window's rows, smooth animation, the
+    /// fixes (bullet box, leaving a vehicle), the A500's pace.</summary>
+    static readonly System.Collections.Generic.HashSet<string> FlatOriginal =
+    [
+        "sky_steps", "smooth_light", "sky_time", "far_view", "own_shadows", "real_shadows", "fuller_world", "more_objects",
+        "living_world", "graves", "vulture_graves", "finer_ground", "ground_relief", "ground_seed", "sound_position",
+        "sound_tails", "sound_voices", "music_in_play", "analog_steering", "aiming",
+    ];
+
     static Variant Get(string key, Variant def)
     {
+        if (FlatOriginal.Contains(key) && Renderer != "3d") return def;
         if (!read.TryGetValue(key, out var v)) read[key] = v = File().GetValue(Section, key, def);
         return v;
     }

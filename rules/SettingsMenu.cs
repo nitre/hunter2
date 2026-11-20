@@ -95,7 +95,9 @@ public sealed class SettingsMenu
     {
         "gpu_scale", "wide_view", "demo_camera", "view_distance", "ground",
         "living_sea", "own_colours", "glass", "sea_bodies", "card_pieces",
-    };   // SKY is not: its smooth sky shows in the flat picture too (clouds and haze only on the card)
+        // the flat picture is the original: these could show or play in it, and are held at the original's there (Settings.FlatOriginal)
+        "sky", "own_shadows", "world", "finer_ground", "ground_seed", "sound", "analog_steering", "aiming",
+    };
 
     /// <summary>MERGED ROWS: one row moves several settings together in steps. The settings behind it stay as they
     /// were, each in the settings file under its own key (and still settable there by hand), so the game reads them as
@@ -169,8 +171,8 @@ public sealed class SettingsMenu
     /// world's); the two-player rows not while two players are left out.</summary>
     public static bool Shown(string key, bool threeD) => key switch
     {
-        "far_view" => !threeD,
-        "view_distance" => threeD,
+        "far_view" => false,                                     // the flat picture's far view: off the page, the flat picture draws as far as the original
+        "view_distance" => true,                                 // 3D ONLY with the 3D world off
         "players" or "split_layout" => false,
         _ => true,
     };
