@@ -17,7 +17,7 @@ An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with God
 - 50 fps
 - Free camera rotation (no longer locked facing north)
 - Debris and fireball explosions
-- Per-object shadows
+- Real sun shadows, cast by every object
 
 ### World
 - Gradient sky, clouds and haze
@@ -60,12 +60,13 @@ An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with God
 
 The settings menu is grouped into pages:
 
-- Screen: TV look, fullscreen, the 3D view on or off, pixel size, screen shape
-- Land and sky: view distance, ground lighting and colours, sky, clouds, sea
-- Models: model colours, see-through glass, animation, shadows, explosions
-- World: more objects, finer ground, vehicle exit side, bullet size, A500 timing
-- Sound: Amiga filter, extra sound effects, voices
-- Controls: message log, analog steering, mouse aiming, keys
+- Screen: TV look, brightness, fullscreen, text size, the 3D world on or off, pixel size, screen shape, demo camera
+  and world
+- Land and sky: view distance, ground, sky, sea
+- Models: model colours, see-through glass, sharks and subs, animation, shadows, explosions
+- World: more objects and a living world, finer ground, ground seed, vehicle exit side, bullet size
+- Sound: Amiga filter, extra sound effects and voices
+- Controls: message log, pause in background, manual and quit buttons, analog steering, mouse aiming
 
 The release build starts with these changes turned on. A build run from source asks on first start whether to
 turn them on.
@@ -93,9 +94,9 @@ dotnet build
 
 On Windows, `hunter2.bat` does the same if the `GODOT` environment variable points at the Godot executable.
 
-To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (Windows Desktop and macOS
-presets are included). On Windows, copy `game_data/` next to the exported executable. The macOS export puts it inside
-`Hunter.app` by itself (`addons/mac_game_data`).
+To export a build, open `godot/project.godot` in the Godot editor and use Project > Export (Windows Desktop, Linux and
+macOS presets are included). On Windows and Linux, copy `game_data/` next to the exported program. The macOS export
+puts it inside `Hunter.app` by itself (`addons/mac_game_data`).
 
 ### On a Mac
 
