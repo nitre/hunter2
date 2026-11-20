@@ -1704,9 +1704,15 @@ public sealed partial class GpuWorld : Node3D
     public const int SunDepthPixels = 2048;          // the picture, square: 2 world units a pixel (at 1024, 4: a thin thing's shadow edge stair-stepped; 4096 cost 684 MB more card memory than 1024)
     public const float SunBoxSize = 4096f;           // the ground square round the player it covers, world units a side
     public const float SunBoxDepth = 8192f;          // the depth range 0..1 covers along the sun (shown units: x, height / 2, z)
+    // the close-up picture: the same pass, centre and depth over a small square round the player - 0.25 world units a
+    // pixel, so a man's legs and arm and a pilot's helmet throw clean shadows (at 2 a pixel a leg was 2 pixels wide and
+    // its shadow came in specks). Every record the big box places is placed here too: a thing outside the square still
+    // throws into it.
+    public const int NearDepthPixels = 2048;
+    public const float NearBoxSize = 512f;
     static GpuWorld? sunOwner;                       // the live one, for Main's capture (SaveSunDepth)
-    SubViewport? sunView;
-    ShaderMaterial? sunDepth;
+    SubViewport? sunView, nearView;
+    ShaderMaterial? sunDepth, nearDepth;
     string[] sunCopied = [];                         // the model pass's uniforms the sun's pass shares, copied every frame
     Vector3 sunCentre;                               // the box's centre this frame (sun_box_centre)
     Vector3 sunToward;                               // and the sun (sun_dir)
@@ -1720,33 +1726,44 @@ public sealed partial class GpuWorld : Node3D
 
     void MakeSunDepth(MultiMesh slotMesh)
     {
-        sunDepth = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/gpusundepth.gdshader") };
-        sunDepth.SetShaderParameter("sun_box_size", SunBoxSize);
-        sunDepth.SetShaderParameter("sun_box_depth", SunBoxDepth);
+        (sunView, sunDepth) = SunPicture(slotMesh, SunDepthPixels, SunBoxSize);
+        (nearView, nearDepth) = SunPicture(slotMesh, NearDepthPixels, NearBoxSize);
         sunCopied = [.. sunDepth.Shader.GetShaderUniformList().Select(u => (string)u.AsGodotDictionary()["name"]).Where(n => !n.StartsWith("sun_box_"))];
-        sunView = new SubViewport
+        sunOwner = this;
+        // SHADOWS: REAL - the receivers read the pictures (sunshadow.gdshaderinc), with the same boxes
+        foreach (var m in new[] { ground, models })
         {
-            Size = new Vector2I(SunDepthPixels, SunDepthPixels),
+            m.SetShaderParameter("sun_depth_tex", sunView.GetTexture());
+            m.SetShaderParameter("shadow_box_size", SunBoxSize);
+            m.SetShaderParameter("shadow_box_depth", SunBoxDepth);
+            m.SetShaderParameter("near_depth_tex", nearView.GetTexture());
+            m.SetShaderParameter("shadow_near_size", NearBoxSize);
+            if (ShadowForce != 0) m.SetShaderParameter("shadow_force", ShadowForce);
+        }
+        GD.Print($"SUNDEPTH: on, {SunDepthPixels} x {SunDepthPixels} RGBA half float, box {SunBoxSize} world units; close-up {NearDepthPixels} x {NearDepthPixels}, box {NearBoxSize}; depth range {SunBoxDepth}, {sunCopied.Length} uniforms shared with the model pass");
+    }
+
+    /// <summary>One sun picture: the slots drawn by gpusundepth.gdshader into a SubViewport and world of their own,
+    /// over a square size world units a side round the centre.</summary>
+    (SubViewport, ShaderMaterial) SunPicture(MultiMesh slotMesh, int pixels, float size)
+    {
+        var mat = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/gpusundepth.gdshader") };
+        mat.SetShaderParameter("sun_box_size", size);
+        mat.SetShaderParameter("sun_box_depth", SunBoxDepth);
+        mat.SetShaderParameter("sun_box_reach", SunBoxSize);
+        var view = new SubViewport
+        {
+            Size = new Vector2I(pixels, pixels),
             OwnWorld3D = true,
             TransparentBg = true,                    // nothing drawn = (0, 0, 0, 0)
             UseHdr2D = true,                         // a half-float picture, no sRGB step: the depth comes back as written
             Msaa3D = Viewport.Msaa.Disabled,
             RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,   // on only while the sun is up (SunDepthFrame)
         };
-        AddChild(sunView);
-        sunView.AddChild(new Camera3D { Current = true });           // a camera for the world to be drawn at all; the shader writes POSITION itself
-        sunView.AddChild(new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = sunDepth, CustomAabb = Huge });
-        sunOwner = this;
-        // SHADOWS: REAL - the receivers read the picture (sunshadow.gdshaderinc), with the same box
-        var picture = sunView.GetTexture();
-        foreach (var m in new[] { ground, models })
-        {
-            m.SetShaderParameter("sun_depth_tex", picture);
-            m.SetShaderParameter("shadow_box_size", SunBoxSize);
-            m.SetShaderParameter("shadow_box_depth", SunBoxDepth);
-            if (ShadowForce != 0) m.SetShaderParameter("shadow_force", ShadowForce);
-        }
-        GD.Print($"SUNDEPTH: on, {SunDepthPixels} x {SunDepthPixels} RGBA half float, box {SunBoxSize} world units, depth range {SunBoxDepth}, {sunCopied.Length} uniforms shared with the model pass");
+        AddChild(view);
+        view.AddChild(new Camera3D { Current = true });           // a camera for the world to be drawn at all; the shader writes POSITION itself
+        view.AddChild(new MultiMeshInstance3D { Multimesh = slotMesh, MaterialOverride = mat, CustomAabb = Huge });
+        return (view, mat);
     }
 
     /// <summary>Each frame: the model pass's uniforms copied over, the box centred on the player (record 0's x +$4A,
@@ -1755,6 +1772,7 @@ public sealed partial class GpuWorld : Node3D
     {
         var on = toward is not null && !insideView && (SunDepthPath is not null || RealShadows);
         sunView!.RenderTargetUpdateMode = on ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
+        nearView!.RenderTargetUpdateMode = sunView.RenderTargetUpdateMode;
         // SHADOWS: REAL while the picture is drawn (the sun up, outdoors) and the faces take the sun (SUN SHADING: the shade
         // is its paint): the receivers read it and the flat pass is not drawn. Otherwise as MORE: a picture not drawn this
         // frame is last frame's or older, so nothing reads it
@@ -1762,17 +1780,18 @@ public sealed partial class GpuWorld : Node3D
         if (real != realShown)
         {
             realShown = real;
-            foreach (var m in new[] { ground, models }) m.SetShaderParameter("real_shadows", real);
+            foreach (var m in new[] { ground, models }) { m.SetShaderParameter("real_shadows", real); m.SetShaderParameter("shadow_near_on", real); }
             shadowMesh!.Visible = !real;
             GD.Print($"REALSHADOWS: {(real ? "on" : "off")} (flat shadow pass {(real ? "hidden" : "drawn")})");
         }
         if (!on) return;
-        foreach (var n in sunCopied) sunDepth!.SetShaderParameter(n, models.GetShaderParameter(n));
+        foreach (var n in sunCopied) { var val = models.GetShaderParameter(n); sunDepth!.SetShaderParameter(n, val); nearDepth!.SetShaderParameter(n, val); }
         int U(int o) => (int)entFloats[o] << 8 | (int)entFloats[o + 1];
         sunCentre = new Vector3(U(0x4A), (short)U(0x4C), U(0x4E));
         var t = toward!.Value;
         sunToward = new Vector3(t.X, t.Y, t.Z);
         sunDepth!.SetShaderParameter("sun_box_centre", sunCentre);
+        nearDepth!.SetShaderParameter("sun_box_centre", sunCentre);
         if (real) foreach (var m in new[] { ground, models }) m.SetShaderParameter("shadow_box_centre", sunCentre);
     }
 
@@ -1784,6 +1803,13 @@ public sealed partial class GpuWorld : Node3D
     {
         if (sunOwner?.sunView is not { } view) { GD.Print("SUNDEPTH: no picture (no 3D view)"); return; }
         if (view.RenderTargetUpdateMode == SubViewport.UpdateMode.Disabled) { GD.Print("SUNDEPTH: off (no sun, or indoors)"); return; }
+        SavePicture(view, SunBoxSize, path);
+        GD.Print("SUNDEPTH: the close-up picture:");
+        SavePicture(sunOwner.nearView!, NearBoxSize, System.IO.Path.ChangeExtension(path, null) + "_near.png");
+    }
+
+    static void SavePicture(SubViewport view, float boxSize, string path)
+    {
         var img = view.GetTexture().GetImage();
         int w = img.GetWidth(), h = img.GetHeight();
         var d = new float[w * h];
@@ -1803,13 +1829,13 @@ public sealed partial class GpuWorld : Node3D
         for (var i = 0; i < grey.Length; i++)
             grey[i] = d[i] < 0 ? (byte)0 : (byte)Math.Round(hi > lo ? 40 + 215 * (hi - d[i]) / (hi - lo) : 255);
         Image.CreateFromData(w, h, false, Image.Format.L8, grey).SavePng(path);
-        var o = sunOwner;
+        var o = sunOwner!;
         // pixel (x, y) is the spot g of the centre's level (x east, y down = south); that spot reads 0.5 - (g . sun) / depth,
         // and a point t shown units up the sun's ray from it reads t / depth less and stands t * sun_dir.y shown units
         // (twice that in world height) above the centre's level
         float Above(int x, int y, float v)
         {
-            float gx = ((x + 0.5f) / w - 0.5f) * SunBoxSize, gz = (0.5f - (y + 0.5f) / h) * SunBoxSize;
+            float gx = ((x + 0.5f) / w - 0.5f) * boxSize, gz = (0.5f - (y + 0.5f) / h) * boxSize;
             var level = 0.5f - (gx * o.sunToward.X + gz * o.sunToward.Z) / SunBoxDepth;
             return (level - v) * SunBoxDepth * o.sunToward.Y * 2f;
         }

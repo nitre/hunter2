@@ -33,6 +33,8 @@ uniform bool glass = false;                        // as the model pass: which f
 uniform vec3 sun_box_centre = vec3(0.0);           // the box's centre: world units, x east, height (whole, not halved), z north
 uniform float sun_box_size = 4096.0;               // the ground square the picture covers, world units a side
 uniform float sun_box_depth = 8192.0;              // the depth range 0..1 covers, along the sun, in the shown units
+uniform float sun_box_reach = 4096.0;              // a record this near the centre (each way) is placed: the close-up
+                                                   // picture's square is small, but a thing outside it can throw into it
 
 varying float sun_d;
 
@@ -56,9 +58,9 @@ void vertex() {
     bool ok = glass ? (gbits & 0x9000) == 0 : (gbits & 0x2000) == 0;       // the opaque pass's own test (no glass faces)
     int per = tri_slots * 3, row0 = first / per, b25 = _eb(ent_tex, row0, 0x25);
     if (ok) ok = b25 != 0 && (first - row0 * per) / 3 < int(texelFetch(model_tex, ivec2(b25, 0), 0).b + 0.5);
-    // with the in-view test gone, only a record within the box (and a box's half more, for a tall thing's slant) is placed
-    if (ok) ok = abs(float(_euw(ent_tex, row0, 0x4A)) - sun_box_centre.x) < sun_box_size
-              && abs(float(_euw(ent_tex, row0, 0x4E)) - sun_box_centre.z) < sun_box_size;
+    // with the in-view test gone, only a record within the big box (and a box's half more, for a tall thing's slant) is placed
+    if (ok) ok = abs(float(_euw(ent_tex, row0, 0x4A)) - sun_box_centre.x) < sun_box_reach
+              && abs(float(_euw(ent_tex, row0, 0x4E)) - sun_box_centre.z) < sun_box_reach;
     vec4 fit; vec2 fc;
     bool contact = ok && contact_fit_row(row0, fit, fc);
     vec3 p0, p1, p2;
