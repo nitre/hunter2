@@ -388,8 +388,8 @@ public sealed partial class GpuWorld : Node3D
     // shows over what is behind it (gpumodels_body GLASS_SEE 0.35 for everything else)
     static readonly (int Model, Color Tint, bool Machine, int Base, float Glass, float Opaque)[] OwnTints =   // the colour a unit of brightness becomes
     {
-        (0x17, new Color(0.90f, 1.05f, 0.92f), true, 2, 0.30f, 0.50f),   // helicopters: grey-green, the middle green
-        (0x19, new Color(0.90f, 1.05f, 0.92f), true, 2, 0.30f, 0.50f),
+        (0x17, new Color(0, 0, 0), true, 2, 0.30f, 0.50f),               // helicopters: no tint - the original's own greens, face by face (the grey-green
+        (0x19, new Color(0, 0, 0), true, 2, 0.30f, 0.50f),               // one-paint look was too far from it); their panes keep the military glass
         (0x15, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),  // tanks: khaki grey
         (0x16, new Color(1.00f, 1.00f, 0.88f), true, 14, 0.30f, 0.50f),
         (0x02, new Color(0.80f, 1.10f, 0.98f), false, 0, 1f, 0.35f),     // enemy soldier: blue-green fatigues, arms and legs too
