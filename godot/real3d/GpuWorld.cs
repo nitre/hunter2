@@ -1050,11 +1050,14 @@ public sealed partial class GpuWorld : Node3D
                     // the pane on the outer edge: a border on each of its edges, a flat line (gpulines) one game pixel wide at any
                     // distance, so the posts and rails never fall under a pixel as the bands in the window's plane did. Its colour:
                     // the panel colour round the window - the commonest of the body faces on its edges, one colour a window (the
-                    // edges' own colours made a pale rail, a black post and a grey side), on a tie the darker (a car's window
-                    // touches the pale roof and the body once each: the body) - drawn darker, only with SEE-THROUGH
-                    var frameColour = fm.Faces[f.Ordinal].Edges.Select(ei => OtherOf(fm.Edges[ei].A, fm.Edges[ei].B)).Where(o => o >= 0)
-                        .GroupBy(ColourOf).OrderByDescending(g => g.Count()).ThenBy(g => Brightness(g.Key)).Select(g => g.Key)
-                        .DefaultIfEmpty(f.Meta & 15).First();
+                    // edges' own colours made a pale rail, a black post and a grey side), on a tie the middle one by brightness - of
+                    // two the darker (a car's window touches the pale roof and the body once each: the body), of three the one
+                    // between (a helicopter's side window touches three greens: the darkest drew a near-black frame) - drawn a
+                    // little darker, only with SEE-THROUGH
+                    var roundIt = fm.Faces[f.Ordinal].Edges.Select(ei => OtherOf(fm.Edges[ei].A, fm.Edges[ei].B)).Where(o => o >= 0)
+                        .GroupBy(ColourOf).OrderByDescending(g => g.Count()).ToList();
+                    var tied = roundIt.Where(g => g.Count() == roundIt[0].Count()).Select(g => g.Key).OrderBy(Brightness).ToList();
+                    var frameColour = tied.Count == 0 ? f.Meta & 15 : tied[(tied.Count - 1) / 2];
                     var seenEdges = borderEdges[f.Model] ??= [];
                     var windowCorners = fm.Faces[f.Ordinal].Edges.SelectMany(ei => new[] { fm.Edges[ei].A, fm.Edges[ei].B }).Distinct().ToArray();
                     foreach (var ei in fm.Faces[f.Ordinal].Edges)

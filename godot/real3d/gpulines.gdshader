@@ -18,7 +18,7 @@ render_mode unshaded, cull_disabled;
 
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: SEE-THROUGH - the window borders are drawn only then (GpuWorld sets it)
-const float BORDER_DARK = 0.6;                    // a window border: the panel colour round the window, darker
+const float BORDER_DARK = 0.8;                    // a window border: the panel colour round the window, a little darker
 
 varying flat float tag;
 varying flat float dark;
