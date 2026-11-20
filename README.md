@@ -72,12 +72,21 @@ turn them on.
 
 ## Download
 
-Windows and Linux builds are on the [Releases](../../releases) page.
+Windows, Linux and Mac builds are on the [Releases](../../releases) page.
 
 - Windows: unzip and run `hunter2.exe`.
 - Linux (64-bit): unpack and run `./hunter2.x86_64`. It needs a Vulkan graphics driver (any recent card with the usual drivers); nothing else to install.
+- Mac: needs two Terminal commands the first time (below). Or build it yourself (see [On a Mac](#on-a-mac)).
 
-There is no Mac build for now; on a Mac, build it yourself (see [On a Mac](#on-a-mac) below).
+### Mac: the first start
+
+macOS refuses to start a free game that is not paid-signed by Apple. Once, after unzipping:
+
+1. Open Terminal, type `cd` and a space, drag the folder that holds `Hunter.app` into the window, press Return.
+   This moves Terminal into that folder.
+2. `xattr -cr Hunter.app` - removes the "downloaded from the internet" mark that makes macOS block it.
+3. `codesign --force --deep -s - Hunter.app` - signs the app again on your own Mac, so macOS lets it run.
+4. Double-click `Hunter.app`. From then on it opens normally.
 
 ## Building
 
