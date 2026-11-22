@@ -190,13 +190,36 @@ float fire_age(int row, int type) {
     float life = type == 0x67 ? 16.0 : 32.0;
     return clamp(1.0 - float(_ew(ent_tex, row, 0x30)) / life, 0.0, 1.0);
 }
+// BETTER EXPLOSIONS step 5: the star sized by what it blew up. fire_hits (GpuWorld.AddBlast): where the shell or blast
+// stood when a thing blew up from it (x, z), that thing's size (the largest half of its box, +$6E +$70 +$72) and 1 while
+// it counts. A star standing there is drawn that much bigger than its own reach - fire_reach, how far its
+// model's spikes stand out sideways (Fireball.Reach, by blast model $6E-$74) - never smaller than the original's and at most FIRE_BIG_MOST times. The picture only: its
+// box, damage and life are the rules'.
+const int FIRE_HITS = 8;
+const float FIRE_NEAR = 96.0;                // world units: a shot ends where it touched, a blast does not move sideways
+const float FIRE_BIG_MOST = 3.0;
+uniform vec4 fire_hits[8];
+uniform float fire_reach[7];
+float fire_big(int row) {
+    float x = float(_euw(ent_tex, row, 0x4A)), z = float(_euw(ent_tex, row, 0x4E));
+    int model = _eb(ent_tex, row, 0x25);
+    if (model < 0x6E || model > 0x74) return 1.0;
+    float own = max(fire_reach[model - 0x6E], 1.0);
+    float big = 1.0;
+    for (int i = 0; i < FIRE_HITS; i++) {
+        vec4 h = fire_hits[i];
+        float dx = abs(x - h.x), dz = abs(z - h.y);
+        if (h.w > 0.5 && min(dx, 65536.0 - dx) <= FIRE_NEAR && min(dz, 65536.0 - dz) <= FIRE_NEAR) big = max(big, h.z / own);
+    }
+    return min(big, FIRE_BIG_MOST);
+}
 // The corner (rot) and colour of a blast's triangle with the fireball look.
 void fire_look(int row, int type, bool core, int slot, inout vec3 rot, inout int colour) {
     float age = fire_age(row, type);
     int step = min(int(age * 3.0), 2);                              // 0, 1, 2: a third of the life each
     float size = min(1.0, 0.4 + 0.2 * floor(age * 16.0));           // the burst: 0.4 0.6 0.8 1.0, a 16th of the life a step
     if (core && step == 2) size *= 1.0 - 0.5 * min(floor((age - 2.0 / 3.0) * 9.0 + 1.0), 3.0) / 3.0;   // the fade: 5/6, 4/6, 3/6
-    rot *= size;
+    rot *= size * fire_big(row);
     int heat = core ? step + (slot & 1) : max(_fire_heat(colour & 15), step + 1);   // every other core face a step cooler: the facets show (the fire takes no sun)
     colour = (colour & ~15) | FIRE_HOT[min(heat, 3)];
 }

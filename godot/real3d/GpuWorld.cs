@@ -122,6 +122,10 @@ public sealed partial class GpuWorld : Node3D
     int blastNext, blastHigh;                    // blastHigh: one past the last row whose pieces may still show - only those are drawn (pieceRows)
     readonly float[] blastStart = Enumerable.Repeat(float.NegativeInfinity, Blasts).ToArray();   // each row's blast: the frame it blew up on
     const float BlastLife = 600;                 // gpupieces.gdshader piece_life: past it a blast draws nothing
+    readonly Vector4[] fireHits = new Vector4[8];   // BETTER EXPLOSIONS step 5 (gpumodels.gdshaderinc fire_hits): where a shell or blast blew a thing up, and that thing's size
+    readonly float[] fireHitUntil = new float[8];
+    int fireHitNext;
+    const float FireHitLife = 300;               // the game's frames a hit counts: past any star's own life
     MultiMesh? pieceRows;
     /// <summary>Vertices a triangle slot of a blast: a piece is a thin slab of 8 triangles (gpupieces.gdshader PIECE_CORNERS).</summary>
     internal const int PieceCorners = 24;
@@ -209,6 +213,11 @@ public sealed partial class GpuWorld : Node3D
         {
             int U(int o) => record[o] << 8 | record[o + 1];
             blastInfo.SetPixel(row, 1, new Color((short)(f.X - U(0x4A)), (short)(f.Y - U(0x4C)), (short)(f.Z - U(0x4E)), 1));
+            // BETTER EXPLOSIONS step 5: the star there is drawn at this thing's size (gpumodels.gdshaderinc fire_big)
+            var size = Math.Max((short)U(0x6E), Math.Max((short)U(0x70), (short)U(0x72)));
+            fireHits[fireHitNext] = new Vector4(f.X, f.Z, size, 1);
+            fireHitUntil[fireHitNext] = clock + FireHitLife;
+            fireHitNext = (fireHitNext + 1) % fireHits.Length;
         }
         else blastInfo.SetPixel(row, 1, new Color(0, 0, 0, 0));
         blastsChanged = true;
@@ -2162,6 +2171,9 @@ public sealed partial class GpuWorld : Node3D
         pieces.SetShaderParameter("pieces_on", cardPieces);
         pieces.SetShaderParameter("piece_stay", PiecesStay);           // EXPLOSIONS: LASTING - they lie where they fell
         models.SetShaderParameter("better_fire", cardPieces);          // BETTER EXPLOSIONS: the fireball (gpumodels.gdshaderinc fire_look)
+        for (var i = 0; i < fireHits.Length; i++) if (fireHits[i].W != 0 && clock > fireHitUntil[i]) fireHits[i] = default;
+        models.SetShaderParameter("fire_reach", Fireball.Reach);
+        models.SetShaderParameter("fire_hits", fireHits);              // step 5: the star sized by what it blew up
         foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks])
         {
             m.SetShaderParameter("inside_view", insideView);

@@ -328,7 +328,7 @@ public partial class GameView : Node2D
         Objects.Exploded = (record, from) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
         {
             card.AddBlast(record, GameClock(), from);                                     // this pass's blanks are already counted: the frame it blew up on
-            GD.Print($"HUNTER: explosion at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, {(record[0x1C] != 0 ? "in view" : "out of view")}");   // a recording finds its explosions here
+            GD.Print($"HUNTER: explosion at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, {(record[0x1C] != 0 ? "in view" : "out of view")}{(from is { } f ? $", by a blast at {f.X} {f.Z}, its size {Math.Max((short)(record[0x6E] << 8 | record[0x6F]), Math.Max((short)(record[0x70] << 8 | record[0x71]), (short)(record[0x72] << 8 | record[0x73])))}" : "")}");   // a recording finds its explosions here
         };
         real3dSprite = new Sprite2D
         {

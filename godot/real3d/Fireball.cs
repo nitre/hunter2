@@ -20,6 +20,10 @@ public static class Fireball
     /// <summary>The blasts' models, $61-$67's (weapons.md 3c).</summary>
     public const int First = 0x6E, Last = 0x74;
 
+    /// <summary>How far each blast model's own star reaches sideways from its middle, world units (model units halved, as the card
+    /// draws them) - step 5 sizes the star against it (gpumodels.gdshaderinc fire_reach).</summary>
+    public static readonly float[] Reach = new float[Last - First + 1];
+
     public const int Colour = 7;                                   // the core's paint at rest: the fire's yellow (the shader steps it)
 
     public static void Make(CardModels store, Dictionary<int, int[]>? origins = null)
@@ -34,6 +38,7 @@ public static class Fireball
         if (nv < 2) return;
         var centre = md.Raw(0);                                    // the star's articulated centre corner (flag $14)
         var reach = Enumerable.Range(1, nv - 1).Select(k => { var c = md.Raw(k); return Math.Sqrt(Sq(c.X - centre.X) + Sq(c.Y - centre.Y) + Sq(c.Z - centre.Z)); }).Average();
+        Reach[model - First] = (float)Enumerable.Range(1, nv - 1).Max(k => Math.Sqrt(Sq(md.Corners[k].X - md.Corners[0].X) + Sq(md.Corners[k].Z - md.Corners[0].Z))) / 2;
         var r = Math.Max(10.0, reach / 2);                            // at least 10: smaller, the rounded corners bend its faces (the bake splits them)
         // the icosahedron: (0, +-1, +-p) and its turns, p the golden ratio, scaled to r
         var p = (1 + Math.Sqrt(5)) / 2;
