@@ -119,7 +119,12 @@ public sealed partial class GpuWorld : Node3D
     // was, from the thing's own +$4A / +$4C / +$4E (world units, x and z the shorter way round), a = 1 - or all 0: none
     readonly Image blastInfo = Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf);
     readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf));
-    int blastNext;
+    int blastNext, blastHigh;                    // blastHigh: one past the last row whose pieces may still show - only those are drawn (pieceRows)
+    readonly float[] blastStart = Enumerable.Repeat(float.NegativeInfinity, Blasts).ToArray();   // each row's blast: the frame it blew up on
+    const float BlastLife = 600;                 // gpupieces.gdshader piece_life: past it a blast draws nothing
+    MultiMesh? pieceRows;
+    /// <summary>Vertices a triangle slot of a blast: a piece is a thin slab of 8 triangles (gpupieces.gdshader PIECE_CORNERS).</summary>
+    internal const int PieceCorners = 24;
     bool blastsChanged;
 
     /// <summary>(FINER GROUND in the attract demo): the game runs on the original ground so
@@ -188,8 +193,15 @@ public sealed partial class GpuWorld : Node3D
     /// the thing's middle, as before) - the card does the rest. Sent with the frame's Update (SendBlasts), once however many.</summary>
     public void AddBlast(byte[] record, float clock, (ushort X, short Y, ushort Z)? from = null)
     {
-        var row = blastNext;
-        blastNext = (blastNext + 1) % Blasts;
+        // the lowest row whose pieces are gone, so the rows drawn stay as few as the blasts still showing (a slab piece is
+        // 24 vertices a triangle slot: every row ever used, drawn every frame, tripled the frame's time by the demo's end);
+        // none free (or EXPLOSIONS: LASTING, where nothing goes): the ring, oldest first, as before
+        var row = -1;
+        if (!PiecesStay) for (var i = 0; i < Blasts && row < 0; i++) if (clock - blastStart[i] > BlastLife) row = i;
+        if (row < 0) { row = blastNext; blastNext = (blastNext + 1) % Blasts; }
+        blastStart[row] = clock;
+        blastHigh = Math.Max(blastHigh, row + 1);
+        if (pieceRows is not null) pieceRows.VisibleInstanceCount = blastHigh;
         for (var o = 0; o < 0xA0; o++) blastFloats[row * 0xA0 + o] = record[o];
         Lift(blastFloats, row * 0xA0);
         blastInfo.SetPixel(row, 0, new Color(clock, 1, 0, 0));
@@ -1254,7 +1266,9 @@ public sealed partial class GpuWorld : Node3D
         var triTex = ImageTexture.CreateFromImage(table);
         var infoTex = ImageTexture.CreateFromImage(info);
         (TriTable, ModelTable, TriSlots, TriCount) = (triTex, infoTex, maxTris, tris.Count);
-        AddChild(new MultiMeshInstance3D { Multimesh = SlotRows(maxTris * 3, Blasts), MaterialOverride = pieces, CustomAabb = Huge });
+        pieceRows = SlotRows(maxTris * PieceCorners, Blasts);
+        pieceRows.VisibleInstanceCount = blastHigh;                          // no blast yet: nothing to run the pieces' shader for
+        AddChild(new MultiMeshInstance3D { Multimesh = pieceRows, MaterialOverride = pieces, CustomAabb = Huge });
         foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces })
         {
             m.SetShaderParameter("tri_tex", triTex);
@@ -1279,7 +1293,7 @@ public sealed partial class GpuWorld : Node3D
         // the room's card memory: ent_tex + two instance transforms a row (model slots, lines; 48 bytes each) + one row of each
         // slot mesh (a vertex is 12 bytes) - SlotRows: the corners are drawn once a row, not stored for every row
         long rowBytes = Rows * (0xA0L * 4 + 2 * 48) + maxTris * 3L * 12 + maxLines * 6L * 12;
-        long blastBytes = Blasts * (0xA0L * 4 + 16 + 48) + maxTris * 3L * 12;            // the two blast textures + a transform a blast + one blast's mesh
+        long blastBytes = Blasts * (0xA0L * 4 + 16 + 48) + maxTris * (long)PieceCorners * 12;            // the two blast textures + a transform a blast + one blast's mesh
         GD.Print($"GpuWorld ready: {tris.Count} of {MaxTriangles} triangles (GpuWorld.MaxTriangles; table {table.GetWidth() * table.GetHeight() * 16 / 1048576.0:F1} MB of {4L * MaxTriangles * 16 / 1048576.0:F0} MB), up to {maxTris} a model; caps a model {CardModels.MaxCorners} corners, {CardModels.MaxEdges} edges, {CardModels.MaxFaces} faces, up to {maxLines} lines; card room {Rows} rows = {rowBytes / 1048576.0:F1} MB, {Blasts} blasts = {blastBytes / 1048576.0:F1} MB; model store {Store.Used} texels in {Store.Rows} rows = {Store.Rows * CardModels.Width * 16 / 1048576.0:F2} MB (cap {CardModels.Width * CardModels.Height * 16 / 1048576.0:F0} MB)");
         GD.Print($"GpuWorld thin sheets: {found.Pairs} back-to-back pairs, {found.Sheets} free sheets, {slabFlat} of them painted ground shadows left flat, {found.Decals} decals left flat; {stickers} stickers");
         GD.Print($"GpuWorld rods: {rodsOf.Sum(g => g.Count())} free-standing lines made solid, {segments.Count} lines on faces left flat, {lineFaces.Count} in all");
@@ -2137,6 +2151,12 @@ public sealed partial class GpuWorld : Node3D
             foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
         }
         SendBlasts();
+        if (!PiecesStay)                                                // the rows past the last live blast are not drawn
+        {
+            var high = blastHigh;
+            while (high > 0 && clock - blastStart[high - 1] > BlastLife) high--;
+            if (high != blastHigh) { blastHigh = high; if (pieceRows is not null) pieceRows.VisibleInstanceCount = high; }
+        }
         pieces.SetShaderParameter("piece_clock", clock);                // the game's own frames (GameView.GameClock): still while paused
         debris.SetShaderParameter("debris_off", cardPieces);         // the pieces stand in for the original's ten triangles
         pieces.SetShaderParameter("pieces_on", cardPieces);
