@@ -75,6 +75,32 @@ void border_paint(int id, inout int colour, out vec3 tint, out float light) {
     if (tinted || (colour >= 1 && colour <= 14)) light = float(sun_light64(dot(n, sun_dir))) / 64.0;
 }
 
+// A marking painted on a face (a sign's letters): the sun's light on that face, from the marking's two ends and a third
+// corner of the face (line_tex alpha, -(1 + corner); GpuWorld.FindRods) - so it is lit as the face it lies on, not left
+// at the plain paint while the wall round it brightens. 1 when it lies on no face, or the sun shades nothing.
+float marking_light(int id, int colour) {
+    int per = line_slots * 2;
+    int row = id / per;
+    int slot = (id - row * per) / 2;
+    int b25 = _eb(ent_tex, row, 0x25);
+    vec4 mi = texelFetch(model_tex, ivec2(b25, 0), 0);
+    vec4 li = texelFetch(model_tex, ivec2(b25, 1), 0);
+    vec4 seg = texelFetch(line_tex, ivec2(0, int(li.r + 0.5) + slot), 0);
+    int type = _ew(ent_tex, row, 4);
+    if (seg.a > -0.5 || !(colour >= 1 && colour <= 14)) return 1.0;
+    if ((type >= 0x61 && type <= 0x67) || !sun_shading || !sun_up || inside_view || row == shell_row) return 1.0;
+    int base = int(mi.r + 0.5), low;
+    vec3 a = vec3(entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, int(seg.r + 0.5), low));
+    vec3 b = vec3(entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, int(seg.g + 0.5), low));
+    vec3 c = vec3(entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, int(-seg.a + 0.5) - 1, low));
+    vec3 n = cross(b - a, c - a);
+    float len = length(n);
+    if (len <= 0.0) return 1.0;
+    n /= len;
+    if (dot(n, (a + b + c) / 3.0 - vec3(entity_centre_rot(row, b25))) < 0.0) n = -n;
+    return float(sun_light64(dot(n, sun_dir))) / 64.0;
+}
+
 void vertex() {
     PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int per = line_slots * 6;
@@ -105,6 +131,7 @@ void vertex() {
     vec3 tint = vec3(0.0);
     float light = 1.0;
     if (ok && border) border_paint(base_id, colour, tint, light);
+    else if (ok) light = marking_light(base_id, colour);
     own_tint = tint;
     own_light = light;
     tag = float(colour);

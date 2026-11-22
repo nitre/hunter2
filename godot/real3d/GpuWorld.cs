@@ -841,15 +841,15 @@ public sealed partial class GpuWorld : Node3D
         }
         // RODS: a line standing free of every face is a thin solid rod (triangles, so it takes the sun and throws a
         // shadow); the rest are markings on a face and stay flat lines (gpulines.gdshader)
-        var rod = FindRods(Store, faces, lineFaces);
-        var segments = new List<Color>();                         // the flat lines: corner a, corner b, colour
+        var rod = FindRods(Store, faces, lineFaces, out var lineThird);
+        var segments = new List<Color>();                         // the flat lines: corner a, corner b, colour, -(1 + a third corner of its face) or 0
         var lineStart = new int[nModels];
         var lineCount = new int[nModels];
         for (int m = 0, l = 0; m < nModels; m++)
         {
             lineStart[m] = segments.Count;
             for (; l < lineFaces.Count && lineFaces[l].Model == m; l++)
-                if (!rod[l]) { segments.Add(new Color(lineFaces[l].A, lineFaces[l].B, lineFaces[l].Colour, 0)); lineCount[m]++; }
+                if (!rod[l]) { segments.Add(new Color(lineFaces[l].A, lineFaces[l].B, lineFaces[l].Colour, lineThird[l] < 0 ? 0 : -(1 + lineThird[l]))); lineCount[m]++; }
         }
         var rodsOf = Enumerable.Range(0, lineFaces.Count).Where(l => rod[l]).ToLookup(l => lineFaces[l].Model);
         var borders = new List<Color>?[nModels];                 // each model's window borders (GLASS: SEE-THROUGH), joined to its lines after the faces
@@ -1495,16 +1495,24 @@ public sealed partial class GpuWorld : Node3D
     // RODS: a line is a painted marking, and stays flat, when both its ends lie on a filled face's plane (within
     // 1 unit, as the decal test) and its middle inside that face (the floppy disk's shutter line); every other line
     // stands free (posts, legs, poles) and is a rod.
+    // third: for a marking, a corner of the face it lies on that is off the line - with the line's two ends it gives the
+    // face's plane, so the marking takes the sun as its face does (gpulines.gdshader); -1 when there is none.
     static bool[] FindRods(CardModels store,
         List<(int Model, int Base, int N, int Meta, int Ordinal)> faces,
-        List<(int Model, int A, int B, int Colour)> lines)
+        List<(int Model, int A, int B, int Colour)> lines, out int[] third)
     {
         var onModel = new Dictionary<int, List<List<(int, int, int)>>>();      // each model's filled faces' loops
+        var loopOf = new Dictionary<List<(int, int, int)>, List<int>>();        // ...and each loop's corner numbers
         foreach (var f in faces)
         {
             if (!onModel.TryGetValue(f.Model, out var list)) onModel[f.Model] = list = [];
-            list.Add(FacePoints(store, f));
+            var loop = FacePoints(store, f);
+            list.Add(loop);
+            var fm = store.Models[f.Model];
+            loopOf[loop] = LoopCorners(fm.Faces[f.Ordinal].Edges.Where(ei => ei < fm.Edges.Length).Select(ei => (fm.Edges[ei].A, fm.Edges[ei].B)).ToList())
+                .Where(k => k < fm.Corners.Length).ToList();
         }
+        third = Enumerable.Repeat(-1, lines.Count).ToArray();
         var rod = new bool[lines.Count];
         for (var l = 0; l < lines.Count; l++)
         {
@@ -1521,7 +1529,18 @@ public sealed partial class GpuWorld : Node3D
                 if (pts.Count < 3 || Plane(pts) is not { } n) continue;
                 var ln = Math.Sqrt((double)n.Item1 * n.Item1 + (double)n.Item2 * n.Item2 + (double)n.Item3 * n.Item3);
                 double Off((int, int, int) q) => Math.Abs((double)(n.Item1 * (q.Item1 - pts[0].Item1) + n.Item2 * (q.Item2 - pts[0].Item2) + n.Item3 * (q.Item3 - pts[0].Item3))) / ln;
-                if (Off(pa) < 1.01 && Off(pb) < 1.01 && InsidePoly(mid, pts, n)) { on = true; break; }
+                if (Off(pa) < 1.01 && Off(pb) < 1.01 && InsidePoly(mid, pts, n))
+                {
+                    on = true;
+                    foreach (var k in loopOf[pts])                          // a corner of the face off the line
+                    {
+                        var q = P(k);
+                        long ux = pb.Item1 - pa.Item1, uy = pb.Item2 - pa.Item2, uz = pb.Item3 - pa.Item3;
+                        long vx = q.Item1 - pa.Item1, vy = q.Item2 - pa.Item2, vz = q.Item3 - pa.Item3;
+                        if (uy * vz - uz * vy != 0 || uz * vx - ux * vz != 0 || ux * vy - uy * vx != 0) { third[l] = k; break; }
+                    }
+                    break;
+                }
             }
             rod[l] = !on;
         }
