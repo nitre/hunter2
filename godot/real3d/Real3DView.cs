@@ -35,8 +35,8 @@ public sealed partial class Real3DView : Node
     public ShaderMaterial SolidClouds { get; }                          // CLOUDS: the same clouds as solid clusters of puffs (solidclouds.gdshader)
     readonly MeshInstance3D solidClouds;
     const int SolidCloudCorners = 5 * 8 * 4 * 2 * 3;                     // solidclouds.gdshader CLOUD_CORNERS: PUFFS x MAX_SEGS x MAX_BANDS, two triangles a facet
-    /// <summary>CLOUDS' low layer: solid puffs (the flat cards stand down), or the flat cards. Development: HUNTER_CLOUDS
-    /// = flat, off (neither), or SEGSxBANDS for the puffs' facets (8x4 the shader's own).</summary>
+    /// <summary>CLOUDS' low layer: the flat cards. Development: HUNTER_CLOUDS = off (none), or SEGSxBANDS for the solid
+    /// puffs in their place with that many facets (8x4 the shader's own) - a try-out, not the game's look.</summary>
     static readonly string cloudsAs = System.Environment.GetEnvironmentVariable("HUNTER_CLOUDS") ?? "";
     ImageTexture shoreTex;                                       // SEA: LIVING's shallows (ShoreDistance)
     readonly Camera3D camera;
@@ -196,7 +196,7 @@ public sealed partial class Real3DView : Node
         var (moonT, moonPhase) = Moon(Gpu.Clock.Hour, Gpu.Clock.Minute, Gpu.Clock.Day);
         Sky.SetShaderParameter("moon_t", moonT);                     // CLOUDS' night: the moon (stars.gdshaderinc)
         Sky.SetShaderParameter("moon_phase", moonPhase);
-        bool flat = cloudsAs == "flat";
+        bool flat = cloudsAs is "" or "flat";
         lowClouds.Visible = clouds && !interior && flat;
         solidClouds.Visible = clouds && !interior && !flat && cloudsAs != "off";
         foreach (var m in (ShaderMaterial[])[LowClouds, SolidClouds])
