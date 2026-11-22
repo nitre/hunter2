@@ -15,6 +15,7 @@ render_mode unshaded, cull_disabled;
 #include "res://real3d/gpumodels.gdshaderinc"
 #include "res://real3d/view.gdshaderinc"
 #include "res://real3d/ground_contact.gdshaderinc"
+#include "res://real3d/sunshadow.gdshaderinc"
 
 uniform vec2 vp_size = vec2(1280.0, 560.0);      // the 3D viewport in pixels (Real3DView)
 uniform bool glass = false;                       // GLASS: SEE-THROUGH - the window borders are drawn only then (GpuWorld sets it)
@@ -24,12 +25,15 @@ varying flat float tag;
 varying flat float dark;
 varying flat vec3 own_tint;                       // a window border: its machine's tint, 0 = none (the palette's), as gpumodels_body
 varying flat float own_light;                     // ...and the sun's light on the window's plane
+varying flat float own_light_shade;               // SHADOWS: REAL - a marking's light in shadow, its bias (< 0 = not tested) and world point, as its face (gpumodels_body)
+varying flat float shadow_bias;
+varying vec3 shadow_p;
 varying float depth_;                             // HAZE: how far ahead of the eye (POSITION.w)
 
 // A segment end, in clip space: the world point moved to the eye (sat on the real ground with its model, contact),
 // a little nearer, and back with the shell if indoors.
-bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour) {
-    vec3 p;
+bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out vec4 clip, out int colour, out vec3 p) {
+    p = vec3(0.0);
     clip = vec4(2.0, 2.0, 2.0, 1.0);
     if (!gpu_line_vertex(id, p, colour)) return false;
     if (contact) {
@@ -78,7 +82,8 @@ void border_paint(int id, inout int colour, out vec3 tint, out float light) {
 // A marking painted on a face (a sign's letters): the sun's light on that face, from the marking's two ends and a third
 // corner of the face (line_tex alpha, -(1 + corner); GpuWorld.FindRods) - so it is lit as the face it lies on, not left
 // at the plain paint while the wall round it brightens. 1 when it lies on no face, or the sun shades nothing.
-float marking_light(int id, int colour) {
+float marking_light(int id, int colour, out float ks) {
+    ks = -1.0;
     int per = line_slots * 2;
     int row = id / per;
     int slot = (id - row * per) / 2;
@@ -98,7 +103,8 @@ float marking_light(int id, int colour) {
     if (len <= 0.0) return 1.0;
     n /= len;
     if (dot(n, (a + b + c) / 3.0 - vec3(entity_centre_rot(row, b25))) < 0.0) n = -n;
-    return float(sun_light64(dot(n, sun_dir))) / 64.0;
+    ks = dot(n, sun_dir);
+    return float(sun_light64(ks)) / 64.0;
 }
 
 void vertex() {
@@ -115,15 +121,16 @@ void vertex() {
     int colour;
     vec4 fit; vec2 fc;
     bool contact = contact_fit_row(row, fit, fc);
-    bool ok = line_end(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, ca, colour);
+    vec3 wa, wb;                                                                    // the ends' world points (SHADOWS: REAL)
+    bool ok = line_end(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, ca, colour, wa);
     int colour_b;
-    ok = line_end(base_id + 1, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, cb, colour_b) && ok;
+    ok = line_end(base_id + 1, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, cb, colour_b, wb) && ok;
     // a line with one end at or behind the eye is cut where it passes the eye (dropped whole, a window's border right
     // beside the camera vanished); both ends behind: nothing
     if (ok && (ca.w <= 0.01 || cb.w <= 0.01)) {
         if (ca.w <= 0.01 && cb.w <= 0.01) ok = false;
-        else if (ca.w <= 0.01) ca = mix(ca, cb, (0.02 - ca.w) / (cb.w - ca.w));
-        else cb = mix(cb, ca, (0.02 - cb.w) / (ca.w - cb.w));
+        else if (ca.w <= 0.01) { float t = (0.02 - ca.w) / (cb.w - ca.w); ca = mix(ca, cb, t); wa = mix(wa, wb, t); }
+        else { float t = (0.02 - cb.w) / (ca.w - cb.w); cb = mix(cb, ca, t); wb = mix(wb, wa, t); }
     }
     bool border = gpu_line_border(base_id);
     if (border && !glass) ok = false;                                               // GLASS: ORIGINAL - painted-black windows, no borders
@@ -131,7 +138,14 @@ void vertex() {
     vec3 tint = vec3(0.0);
     float light = 1.0;
     if (ok && border) border_paint(base_id, colour, tint, light);
-    else if (ok) light = marking_light(base_id, colour);
+    float ks = -1.0;
+    if (ok && !border) light = marking_light(base_id, colour, ks);
+    shadow_bias = -1.0; own_light_shade = 1.0; shadow_p = vec3(0.0);
+    if (ok && real_shadows && ks > 0.0) {                                           // toward the sun: it may lie in a cast shadow, tested per pixel as its face
+        own_light_shade = float(sun_light64(SHADOW_K)) / 64.0;
+        shadow_bias = shadow_face_bias(ks);
+        shadow_p = end == 0 ? wa : wb;
+    }
     own_tint = tint;
     own_light = light;
     tag = float(colour);
@@ -151,10 +165,11 @@ void vertex() {
 
 void fragment() {
     float d = cam_interior ? 0.0 : depth_;
+    float lit = shadow_bias >= 0.0 && in_sun_shadow(shadow_p, shadow_bias) ? own_light_shade : own_light;   // SHADOWS: REAL
     if (own_tint != vec3(0.0))                                                       // as gpumodels_body: tinted, lit and hazed
         ALBEDO = to_linear(floor(mix(tinted_rgb8(int(round(tag)), FRAGCOORD, own_tint, own_light), sky_nib(5) * 17.0, haze_amount(d)) + 0.5) / 255.0);
-    else if (own_light != 1.0)
-        ALBEDO = world_lit_hazed(int(round(tag)), FRAGCOORD, d, own_light);
+    else if (lit != 1.0)
+        ALBEDO = world_lit_hazed(int(round(tag)), FRAGCOORD, d, lit);
     else
         ALBEDO = world_hazed(int(round(tag)), FRAGCOORD, d);
     ALBEDO *= dark;

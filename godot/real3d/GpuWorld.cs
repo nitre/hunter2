@@ -1846,7 +1846,7 @@ public sealed partial class GpuWorld : Node3D
         sunCopied = [.. sunDepth.Shader.GetShaderUniformList().Select(u => (string)u.AsGodotDictionary()["name"]).Where(n => !n.StartsWith("sun_box_"))];
         sunOwner = this;
         // SHADOWS: REAL - the receivers read the pictures (sunshadow.gdshaderinc), with the same boxes
-        foreach (var m in new[] { ground, models })
+        foreach (var m in new[] { ground, models, lines })
         {
             m.SetShaderParameter("sun_depth_tex", sunView.GetTexture());
             m.SetShaderParameter("shadow_box_size", SunBoxSize);
@@ -1895,7 +1895,7 @@ public sealed partial class GpuWorld : Node3D
         if (real != realShown)
         {
             realShown = real;
-            foreach (var m in new[] { ground, models }) { m.SetShaderParameter("real_shadows", real); m.SetShaderParameter("shadow_near_on", real); }
+            foreach (var m in new[] { ground, models, lines }) { m.SetShaderParameter("real_shadows", real); m.SetShaderParameter("shadow_near_on", real); }
             shadowMesh!.Visible = !real;
             GD.Print($"REALSHADOWS: {(real ? "on" : "off")} (flat shadow pass {(real ? "hidden" : "drawn")})");
         }
@@ -1907,7 +1907,7 @@ public sealed partial class GpuWorld : Node3D
         sunToward = new Vector3(t.X, t.Y, t.Z);
         sunDepth!.SetShaderParameter("sun_box_centre", sunCentre);
         nearDepth!.SetShaderParameter("sun_box_centre", sunCentre);
-        if (real) foreach (var m in new[] { ground, models }) m.SetShaderParameter("shadow_box_centre", sunCentre);
+        if (real) foreach (var m in new[] { ground, models, lines }) m.SetShaderParameter("shadow_box_centre", sunCentre);
     }
 
     /// <summary>HUNTER_SUN_DEPTH: the depth picture as a grey PNG (covered pixels stretched from their farthest, dark, to
