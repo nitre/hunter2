@@ -20,10 +20,10 @@ public static class CarInside
     /// across the inside (x +-ShelfX) from behind the seat backs (ShelfFront) to the rear window (ShelfBack).</summary>
     const int ShelfY = 32, ShelfX = 56, ShelfFront = -34, ShelfBack = -108, Shelf = 8;
 
-    /// <summary>The ambulance's curtain (model units), light grey: the cab's open back closed off from the patients' box - a wall
+    /// <summary>The ambulance's curtain (model units), dark green: the cab's open back closed off from the patients' box - a wall
     /// at the box's front (CurtainZ, its outside wall face 6 above the cab roof), the cab's full width (x +-CurtainX, the sides)
     /// from the floor to the cab roof (CurtainTop), facing the cab.</summary>
-    const int CurtainZ = 92, CurtainX = 120, CurtainTop = 140, Curtain = 8;
+    const int CurtainZ = 92, CurtainX = 120, CurtainTop = 140, Curtain = 1;
 
     /// <summary>Which side the driver sits on: -1 left (x &lt; 0), 1 right. Not known from the original.</summary>
     public const int DriverSide = -1;
@@ -74,8 +74,10 @@ public static class CarInside
         [Car] = new(0, 30, 36, 12, -2, -26, 54, -32, 56, 38, 22, 40, 30, 30, 40, 14, 12, 8, 28),
         [Jeep] = new(-2, 42, 40, 40, -6, -42, 104, -50, 78, 66, 46, 36, 24, 42, 84, 6, 14, 10, 62),
         // the cabs: jobs/vehicle_interiors/cabs.md's seats, dash and hub, snapped to the model's grid, the wheel upright as the car's
-        [Truck] = new(0, 60, 48, 32, 152, 104, 88, 96, 112, 56, 4, 232, 200, 60, 76, 168, 36, 24, 40),
-        [Ambulance] = new(0, 60, 48, 32, 152, 104, 88, 96, 112, 56, 4, 232, 200, 60, 76, 168, 36, 24, 40),
+        // (truck and ambulance: the dash's top just under the windscreen's foot (y 80), the seat backs up into the glass, the wheel
+        // small and high enough to show whole above the dash, where the seated driver's hands are)
+        [Truck] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 88, 164, 20, 12, 64),
+        [Ambulance] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 88, 164, 20, 12, 64),
         [Van] = new(-40, 44, 44, -8, 24, -4, 46, -10, 74, 6, -36, 108, 82, 44, 24, 56, 30, 20, 2),
         // (its wheel 4 file units from the dash, not cabs.md's 2: nearer, FindStickers takes the lower half for a sticker)
         [Amphibious] = new(228, 28, 24, 240, -16, -36, 268, -40, 44, 252, 232, 20, 12, 28, 252, -4, 16, 12, 240),
@@ -133,6 +135,28 @@ public static class CarInside
         [Helicopter2] = new[,] { {-36, 32, 52}, {-28, 32, 52}, {-36, 44, 52}, {-28, 44, 52}, {-36, 32, 96}, {-28, 32, 96}, {-36, 44, 96}, {-28, 44, 96}, {-20, 32, 52}, {-12, 32, 52}, {-20, 44, 52}, {-12, 44, 52}, {-20, 32, 96}, {-12, 32, 96}, {-20, 44, 96}, {-12, 44, 96}, {-36, -16, 88}, {-28, -16, 88}, {-36, 40, 88}, {-28, 40, 88}, {-36, -16, 96}, {-28, -16, 96}, {-36, 40, 96}, {-28, 40, 96}, {-20, -16, 88}, {-12, -16, 88}, {-20, 40, 88}, {-12, 40, 88}, {-20, -16, 96}, {-12, -16, 96}, {-20, 40, 96}, {-12, 40, 96}, {-36, -16, 96}, {-28, -16, 96}, {-36, -8, 96}, {-28, -8, 96}, {-36, -16, 108}, {-28, -16, 108}, {-36, -8, 108}, {-28, -8, 108}, {-20, -16, 96}, {-12, -16, 96}, {-20, -8, 96}, {-12, -8, 96}, {-20, -16, 108}, {-12, -16, 108}, {-20, -8, 108}, {-12, -8, 108}, {-36, 44, 56}, {-12, 44, 56}, {-36, 88, 56}, {-12, 88, 56}, {-36, 44, 72}, {-12, 44, 72}, {-36, 88, 72}, {-12, 88, 72}, {-32, 88, 60}, {-16, 88, 60}, {-36, 104, 56}, {-12, 104, 56}, {-32, 88, 72}, {-16, 88, 72}, {-36, 104, 76}, {-12, 104, 76}, {-36, 104, 56}, {-12, 104, 56}, {-32, 116, 60}, {-16, 116, 60}, {-36, 104, 76}, {-12, 104, 76}, {-32, 116, 72}, {-16, 116, 72}, {-40, 76, 64}, {-36, 76, 64}, {-40, 84, 64}, {-36, 84, 64}, {-36, 68, 112}, {-32, 68, 112}, {-36, 76, 112}, {-32, 76, 112}, {-12, 76, 64}, {-8, 76, 64}, {-12, 84, 64}, {-8, 84, 64}, {-16, 68, 112}, {-12, 68, 112}, {-16, 76, 112}, {-12, 76, 112} },
         [Helicopter1] = new[,] { {-12, -28, 172}, {-4, -28, 172}, {-12, -16, 172}, {-4, -16, 172}, {-12, -28, 216}, {-4, -28, 216}, {-12, -16, 216}, {-4, -16, 216}, {4, -28, 172}, {12, -28, 172}, {4, -16, 172}, {12, -16, 172}, {4, -28, 216}, {12, -28, 216}, {4, -16, 216}, {12, -16, 216}, {-12, -40, 208}, {-4, -40, 208}, {-12, -20, 208}, {-4, -20, 208}, {-12, -40, 216}, {-4, -40, 216}, {-12, -20, 216}, {-4, -20, 216}, {4, -40, 208}, {12, -40, 208}, {4, -20, 208}, {12, -20, 208}, {4, -40, 216}, {12, -40, 216}, {4, -20, 216}, {12, -20, 216}, {-12, -40, 216}, {-4, -40, 216}, {-12, -32, 216}, {-4, -32, 216}, {-12, -40, 228}, {-4, -40, 228}, {-12, -32, 228}, {-4, -32, 228}, {4, -40, 216}, {12, -40, 216}, {4, -32, 216}, {12, -32, 216}, {4, -40, 228}, {12, -40, 228}, {4, -32, 228}, {12, -32, 228}, {-12, -16, 176}, {12, -16, 176}, {-12, 28, 176}, {12, 28, 176}, {-12, -16, 192}, {12, -16, 192}, {-12, 28, 192}, {12, 28, 192}, {-8, 28, 180}, {8, 28, 180}, {-12, 44, 176}, {12, 44, 176}, {-8, 28, 192}, {8, 28, 192}, {-12, 44, 196}, {12, 44, 196}, {-12, 44, 176}, {12, 44, 176}, {-8, 56, 180}, {8, 56, 180}, {-12, 44, 196}, {12, 44, 196}, {-8, 56, 192}, {8, 56, 192}, {-16, 16, 184}, {-12, 16, 184}, {-16, 24, 184}, {-12, 24, 184}, {-12, 16, 216}, {-8, 16, 216}, {-12, 24, 216}, {-8, 24, 216}, {12, 16, 184}, {16, 16, 184}, {12, 24, 184}, {16, 24, 184}, {8, 16, 216}, {12, 16, 216}, {8, 24, 216}, {12, 24, 216} },
     };
+
+    /// <summary>The truck's and ambulance's driver: the jeep's figure moved onto the cab's seat (cushion y 32 over a floor at 0,
+    /// its back at z 104) a quarter larger, every corner on the cab's grid of 4; the legs fitted between cushion and floor.</summary>
+    static int[,] CabFigure(int[,] jeep)
+    {
+        static int Grid(double v) => (int)Math.Round(v / 4, MidpointRounding.AwayFromZero) * 4;
+        var n = jeep.GetLength(0);
+        var to = new int[n, 3];
+        for (var k = 0; k < n; k++)
+        {
+            int x = jeep[k, 0], y = jeep[k, 1], z = jeep[k, 2];
+            to[k, 0] = Grid((x + 42) * 1.25 - 60);
+            to[k, 1] = y <= 40 ? Grid((y + 2) * 32 / 42.0) : Grid(32 + (y - 40) * 1.25);
+            to[k, 2] = Grid(104 + (z + 42) * 1.25);
+        }
+        for (var b = 0; b < n / 8; b++)                              // no box may close up on the grid
+            for (var axis = 0; axis < 3; axis++)
+                if (to[b * 8, axis] == to[b * 8 + (1 << axis), axis]) throw new InvalidOperationException($"the cab driver's box {b} is flat along axis {axis}");
+        return to;
+    }
+
+    static CarInside() => Figures[Truck] = Figures[Ambulance] = CabFigure(Figures[Jeep]);
 
     /// <summary>The figure's faces: box, side (-x, +x, -y, +y, -z, +z = 0-5), colour green (you), colour red (variant 1).</summary>
     static readonly (int Box, int Side, int Green, int Red)[] FigureFaces =
@@ -222,7 +246,7 @@ public static class CarInside
                 var tl = Corner(0, x0, p.TopY, p.TopZ); var tr = Corner(0, x1, p.TopY, p.TopZ);
                 var dl = Corner(0, x0, p.Floor, p.FrontZ); var dr = Corner(0, x1, p.Floor, p.FrontZ);
                 Face(Seat, fl, fr, br, bl);
-                Face(Seat, bl, br, tr, tl);
+                Face(model is Truck or Ambulance ? Dash : Seat, bl, br, tr, tl);   // the cabs' tall backs light grey: the driver's dark head shows against them (as the helicopters')
                 Face(Seat, fl, dl, dr, fr);
             }
             if (model == Car)                                        // the shelf behind the seats, light grey
