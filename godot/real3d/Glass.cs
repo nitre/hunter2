@@ -45,7 +45,7 @@ public static class Glass
         [0xA6] = [2],                               // prison
         [0xA7] = [7, 8],                            // control tower
         [0xA9] = [4],                               // garage
-        [0xAA] = [5, 7],                            // Allied HQ
+                                                    // Allied HQ ($AA): its black panels are its flag and the letters HQ - a sign, no window
     };
 
     /// <summary>Is the filled face with this number (0 up, as models.json) of this model glass?</summary>
