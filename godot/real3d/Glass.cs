@@ -44,7 +44,7 @@ public static class Glass
         [0xA3] = [10],                              // enemy fort
         [0xA6] = [2],                               // prison
         [0xA7] = [7, 8],                            // control tower
-        [0xA9] = [4],                               // garage
+                                                    // garage ($A9): its black face 4 is the flag on its roof pole (a red and a pale triangle on it), no window
                                                     // Allied HQ ($AA): its black panels are its flag and the letters HQ - a sign, no window
     };
 
