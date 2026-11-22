@@ -112,6 +112,45 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
         float along = (sxg * u.x + szg * u.y) / (sxx * u.x * u.x + 2.0 * sxz * u.x * u.y + szz * u.y * u.y);
         a = along * u.x; b = along * u.y;
     }
+    // SETTLED: on ground that is not one plane (a hilltop, a dip) the least-squares plane, lifted clear, touched at ONE
+    // contact and left the rest in the air (an ambulance on a crest: one wheel down, two 10-13 up). A stiff body comes to
+    // rest on three: from the lifted plane's one touching contact P it tips toward the contacts' middle until a second,
+    // Q, touches, then turns about the line PQ toward the middle until a third does. Contacts close to P (the same
+    // wheel's other corners) or to the line are passed over - the lift below still keeps every corner out of the ground.
+    if (det > 1e-6 * max(1.0, sxx * szz) && n >= 3) {
+        float reach = 0.15 * sqrt(sxx / float(n) + szz / float(n));                     // "close": within this of P / of the line
+        float d0 = -1e30; int p = 0;
+        for (int i = 0; i < n; i++) { float v = pg[i] - (a * (px[i] - cx) + b * (pz[i] - cz)); if (v > d0) { d0 = v; p = i; } }
+        vec2 dp = vec2(px[p] - cx, pz[p] - cz);
+        float lp = length(dp);
+        if (lp > reach) {
+            vec2 u = -dp / lp;                                                          // from P toward the middle
+            float t = 1e30; int q = -1;
+            for (int i = 0; i < n; i++) {
+                vec2 di = vec2(px[i] - cx, pz[i] - cz);
+                float s = dot(u, di - dp);
+                if (s <= reach) continue;
+                float r = (a * di.x + b * di.y + d0 - pg[i]) / s;                       // the tip that brings this one down
+                if (r < t) { t = r; q = i; }
+            }
+            if (q >= 0 && t > 0.0) {
+                a -= t * u.x; b -= t * u.y;
+                d0 = pg[p] - (a * dp.x + b * dp.y);                                     // P still touching
+                vec2 e = vec2(px[q] - cx, pz[q] - cz) - dp;
+                vec2 wv = vec2(-e.y, e.x) / max(length(e), 1e-6);                       // across the line PQ, toward the middle
+                if (dot(-dp, wv) < 0.0) wv = -wv;
+                t = 1e30; int r3 = -1;
+                for (int i = 0; i < n; i++) {
+                    vec2 di = vec2(px[i] - cx, pz[i] - cz);
+                    float s = dot(wv, di - dp);
+                    if (s <= reach) continue;
+                    float r = (a * di.x + b * di.y + d0 - pg[i]) / s;
+                    if (r < t) { t = r; r3 = i; }
+                }
+                if (r3 >= 0 && t > 0.0) { a -= t * wv.x; b -= t * wv.y; }
+            }
+        }
+    }
     a = clamp(a, -CONTACT_MAX_SLOPE, CONTACT_MAX_SLOPE);
     b = clamp(b, -CONTACT_MAX_SLOPE, CONTACT_MAX_SLOPE);
     float d = -1e30;                                                                    // no contact below the ground
