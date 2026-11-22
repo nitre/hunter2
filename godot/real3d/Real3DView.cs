@@ -32,6 +32,12 @@ public sealed partial class Real3DView : Node
     public ShaderMaterial LowClouds { get; }                            // CLOUDS: the low layer's cumulus
     readonly MeshInstance3D lowClouds;
     internal const int LowCloudCount = 64;                               // clouds.gdshaderinc LOW_CLOUD_N
+    public ShaderMaterial SolidClouds { get; }                          // CLOUDS: the same clouds as solid clusters of puffs (solidclouds.gdshader)
+    readonly MeshInstance3D solidClouds;
+    const int SolidCloudCorners = 5 * 8 * 4 * 2 * 3;                     // solidclouds.gdshader CLOUD_CORNERS: PUFFS x MAX_SEGS x MAX_BANDS, two triangles a facet
+    /// <summary>CLOUDS' low layer: solid puffs (the flat cards stand down), or the flat cards. Development: HUNTER_CLOUDS
+    /// = flat, off (neither), or SEGSxBANDS for the puffs' facets (8x4 the shader's own).</summary>
+    static readonly string cloudsAs = System.Environment.GetEnvironmentVariable("HUNTER_CLOUDS") ?? "";
     ImageTexture shoreTex;                                       // SEA: LIVING's shallows (ShoreDistance)
     readonly Camera3D camera;
     /// <summary>NEW, NOT THE ORIGINAL: the 3D camera's look turn round the player, radians
@@ -93,6 +99,14 @@ public sealed partial class Real3DView : Node
         LowClouds = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/lowclouds.gdshader") };   // CLOUDS: the low layer's cumulus, one card each
         lowClouds = new MeshInstance3D { Mesh = GpuWorld.Empty(LowCloudCount * 6), MaterialOverride = LowClouds, CustomAabb = GpuWorld.Huge, Visible = false };
         world.AddChild(lowClouds);
+        SolidClouds = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/solidclouds.gdshader") };
+        solidClouds = new MeshInstance3D { Mesh = GpuWorld.Empty(LowCloudCount * SolidCloudCorners), MaterialOverride = SolidClouds, CustomAabb = GpuWorld.Huge, Visible = false };
+        world.AddChild(solidClouds);
+        if (cloudsAs.Split('x') is [var segs, var bands] && int.TryParse(segs, out var ns) && int.TryParse(bands, out var nb))
+        {
+            SolidClouds.SetShaderParameter("puff_segs", ns);
+            SolidClouds.SetShaderParameter("puff_bands", nb);
+        }
         world.AddChild(Gpu = gpu);
 
         camera = new Camera3D
@@ -182,17 +196,22 @@ public sealed partial class Real3DView : Node
         var (moonT, moonPhase) = Moon(Gpu.Clock.Hour, Gpu.Clock.Minute, Gpu.Clock.Day);
         Sky.SetShaderParameter("moon_t", moonT);                     // CLOUDS' night: the moon (stars.gdshaderinc)
         Sky.SetShaderParameter("moon_phase", moonPhase);
-        lowClouds.Visible = clouds && !interior;
-        LowClouds.SetShaderParameter("cloud_clock", gameSeconds);
-        LowClouds.SetShaderParameter("sun_up", Gpu.SunToward != null);      // the heaps lit from the sun's side (clouds.gdshaderinc low_cloud_level)
-        if (Gpu.SunToward is { } sunT) LowClouds.SetShaderParameter("sun_dir", new Vector3(sunT.X, sunT.Y, sunT.Z));
+        bool flat = cloudsAs == "flat";
+        lowClouds.Visible = clouds && !interior && flat;
+        solidClouds.Visible = clouds && !interior && !flat && cloudsAs != "off";
+        foreach (var m in (ShaderMaterial[])[LowClouds, SolidClouds])
+        {
+            m.SetShaderParameter("cloud_clock", gameSeconds);
+            m.SetShaderParameter("sun_up", Gpu.SunToward != null);          // lit from the sun's side (clouds.gdshaderinc low_cloud_level, solidclouds.gdshader)
+            if (Gpu.SunToward is { } sunT) m.SetShaderParameter("sun_dir", new Vector3(sunT.X, sunT.Y, sunT.Z));
+        }
         var zoom = Free?.Zoom ?? 1f;
         camera.Size = Lens.Size / zoom;
         camera.FrustumOffset = Lens.Offset / zoom;
         camera.Position = Vector3.Zero;                                  // the camera is the lens only: the card-built shaders (and the sea) move
         camera.Rotation = Vector3.Zero;                                  // the world to the eye themselves (view.gdshaderinc)
-        viewed ??= [Sea, LowClouds, .. Gpu.Materials];
-        painted ??= [Sky, Sea, LowClouds, .. Gpu.Materials];
+        viewed ??= [Sea, LowClouds, SolidClouds, .. Gpu.Materials];
+        painted ??= [Sky, Sea, LowClouds, SolidClouds, .. Gpu.Materials];
         var vp = new Vector2(Viewport.Size.X, Viewport.Size.Y);
         foreach (var m in viewed)
         {
