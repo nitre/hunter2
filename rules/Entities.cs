@@ -55,7 +55,7 @@ public sealed class Entity
     /// the picture does (the card, GpuWorld), and only while the byte still agrees (Frac): any code that writes the byte
     /// alone, or copies a record, leaves a fine value that no longer fits it, and the byte's own whole step is drawn. Not saved.</summary>
     public ushort PitchFine, HeadingFine, RollFine;
-    /// <summary>ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the driven car's velocity and spin. Not saved.</summary>
+    /// <summary>ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the driven vehicle's own speed. Not saved.</summary>
     public Movement.DriveBody? Drive;
 
     /// <summary>The part of a step (1/256 steps, -128..255) the fine angle lies past the byte b, or 0 when it does not fit

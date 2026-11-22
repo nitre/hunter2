@@ -81,7 +81,7 @@ public sealed class SettingsMenu
             new Row("pause_on_focus_loss", "PAUSE IN BACKGROUND", Effect.Now),
             new Row("manual_button", "MANUAL BUTTON", Effect.Now),
             new Row("quit_button", "QUIT BUTTON", Effect.Now),          // QUIT on the main menu (playtest note 2)
-            new Row("handling", "VEHICLE HANDLING", Effect.Now),        // original (a set speed, a fixed turn) / weighty: the car has momentum and spin, tyres that grip by the ground under them, hills that pull (Handling.cs)
+            new Row("handling", "VEHICLE HANDLING", Effect.Now),        // original (a set speed, held) / weighty: your land vehicle gathers speed, coasts, brakes then reverses, and hills pull on it (Handling.cs)
             new Row("analog_steering", "STICK STEERING", Effect.Now),   // original (a stick = a key: full turn) / analog: a vehicle turns by as much as the gamepad stick leans (AnalogSteering)
             new Row("aiming", "AIMING", Effect.Now),                    // original (keys turn the soldier) / reticle: on foot he turns to the reticle and the shot goes to the point under it (AimReticle)
             new Row(KeysKey, "KEYS - USE F2", Effect.Now),              // opens the existing rebind screen
@@ -268,7 +268,7 @@ public sealed class SettingsMenu
         ["manual_button"] = "a control",
         ["quit_button"] = "a control",
         ["analog_steering"] = "play input, not a look - films replay recorded input; never the attract demo",
-        ["handling"] = "how the player's car drives - films replay recorded input; never the attract demo",
+        ["handling"] = "how the player's land vehicles drive - films replay recorded input; never the attract demo",
         ["aiming"] = "play input, not a look - films replay recorded input; never the attract demo",
         [KeysKey] = "the key bindings",
         ["fullscreen"] = "the window",

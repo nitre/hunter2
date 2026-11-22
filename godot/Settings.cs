@@ -391,7 +391,7 @@ public static class Settings
         set => Set("aiming", value);
     }
 
-    /// <summary>VEHICLE HANDLING - the player's car as a body with momentum, spin and tyres (rules Handling.cs,
+    /// <summary>VEHICLE HANDLING - the player's land vehicle has momentum and a reverse gear (rules Handling.cs,
     /// WorldState.WeightyHandling); the player's games only, never the attract demo. Default off. Original / Weighty.</summary>
     public static bool WeightyHandling
     {

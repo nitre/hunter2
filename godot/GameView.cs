@@ -237,7 +237,7 @@ public partial class GameView : Node2D
         play.SmoothAnimation = Settings.SmoothAnimation;                         // ENHANCEMENT (ANIMATION: SMOOTH): every play, game and demo (the picture only)
         Channels.SpareVoices = Settings.SoundVoices;                             // ENHANCEMENT (SOUND VOICES: MORE): the speakers only
         play.SkySteps = Settings.SkySteps;                                       // ENHANCEMENT: the stepped sky gradient, every play (game and demo)
-        play.WeightyHandling = !demo && Settings.WeightyHandling;               // ENHANCEMENT: the car as a body with tyres; never the attract demo
+        play.WeightyHandling = !demo && Settings.WeightyHandling;               // ENHANCEMENT: momentum and a reverse gear for the player's land vehicle; never the attract demo
         play.AnalogSteering = !demo && Settings.AnalogSteering;                 // ENHANCEMENT: a stick's lean turns a vehicle by as much; never the attract demo
         play.AimReticle = !demo && Settings.AimReticle;                       // ENHANCEMENT: on foot the soldier turns to the reticle, the shot goes under it; never the attract demo
         play.LimbDamage = false;                                                 // LIMB DAMAGE amputated for now - its code (rules/Limbs.cs) kept, off everywhere, a saved "on" ignored
@@ -1870,7 +1870,7 @@ public partial class GameView : Node2D
             case "ground_seed": Settings.GroundSeed = label == "RANDOM" ? "random" : label == "LAST" ? "last" : "world"; break;   // read at a new game
             case "living_world": Settings.LivingWorld = label == "ON"; break;            // read at the next game
             case "leave_behind": Settings.LeaveBehind = label == "BEHIND"; if (play is not null && !play.State.DemoMode) play.LeaveBehind = Settings.LeaveBehind; break;   // read at each exit; never into the attract demo
-            case "handling": Settings.WeightyHandling = label == "WEIGHTY"; if (play is not null && !play.State.DemoMode) play.WeightyHandling = Settings.WeightyHandling; break;   // how the car drives; never the attract demo
+            case "handling": Settings.WeightyHandling = label == "WEIGHTY"; if (play is not null && !play.State.DemoMode) play.WeightyHandling = Settings.WeightyHandling; break;   // how land vehicles drive; never the attract demo
             case "analog_steering": Settings.AnalogSteering = label == "ANALOG"; if (play is not null && !play.State.DemoMode) play.AnalogSteering = Settings.AnalogSteering; break;   // input, not a look; never the attract demo
             case "aiming": Settings.AimReticle = label == "RETICLE"; if (play is not null && !play.State.DemoMode) play.AimReticle = Settings.AimReticle; break;   // input, not a look; never the attract demo
             case "bullet_box": Settings.BulletBox = label == "SMALL"; if (play is not null && !play.State.DemoMode) play.BulletBox = Settings.BulletBox; break;   // new bullets; never the attract demo

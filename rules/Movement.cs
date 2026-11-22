@@ -79,7 +79,7 @@ public static partial class Movement
     {
         if (!Bit(d7, 27)) return Direct(FallIfAirborne(s, e, slot, d7, ticks));   // $2968: buildings, items: gravity only
         if ((d7 & 0x8000) != 0) return MoveAndTurn(s, e, slot, d7, ticks);   // $296E on foot
-        if (Weighty(s, e, slot)) return WeightyStep(s, e, slot, d7, ticks);  // ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the player's car as a body with tyres
+        if (Weighty(s, e, slot, d7)) return WeightyStep(s, e, slot, d7, ticks);  // ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the player's land vehicle has momentum and a reverse gear
         if (Bit(d7, 26) && e.W(0x3E) != 0)                                   // $2972 fuel
         {
             var use = Bit(d7, 4) ? ticks * 2 : ticks;

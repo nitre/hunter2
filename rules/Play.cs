@@ -46,7 +46,7 @@ public sealed partial class Play
     public bool LeaveBehind { get => State.LeaveBehind; set => State.LeaveBehind = value; }
     /// <summary>a stick's lean turns the player's vehicle by that share of the full turn (WorldState.AnalogSteering).</summary>
     public bool AnalogSteering { get => State.AnalogSteering; set => State.AnalogSteering = value; }
-    /// <summary>the player's car handles as a body with tyres (WorldState.WeightyHandling).</summary>
+    /// <summary>the player's land vehicle has momentum and a reverse gear (WorldState.WeightyHandling).</summary>
     public bool WeightyHandling { get => State.WeightyHandling; set => State.WeightyHandling = value; }
     /// <summary>a bullet hurts the limb it hits and a limb hit does not kill (WorldState.LimbDamage).</summary>
     public bool LimbDamage { get => State.LimbDamage; set => State.LimbDamage = value; }

@@ -152,8 +152,8 @@ public sealed class WorldState
     /// vehicle by as much as it leans. AnalogLean is the shell's lean, -16..16 sixteenths of the full turn, set each blank (0 =
     /// keys / d-pad / no stick, or the flag off); +$18 stays the original's -1 / 0 / +1. MoveAndTurn reads both (slot 0 only).</summary>
     public bool AnalogSteering;
-    /// <summary>VEHICLE HANDLING: WEIGHTY (Handling.cs) - the player's car moves as a body with its own velocity and spin, held
-    /// by two tyres; WeightyNow is the option while a hand is at the stick (never the demo, never the bot), DriveStick the
+    /// <summary>VEHICLE HANDLING: WEIGHTY (Handling.cs) - the player's land vehicle has momentum and a reverse
+    /// gear; WeightyNow is the option while a hand is at the stick (never the demo, never the bot), DriveStick the
     /// stick's up / down bits that blank ($D6 bits 1 / 0). Off: the original's set speed and fixed turn.</summary>
     public bool WeightyHandling, WeightyNow;
     public byte DriveStick;
