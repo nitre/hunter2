@@ -75,9 +75,9 @@ public static class CarInside
         [Jeep] = new(-2, 42, 40, 40, -6, -42, 104, -50, 78, 66, 46, 36, 24, 42, 84, 6, 14, 10, 62),
         // the cabs: jobs/vehicle_interiors/cabs.md's seats, dash and hub, snapped to the model's grid, the wheel upright as the car's
         // (truck and ambulance: the dash's top just under the windscreen's foot (y 80), the seat backs up into the glass, the wheel
-        // small and high enough to show whole above the dash, where the seated driver's hands are)
-        [Truck] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 88, 164, 20, 12, 64),
-        [Ambulance] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 88, 164, 20, 12, 64),
+        // small, its top (y 92) below the seated driver's eyes (about y 100) and under his hands)
+        [Truck] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 72, 164, 20, 12, 56),
+        [Ambulance] = new(0, 60, 48, 32, 152, 104, 112, 96, 112, 76, 4, 232, 200, 60, 72, 164, 20, 12, 56),
         [Van] = new(-40, 44, 44, -8, 24, -4, 46, -10, 74, 6, -36, 108, 82, 44, 24, 56, 30, 20, 2),
         // (its wheel 4 file units from the dash, not cabs.md's 2: nearer, FindStickers takes the lower half for a sticker)
         [Amphibious] = new(228, 28, 24, 240, -16, -36, 268, -40, 44, 252, 232, 20, 12, 28, 252, -4, 16, 12, 240),
