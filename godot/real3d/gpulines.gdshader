@@ -40,7 +40,7 @@ bool line_end(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out v
     float k = (shell_row >= 0 && id / (line_slots * 2) == shell_row) ? 1.25 : 1.0;   // the shell's own lines go back with it
     vec3 eye = (mv * vec4(view_rel(vec3(p.x, p.y, -p.z)), 1.0)).xyz;
     clip = proj * vec4(eye * 0.99 * k, 1.0);                            // a line lies on its face (which may itself be pulled 0.4% nearer): nearer than that
-    return clip.w > 0.01;
+    return true;                                                        // an end behind the eye: vertex() cuts the line at the eye
 }
 
 // A window border's paint and light, worked out as gpumodels_body.gdshaderinc does for a face: the tint from its colour, a
@@ -92,6 +92,13 @@ void vertex() {
     bool ok = line_end(base_id, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, ca, colour);
     int colour_b;
     ok = line_end(base_id + 1, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, cb, colour_b) && ok;
+    // a line with one end at or behind the eye is cut where it passes the eye (dropped whole, a window's border right
+    // beside the camera vanished); both ends behind: nothing
+    if (ok && (ca.w <= 0.01 || cb.w <= 0.01)) {
+        if (ca.w <= 0.01 && cb.w <= 0.01) ok = false;
+        else if (ca.w <= 0.01) ca = mix(ca, cb, (0.02 - ca.w) / (cb.w - ca.w));
+        else cb = mix(cb, ca, (0.02 - cb.w) / (ca.w - cb.w));
+    }
     bool border = gpu_line_border(base_id);
     if (border && !glass) ok = false;                                               // GLASS: ORIGINAL - painted-black windows, no borders
     dark = border ? BORDER_DARK : 1.0;

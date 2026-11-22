@@ -51,7 +51,7 @@ bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out
     int slot = (id - (id / (tri_slots * 3)) * (tri_slots * 3)) / 3;                      // the triangle's place in its model's face list
     float order = 1.0 - float(slot) * 0.000002;                                          // later faces win a tie on a shared plane, as the painter's order did ($77AA walks the list in order)
     clip = proj * vec4((pull ? eye * 0.996 : eye) * k * order, 1.0);
-    return clip.w > 0.01;
+    return true;                                      // a corner at or behind the eye does not drop its triangle: vertex() leaves it to the card to cut at the eye
 }
 
 void vertex() {
@@ -162,9 +162,13 @@ void vertex() {
                 else mine_px += -out_ + d * 0.5;                                      // and half a pixel longer each end
             }
         }
-        POSITION = vec4(mine_px / half_vp * mine.w, mine.z, mine.w);
+        // a triangle with a corner at or behind the eye goes to the card as it is, to be cut at the eye: the sums above
+        // divide by the corner's depth. (Dropped whole, a wall right beside the camera vanished when one corner passed the eye.)
+        bool at_eye = c0.w <= 0.01 || c1.w <= 0.01 || c2.w <= 0.01;
+        POSITION = at_eye ? mine : vec4(mine_px / half_vp * mine.w, mine.z, mine.w);
+        if (c0.w <= 0.01 && c1.w <= 0.01 && c2.w <= 0.01) POSITION = vec4(2.0, 2.0, 2.0, 1.0);   // wholly behind the eye: nothing
         // BACK TO BACK: a front-only face seen from behind is not drawn (the way its corners turn on the screen)
-        if (front_only(first) && ((s1.x - s0.x) * (s2.y - s0.y) - (s1.y - s0.y) * (s2.x - s0.x)) * FRONT_TURN < 0.0)
+        if (!at_eye && front_only(first) && ((s1.x - s0.x) * (s2.y - s0.y) - (s1.y - s0.y) * (s2.x - s0.x)) * FRONT_TURN < 0.0)
             POSITION = vec4(2.0, 2.0, 2.0, 1.0);
     }
     depth_ = POSITION.w;
