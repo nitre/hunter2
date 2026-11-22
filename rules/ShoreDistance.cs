@@ -60,6 +60,18 @@ public static class ShoreDistance
         return f;
     }
 
+    /// <summary>How far the point (world units) is from the sea as the ground draws it - BuildFromCoast's measure for one
+    /// point - looking no further than reach (the value past it).</summary>
+    public static float FromSea(byte[] map, int x, int z, int reach)
+    {
+        int c0 = x / GroundMesh.Cell, r0 = z / GroundMesh.Cell, cells = reach / GroundMesh.Cell + 1;
+        var best = (float)reach;
+        for (var r = Math.Max(0, r0 - cells); r <= Math.Min(GroundMesh.Points - 1, r0 + cells); r++)
+            for (var c = Math.Max(0, c0 - cells); c <= Math.Min(GroundMesh.Points - 1, c0 + cells); c++)
+                if (WaterShape(map, c, r) is { } w) best = Math.Min(best, Distance(x, z, w));
+        return best;
+    }
+
     // A cell's water in world units: the whole square (type 0), the cut-off triangle of a coast cell (GroundMesh.Land:
     // shapes 2, 4, 6, 7 keep x >= z inside the cell, 3 keep x + z >= 1, 5 keep x + z <= 1), or null.
     static (float X, float Z)[]? WaterShape(byte[] map, int c, int r)

@@ -231,6 +231,7 @@ public sealed class OptionsPanel : IMenuPanel
         ["finer_ground"] = "The land grown finer between the map's points; 2X and up also make the hills taller. At a new game.",
         ["ground_seed"] = "The same hills between the map's points every game, or new ones each new game.",
         ["leave_behind"] = "Step out behind a vehicle, not on its east side: a moving boat will not run you down.",
+        ["handling"] = "The car has weight: it gathers speed, coasts, slides on sand, rolls on hills. Down brakes, then reverses.",
         ["aiming"] = "On foot the soldier turns to a reticle you move with the mouse or right stick, and shoots at the point under it.",
         ["bullet_box"] = "Bullets hit only what they fly into. The original's jam on north-south lines.",
         ["analog_steering"] = "A gamepad stick turns a vehicle by as much as it leans. Keys and d-pad turn fully; on foot is the same.",

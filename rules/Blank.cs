@@ -31,7 +31,7 @@ public static class Blank
             s.Distance += diff > 0 ? s.Step : -s.Step;
             s.Lift = (short)((ushort)s.Distance >> 3);                       // $35EE lsr.w #3
         }
-        SpeedControl(player, ref d6, ref d4);                                // $35F6
+        if (!Movement.WeightyDrives(s, player)) SpeedControl(player, ref d6, ref d4);   // $35F6 (VEHICLE HANDLING: WEIGHTY sets the car's speed itself)
     }
 
     /// <summary>(mp_two_soldiers): the same SpeedControl ($35F6)

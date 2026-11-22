@@ -46,6 +46,8 @@ public sealed partial class Play
     public bool LeaveBehind { get => State.LeaveBehind; set => State.LeaveBehind = value; }
     /// <summary>a stick's lean turns the player's vehicle by that share of the full turn (WorldState.AnalogSteering).</summary>
     public bool AnalogSteering { get => State.AnalogSteering; set => State.AnalogSteering = value; }
+    /// <summary>the player's car handles as a body with tyres (WorldState.WeightyHandling).</summary>
+    public bool WeightyHandling { get => State.WeightyHandling; set => State.WeightyHandling = value; }
     /// <summary>a bullet hurts the limb it hits and a limb hit does not kill (WorldState.LimbDamage).</summary>
     public bool LimbDamage { get => State.LimbDamage; set => State.LimbDamage = value; }
     /// <summary>bullets get a small box, not model 0's (WorldState.BulletBox).</summary>
@@ -394,6 +396,8 @@ public sealed partial class Play
         byte d6 = j.D6, d4 = (byte)(j.Fire ? 1 : 0);                        // $C74C / $C7E0
         byte d62 = j2.D6, d42 = (byte)(j2.Fire ? 1 : 0);                    // mp_two_soldiers: player 2's port, read the same blank
         if (State.DemoMode) (d6, d4) = (D6, D4);                             // $C750 bmi: the demo reads no input - $D6/$D4 keep the replay's
+        State.WeightyNow = State.WeightyHandling && !State.DemoMode && Pilot is null;   // VEHICLE HANDLING: WEIGHTY: a hand at the stick only
+        State.DriveStick = d6;
         if (State.InPlay) State.Channels.Tick();                             // $C6BA-$C6C6: the sample player's tick while play runs
         if (State.InPlay && Demo.CountBlank(State))                          // $C6DE btst #7,$99: not while paused; $C6E6 the demo's cap
         {

@@ -6,7 +6,7 @@ namespace Hunter.Rules;
 /// missed path fails loudly. CrashDestroyEntity ($2C92) pops MoveByModeBurnFuel's return: UpdateEntity's tail
 /// then goes on with whatever record EntityEnds left (the original's A4 / d7).
 /// </summary>
-public static class Movement
+public static partial class Movement
 {
     static bool Bit(int d7, int n) => (d7 >> n & 1) != 0;
 
@@ -79,6 +79,7 @@ public static class Movement
     {
         if (!Bit(d7, 27)) return Direct(FallIfAirborne(s, e, slot, d7, ticks));   // $2968: buildings, items: gravity only
         if ((d7 & 0x8000) != 0) return MoveAndTurn(s, e, slot, d7, ticks);   // $296E on foot
+        if (Weighty(s, e, slot)) return WeightyStep(s, e, slot, d7, ticks);  // ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the player's car as a body with tyres
         if (Bit(d7, 26) && e.W(0x3E) != 0)                                   // $2972 fuel
         {
             var use = Bit(d7, 4) ? ticks * 2 : ticks;
