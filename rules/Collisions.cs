@@ -82,7 +82,7 @@ public static class Collisions
                     var (hurter, victim) = Bit(d7, 20) ? (a4, a3) : (a3, a4);
                     if (_s is { } sh && victim == sh.Entities.All[0]) Hurt(sh, hurter);   // the bot's death log
                     victim.BlastHit = MakesFire(hurter.W(4));
-                    if (victim.BlastHit) { victim.BlastX = hurter.UW(0x4A); victim.BlastY = hurter.W(0x4C); victim.BlastZ = hurter.UW(0x4E); }
+                    if (victim.BlastHit) { victim.BlastX = hurter.UW(0x4A); victim.BlastY = hurter.W(0x4C); victim.BlastZ = hurter.UW(0x4E); victim.BlastType = hurter.W(4); }
                 }
                 if (_s is { LivingWorld: true })                              // ENHANCEMENT (LIVING WORLD): who hurt whom, for the score
                 {

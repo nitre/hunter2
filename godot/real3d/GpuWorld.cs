@@ -67,7 +67,7 @@ public sealed partial class GpuWorld : Node3D
     readonly int model0, faces0;                 // model 0 (the debris model) and where its ten faces start ($59FE)
     readonly byte[] model0Seen = new byte[11], model0Now = new byte[11];   // its scale byte and the ten face colours: as last uploaded, and now
     /// <summary>The materials that need the palette uniforms every frame (Real3DView.Frame).</summary>
-    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces, marks];
+    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks];
     ShaderMaterial[]? materials, things, sunLit;  // made once: the lists Update sets uniforms on every frame
     readonly float[] animFloats = new float[320 * 2], dposFloats = new float[30];   // SMOOTH PARTS: anim row 1 = the table one step back
     readonly byte[] animBytes = new byte[320 * 2 * 4], dposBytes = new byte[30 * 4];
@@ -112,10 +112,14 @@ public sealed partial class GpuWorld : Node3D
     // DEBRIS: PIECES (pieces.gdshaderinc): the last Blasts things that blew up, their records as they were and when
     const int Blasts = 2048;                     // the blast room too is fixed and generous (maths32.md group 3), the ring reused oldest-first as before
     readonly ShaderMaterial pieces = new() { Shader = GD.Load<Shader>("res://real3d/gpupieces.gdshader") };
+    // BETTER EXPLOSIONS step 6 (pieces.gdshaderinc break_star_corner): a small star where each of a wreck's biggest panels breaks
+    readonly ShaderMaterial breakStars = new() { Shader = GD.Load<Shader>("res://real3d/gpubreakstars.gdshader") };
+    internal const int BreakStars = 6;           // small stars a blast at most (model_tex rows 3 and 4)
+    MultiMesh? breakRows;
     readonly float[] blastFloats = new float[Blasts * 0xA0];
     readonly byte[] blastBytes = new byte[Blasts * 0xA0 * 4];
     readonly ImageTexture blastTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0, Blasts, false, Image.Format.Rf));
-    // row 0: r = the frame it blew up, g = 1 in use; row 1 (BETTER EXPLOSIONS): where the shell, missile or blast that did it
+    // row 0: r = the frame it blew up, g = 1 in use, b = the star model that did it (0 none); row 1 (BETTER EXPLOSIONS): where the shell, missile or blast that did it
     // was, from the thing's own +$4A / +$4C / +$4E (world units, x and z the shorter way round), a = 1 - or all 0: none
     readonly Image blastInfo = Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf);
     readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf));
@@ -195,7 +199,7 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>A thing blew up (rules Objects.Exploded): its record as it was, clock = the game's frame it blew up on
     /// (GameView.GameClock), and from = where the shell, missile or blast that did it was (null: none - the pieces fly from
     /// the thing's middle, as before) - the card does the rest. Sent with the frame's Update (SendBlasts), once however many.</summary>
-    public void AddBlast(byte[] record, float clock, (ushort X, short Y, ushort Z)? from = null)
+    public void AddBlast(byte[] record, float clock, (ushort X, short Y, ushort Z)? from = null, int star = 0)
     {
         // the lowest row whose pieces are gone, so the rows drawn stay as few as the blasts still showing (a slab piece is
         // 24 vertices a triangle slot: every row ever used, drawn every frame, tripled the frame's time by the demo's end);
@@ -206,9 +210,10 @@ public sealed partial class GpuWorld : Node3D
         blastStart[row] = clock;
         blastHigh = Math.Max(blastHigh, row + 1);
         if (pieceRows is not null) pieceRows.VisibleInstanceCount = blastHigh;
+        if (breakRows is not null) breakRows.VisibleInstanceCount = blastHigh;
         for (var o = 0; o < 0xA0; o++) blastFloats[row * 0xA0 + o] = record[o];
         Lift(blastFloats, row * 0xA0);
-        blastInfo.SetPixel(row, 0, new Color(clock, 1, 0, 0));
+        blastInfo.SetPixel(row, 0, new Color(clock, 1, from is null ? 0 : star, 0));
         if (from is { } f)
         {
             int U(int o) => record[o] << 8 | record[o + 1];
@@ -260,6 +265,10 @@ public sealed partial class GpuWorld : Node3D
 
     /// <summary>Triangle row's column x read from TriTable's image (x first, as Image.GetPixel).</summary>
     public static Color TriPixel(Image table, int x, int row) { var (px, py) = TriAt(row, x); return table.GetPixel(px, py); }
+    /// <summary>The small stars' material (step 6) and a blast row's start frame, star model and whether a hit is kept - the live readback.</summary>
+    public ShaderMaterial BreakStarsMaterial => breakStars;
+    public (float Start, int Star, bool Hit, int Model) BlastRow(int row) { var (a, b) = (blastInfo.GetPixel(row, 0), blastInfo.GetPixel(row, 1)); return (a.R, (int)a.B, b.A > 0.5f, (int)blastFloats[row * 0xA0 + 0x25]); }
+    public int BlastRows => blastHigh;
     /// <summary>The pieces' own material as the game wires it (CheckPieces reads its inputs).</summary>
     public ShaderMaterial PiecesMaterial => pieces;
     /// <summary>The models' and shadows' materials as the game wires them (the live "corners" readback copies their inputs).</summary>
@@ -356,8 +365,7 @@ public sealed partial class GpuWorld : Node3D
         ground.SetShaderParameter("cuts", cuts);                 // GROUND: TRUE HEIGHT (pieces a triangle side)
         pieces.SetShaderParameter("types", typesTex);
         shadows.SetShaderParameter("shadow_types", typesTex);     // lighter shadows on the sea
-        pieces.SetShaderParameter("blast_tex", blastTex);
-        pieces.SetShaderParameter("blast_info", blastInfoTex);
+        foreach (var m in new[] { pieces, breakStars }) { m.SetShaderParameter("blast_tex", blastTex); m.SetShaderParameter("blast_info", blastInfoTex); }
         AddChild(groundMesh = new MeshInstance3D { Mesh = Empty(meshCorners = 128 * 128 * 2 * 3 * cuts * cuts), MaterialOverride = ground, CustomAabb = Huge });
         marks.SetShaderParameter("mark_tex", markTex);                // TRACK MARKS: two triangles an entry of the ring
         AddChild(new MeshInstance3D { Mesh = Empty(MarkRing * 6), MaterialOverride = marks, CustomAabb = Huge });
@@ -371,7 +379,7 @@ public sealed partial class GpuWorld : Node3D
         faces0 = edges0 + 2 + m0.U(edges0) * 2 + 2;
         debris.SetShaderParameter("debris_base", model0);
         var trigTex = TrigTexture.From(sinfile);
-        foreach (var m in new[] { models, glassFaces, shadows, lines, dots, debris, pieces })
+        foreach (var m in new[] { models, glassFaces, shadows, lines, dots, debris, pieces, breakStars })
         {
             m.SetShaderParameter("mdl_tex", mdlTex);
             m.SetShaderParameter("mdl_at", atTex);
@@ -937,7 +945,7 @@ public sealed partial class GpuWorld : Node3D
         var tris = new List<Color>();
         var triOff = new List<Color>();                           // per triangle: a slab's offset, x 2 of the table
         var panels = new List<Color>();                                     // per triangle: its face's first triangle and count (pieces.gdshaderinc)
-        var info = Image.CreateEmpty(256, 3, false, Image.Format.Rgbaf);       // row 0: triangles, row 1: line segments, row 2: the centre
+        var info = Image.CreateEmpty(256, 5, false, Image.Format.Rgbaf);       // row 0: triangles, row 1: line segments, row 2: the centre, rows 3 and 4: its six biggest panels
         var start = new int[nModels];
         var count = new int[nModels];
         var backCount = new int[nModels];                     // the back walls' triangles, last in the run
@@ -1251,6 +1259,33 @@ public sealed partial class GpuWorld : Node3D
             info.SetPixel(i, 0, new Color(Store.Models[i].Offset, Math.Max(start[i], 0), count[i], backCount[i]));
             info.SetPixel(i, 1, new Color(lineStart[i], lineCount[i], 0, 0));
             info.SetPixel(i, 2, Centre(Store.Models[i]));
+            // BETTER EXPLOSIONS step 6: the model's biggest panels, by their area as the model stands - each one's first
+            // triangle counted from the model's first, -1 for none (pieces.gdshaderinc break_star_at); not a rod, sunk
+            // glass, a fireball's core or a back wall (none of those is a panel the pieces know by the model's own corners)
+            var big = new List<(double Area, int Slot)>();
+            var seen = new HashSet<string>();                             // a sheet's two sides are two panels on the same corners: one star
+            var md = Store.Models[i];
+            for (var t = Math.Max(start[i], 0); t < Math.Max(start[i], 0) + count[i]; t++)
+            {
+                int first = (int)panels[t].R, n = (int)panels[t].G;
+                if (first != t) continue;
+                double area = 0;
+                var on = new SortedSet<int>();
+                for (var j = first; j < first + n && area >= 0; j++)
+                {
+                    int a = (int)tris[j].R, b = (int)tris[j].G, c = (int)tris[j].B;
+                    if (((int)tris[j].A & (0x100 | Glass.Sunk | Fireball.Bit)) != 0 || Math.Max(a, Math.Max(b, c)) >= md.Corners.Length) { area = -1; break; }
+                    on.Add(a); on.Add(b); on.Add(c);
+                    var (pa, pb, pc) = (md.Corners[a], md.Corners[b], md.Corners[c]);
+                    double ux = pb.X - pa.X, uy = pb.Y - pa.Y, uz = pb.Z - pa.Z, vx = pc.X - pa.X, vy = pc.Y - pa.Y, vz = pc.Z - pa.Z;
+                    double cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+                    area += 0.5 * Math.Sqrt(cx * cx + cy * cy + cz * cz);
+                }
+                if (area > 0 && seen.Add(string.Join(',', on))) big.Add((area, t - start[i]));
+            }
+            var six = big.OrderByDescending(p => p.Area).ThenBy(p => p.Slot).Take(BreakStars).Select(p => (float)p.Slot).Concat(Enumerable.Repeat(-1f, BreakStars)).ToArray();
+            info.SetPixel(i, 3, new Color(six[0], six[1], six[2], 0));
+            info.SetPixel(i, 4, new Color(six[3], six[4], six[5], 0));
             maxTris = Math.Max(maxTris, count[i]);
             maxLines = Math.Max(maxLines, lineCount[i]);
         }
@@ -1278,7 +1313,12 @@ public sealed partial class GpuWorld : Node3D
         pieceRows = SlotRows(maxTris * PieceCorners, Blasts);
         pieceRows.VisibleInstanceCount = blastHigh;                          // no blast yet: nothing to run the pieces' shader for
         AddChild(new MultiMeshInstance3D { Multimesh = pieceRows, MaterialOverride = pieces, CustomAabb = Huge });
-        foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces })
+        var starTris = Enumerable.Range(Fireball.First, Fireball.Last - Fireball.First + 1).Where(n => n < nModels).Select(n => count[n]).DefaultIfEmpty(1).Max();
+        breakStars.SetShaderParameter("star_slots", starTris);       // step 6: the small stars, a blast's rows as the pieces'
+        breakRows = SlotRows(BreakStars * starTris * 3, Blasts);
+        breakRows.VisibleInstanceCount = blastHigh;
+        AddChild(new MultiMeshInstance3D { Multimesh = breakRows, MaterialOverride = breakStars, CustomAabb = Huge });
+        foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces, breakStars })
         {
             m.SetShaderParameter("tri_tex", triTex);
             m.SetShaderParameter("model_tex", infoTex);
@@ -2157,15 +2197,19 @@ public sealed partial class GpuWorld : Node3D
         if (lean != leanShown || LeanRow != leanRowShown)
         {
             (leanShown, leanRowShown) = (lean, LeanRow);
-            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
+            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
         }
         SendBlasts();
         if (!PiecesStay)                                                // the rows past the last live blast are not drawn
         {
             var high = blastHigh;
             while (high > 0 && clock - blastStart[high - 1] > BlastLife) high--;
-            if (high != blastHigh) { blastHigh = high; if (pieceRows is not null) pieceRows.VisibleInstanceCount = high; }
+            if (high != blastHigh) { blastHigh = high; if (pieceRows is not null) pieceRows.VisibleInstanceCount = high; if (breakRows is not null) breakRows.VisibleInstanceCount = high; }
         }
+        breakStars.SetShaderParameter("piece_clock", clock);
+        breakStars.SetShaderParameter("pieces_on", cardPieces);
+        breakStars.SetShaderParameter("fire_reach", Fireball.Reach);
+        breakStars.SetShaderParameter("fire_tall", Fireball.Tall);
         pieces.SetShaderParameter("piece_clock", clock);                // the game's own frames (GameView.GameClock): still while paused
         debris.SetShaderParameter("debris_off", cardPieces);         // the pieces stand in for the original's ten triangles
         pieces.SetShaderParameter("pieces_on", cardPieces);
@@ -2174,7 +2218,7 @@ public sealed partial class GpuWorld : Node3D
         for (var i = 0; i < fireHits.Length; i++) if (fireHits[i].W != 0 && clock > fireHitUntil[i]) fireHits[i] = default;
         models.SetShaderParameter("fire_reach", Fireball.Reach);
         models.SetShaderParameter("fire_hits", fireHits);              // step 5: the star sized by what it blew up
-        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, marks])
+        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks])
         {
             m.SetShaderParameter("inside_view", insideView);
             m.SetShaderParameter("shell_row", shellRow);                  // the building drawn from inside ($48F8)

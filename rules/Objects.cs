@@ -1,4 +1,4 @@
-﻿namespace Hunter.Rules;
+namespace Hunter.Rules;
 
 /// <summary>objfile as the program holds it: the 64 KB buffer $83CA and the offset table $49F0.
 /// THE EXTENDED MODEL ("OW"): the card
@@ -644,13 +644,13 @@ public sealed class Objects
     /// <summary>ENHANCEMENT (the card's EXPLOSIONS: PIECES): told of every thing that blows up, a copy of its record as it
     /// was at that moment, and where the shell, missile or blast that did it was (Entity.BlastHit; null = none, a bullet,
     /// a ram, a crash). The picture only - nothing in the game reads it; null outside the card-drawn view.</summary>
-    public static Action<byte[], (ushort X, short Y, ushort Z)?>? Exploded;
+    public static Action<byte[], (ushort X, short Y, ushort Z)?, int>? Exploded;   // the int: that shell's, missile's or blast's type, 0 with none
 
     /// <summary>StartDebris ($59FE): 20 draws, offsets cleared, model 0 takes the victim's scale
     /// (+$9C) and, face by face, its faces' colours (cycling). Rewrites the game's own models.</summary>
     public static void StartDebris(WorldState s, Entity victim, int slot)
     {
-        Exploded?.Invoke((byte[])victim.B.Clone(), victim.BlastHit ? (victim.BlastX, victim.BlastY, victim.BlastZ) : null);
+        Exploded?.Invoke((byte[])victim.B.Clone(), victim.BlastHit ? (victim.BlastX, victim.BlastY, victim.BlastZ) : null, victim.BlastHit ? victim.BlastType : 0);
         var models = s.Models;
         var b = models.Buf;
         var shift = (byte)victim.W(0x9C);                    // $5A1A: read before the lookup rewrites it

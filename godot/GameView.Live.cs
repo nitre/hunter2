@@ -248,9 +248,92 @@ public partial class GameView
         return lines.Count == 0 ? "none drawn" : string.Join("\n", lines);
     }
 
+    // "breakstars": the small stars where a blast's panels break (pieces.gdshaderinc break_star_at / break_star_corner), run for
+    // one blast row at t frames after it blew up and read back - world units, 16ths
+    const string BreakStarsShader = """
+        shader_type canvas_item;
+        render_mode blend_disabled;
+        #include "res://real3d/place.gdshaderinc"
+        #include "res://real3d/world_colour.gdshaderinc"
+        #include "res://real3d/sunshade.gdshaderinc"
+        #include "res://real3d/own_colours.gdshaderinc"
+        #include "res://real3d/gpumodels.gdshaderinc"
+        #include "res://real3d/view.gdshaderinc"
+        #include "res://real3d/ground_cell.gdshaderinc"
+        #include "res://real3d/pieces.gdshaderinc"
+        uniform sampler2D blast_tex : filter_nearest;
+        uniform sampler2D blast_info : filter_nearest;
+        uniform int star_slots;
+        uniform int live_row;
+        uniform float live_t;
+
+        void fragment() {
+            ivec2 fc = ivec2(FRAGCOORD.xy);
+            int per = 1 + star_slots * 3;                       // a star's lines: where it stands, then its corners
+            int n = fc.y / per, r = fc.y - n * per;
+            vec4 info = texelFetch(blast_info, ivec2(live_row, 0), 0), from = texelFetch(blast_info, ivec2(live_row, 1), 0);
+            vec3 p = vec3(0.0); float a = 0.0, b = 0.0;
+            bool ok;
+            if (r == 0) {
+                vec3 at; float tb, radius;
+                ok = break_star_at(blast_tex, cam_map, live_row, from, n, at, tb, radius);
+                p = vec3(at.x * 0.5, at.y, at.z * 0.5); a = tb; b = radius;
+            } else {
+                int colour;
+                ok = break_star_corner(blast_tex, cam_map, live_row, from, int(info.b + 0.5), n, (r - 1) / 3, (r - 1) % 3, live_t, p, colour);
+                a = float(colour);
+            }
+            if (ok && r != 0) b = float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF));
+            float v = fc.x == 0 ? p.x : (fc.x == 1 ? p.y : (fc.x == 2 ? p.z : (fc.x == 3 ? a : (fc.x == 4 ? b : (ok ? 1.0 : 0.0)))));
+            int iv = int(round(v * 16.0));
+            COLOR = vec4(float(iv & 0xFF) / 255.0, float((iv >> 8) & 0xFF) / 255.0, float((iv >> 16) & 0xFF) / 255.0, 1.0);
+        }
+        """;
+
+    /// <summary>"breakstars": the blasts kept; "breakstars ROW [T]": that blast's small stars T frames after it blew up (left
+    /// out: now) - "star n at x y z breaks tb size r" a star, then "n slot corner x y z colour ground" a drawn corner.</summary>
+    async System.Threading.Tasks.Task<string> LiveBreakStars(int row, float t)
+    {
+        var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
+        var src = gpu.BreakStarsMaterial;
+        var clock = (float)src.GetShaderParameter("piece_clock");
+        if (row < 0)
+            return string.Join("\n", Enumerable.Range(0, gpu.BlastRows).Select(i => { var b = gpu.BlastRow(i); return $"blast {i}: model {b.Model:X2}, {clock - b.Start} frames ago, {(b.Hit ? $"hit, star model {b.Star:X2}" : "no hit")}"; }).DefaultIfEmpty("no blasts"));
+        var slots = (int)src.GetShaderParameter("star_slots");
+        var mat = new ShaderMaterial { Shader = new Shader { Code = BreakStarsShader } };
+        foreach (var u in src.Shader.GetShaderUniformList())
+        {
+            var name = (string)u.AsGodotDictionary()["name"];
+            mat.SetShaderParameter(name, src.GetShaderParameter(name));
+        }
+        var info = gpu.BlastRow(row);
+        if (float.IsNaN(t)) t = clock - info.Start;
+        mat.SetShaderParameter("live_row", row);
+        mat.SetShaderParameter("live_t", t);
+        var per = 1 + slots * 3;
+        var size = new Vector2I(6, GpuWorld.BreakStars * per);
+        var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
+        AddChild(vp);
+        vp.AddChild(new ColorRect { Size = size, Material = mat });
+        await ToSignal(GetTree(), "process_frame");
+        await ToSignal(GetTree(), "process_frame");
+        var img = vp.GetTexture().GetImage();
+        vp.QueueFree();
+        double V(int x, int y) { var c = img.GetPixel(x, y); return ((c.R8 | c.G8 << 8 | c.B8 << 16) << 8 >> 8) / 16.0; }
+        var lines = new System.Collections.Generic.List<string> { $"blast {row}: model {info.Model:X2}, t {t}, {(info.Hit ? $"hit, star model {info.Star:X2}" : "no hit")}, pieces {(src.GetShaderParameter("pieces_on").AsBool() ? "on" : "off")}" };
+        for (var y = 0; y < size.Y; y++)
+        {
+            if (V(5, y) <= 0) continue;
+            int n = y / per, r = y % per;
+            lines.Add(r == 0 ? $"star {n} at {V(0, y)} {V(1, y)} {V(2, y)} breaks {V(3, y)} size {V(4, y)}" : $"{n} {(r - 1) / 3} {(r - 1) % 3} {V(0, y)} {V(1, y)} {V(2, y)} {V(3, y)} {V(4, y)}");
+        }
+        return string.Join("\n", lines);
+    }
+
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
         if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
     }

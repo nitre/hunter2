@@ -325,9 +325,9 @@ public partial class GameView : Node2D
         AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScaleX, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
         var card = real3d.Gpu;
         if (pictureOnly) card.PictureLift = (x, z) => fine!.Height(x, z) - play.State.Ground.Height(x, z);
-        Objects.Exploded = (record, from) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
+        Objects.Exploded = (record, from, by) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
         {
-            card.AddBlast(record, GameClock(), from);                                     // this pass's blanks are already counted: the frame it blew up on
+            card.AddBlast(record, GameClock(), from, StarModel(by));                                     // this pass's blanks are already counted: the frame it blew up on
             GD.Print($"HUNTER: explosion at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, {(record[0x1C] != 0 ? "in view" : "out of view")}{(from is { } f ? $", by a blast at {f.X} {f.Z}, its size {Math.Max((short)(record[0x6E] << 8 | record[0x6F]), (short)(record[0x72] << 8 | record[0x73]))}" : "")}");   // a recording finds its explosions here
         };
         real3dSprite = new Sprite2D
@@ -559,6 +559,17 @@ public partial class GameView : Node2D
     /// <summary>The game's own frames for the card's moving effects (the living sea, the explosion pieces): one for each
     /// blank the game counts ($1A4 BlankCount, $C6FE) - none while paused or a screen is up. A new game's reset of the
     /// count carries on from here, never a jump back.</summary>
+    /// <summary>The star model a shell, missile or blast of this type shows (its own, or what it ends as: kind +$08, then the model
+    /// byte +5) - 0 when it is none of the blasts' (Fireball.First .. Last). For the small stars where a wreck's panels break.</summary>
+    int StarModel(int by)
+    {
+        if (by <= 0) return 0;
+        var blast = by is >= 0x61 and <= 0x67 ? by : play.State.Data.KindWord(by, 0x08) & 0x7FFF;
+        if (blast is < 0x61 or > 0x67) return 0;
+        var model = play.State.Data.KindByte(blast, 5);
+        return model is >= Fireball.First and <= Fireball.Last ? model : 0;
+    }
+
     float GameClock()
     {
         var now = play.State.BlankCount;

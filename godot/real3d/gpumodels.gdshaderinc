@@ -191,7 +191,7 @@ float fire_age(int row, int type) {
     return clamp(1.0 - float(_ew(ent_tex, row, 0x30)) / life, 0.0, 1.0);
 }
 // BETTER EXPLOSIONS step 5: the star sized by what it blew up. fire_hits (GpuWorld.AddBlast): where the shell or blast
-// stood when a thing blew up from it (x, z), that thing's size (the largest half of its box, +$6E +$70 +$72) and 1 while
+// stood when a thing blew up from it (x, z), that thing's size (the larger half of its box across or deep, +$6E +$72 - not its height) and 1 while
 // it counts. A star standing there is drawn that much bigger than its own reach - fire_reach, how far its
 // model's spikes stand out sideways (Fireball.Reach, by blast model $6E-$74) - never smaller than the original's and at most FIRE_BIG_MOST times. The picture only: its
 // box, damage and life are the rules'.

@@ -71,23 +71,22 @@ void _piece_tri(sampler2D blast, int row, int base, int model, int tri_row, out 
     a = p[0]; b = p[1]; c = p[2];
 }
 
-// Triangle slot of the record in blast (row) at t frames after it blew up: its corner k as a world point (x, height,
-// z in world units, z north, like gpu_model_vertex), its colour, its face direction (unit, the picture's units) for the
-// sun, when its panel breaks and when it came to rest. False = no such triangle, or the piece is gone.
-// from: where the shell, missile or blast that did it was (GpuWorld.blastInfo row 1: world units off the record's
-// +$4A / +$4C / +$4E, w = 1), or w = 0 - none: from the thing's own middle, as before.
-bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4 from, int slot, int k, float t,
-                  out vec3 pos, out int colour, out vec3 normal, out bool resting, out float t_break, out float t_rest) {
-    pos = vec3(0.0); colour = 0; normal = vec3(0.0, 1.0, 0.0); resting = false; t_break = 0.0; t_rest = 0.0;
+// A panel's flight, the same for every triangle of it (slot = any triangle of the panel): the triangle's own corners
+// as the thing stood (p0 p1 p2, their middle c), the panel's middle, its speed and spin from the push, gravity, its
+// round size, and when it breaks (tb) - all in the picture's units. ok false = no such triangle, or not a panel.
+struct PieceFlight { bool ok; int colour; vec3 p0; vec3 p1; vec3 p2; vec3 c; vec3 mid; vec3 v; vec3 omega; float g; float radius; float tb; };
+
+PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, int slot) {
+    PieceFlight f = PieceFlight(false, 0, vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), 1.0, 1.0, 0.0);
     int model = _eb(blast, row, 0x25);
-    if (model == 0) return false;
+    if (model == 0) return f;
     vec4 mi = texelFetch(model_tex, ivec2(model, 0), 0);
     int base = int(mi.r + 0.5), start = int(mi.g + 0.5), count = int(mi.b + 0.5);
-    if (slot >= count) return false;
+    if (slot >= count) return f;
     int meta = int(texelFetch(tri_tex, tri_texel(start + slot, 0), 0).a + 0.5);
-    if ((meta & 0x100) != 0) return false;                            // a rod (meta bit 8, GpuWorld.RodTriangles) does not break into pieces
-    if ((meta & 0x2000) != 0) return false;                           // the sunk glass and its frame (meta bit 13, Glass.Sunk) are no panel of the wreck
-    colour = meta & 15;
+    if ((meta & 0x100) != 0) return f;                                // a rod (meta bit 8, GpuWorld.RodTriangles) does not break into pieces
+    if ((meta & 0x2000) != 0) return f;                               // the sunk glass and its frame (meta bit 13, Glass.Sunk) are no panel of the wreck
+    int colour = meta & 15;
     vec3 p[3];
     _piece_tri(blast, row, base, model, start + slot, p[0], p[1], p[2]);
     vec3 c = (p[0] + p[1] + p[2]) / 3.0;
@@ -162,6 +161,82 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
         if (mb.y - reach0 - _piece_ground(map, mb.x, mb.z) > 0.0) break;
         tb *= 0.5;                                                    // even before the top: a low flight into rising ground
     }
+    return PieceFlight(true, colour, p[0], p[1], p[2], c, mid, v, omega, g, radius, tb);
+}
+
+// BETTER EXPLOSIONS step 6: a small star where a panel breaks. The thing's six biggest panels (model_tex rows 3 and 4,
+// GpuWorld.Bake) each get a small copy of the star that blew it up, standing where the panel breaks for break_star_life
+// frames: turning an eighth at a time, stepping through the fire's colours as the big one does, sized by the panel.
+// Only a thing a shell, missile or blast blew up has them (a star must have done it); the picture only.
+uniform float break_star_life = 8.0;     // the game's frames a small star stands (the big one stands about 13 in the demo)
+uniform float break_star_step = 2.0;     // frames an eighth of a turn
+uniform float break_star_size = 1.5;     // how far its spikes reach, in the panel's round size
+uniform float fire_tall[7];              // how far each star model reaches up or down from its middle (Fireball.Tall)
+
+// Small star n (0-5) of the blast in row: where it stands (the picture's units), when its panel breaks, the panel's round size.
+bool break_star_at(sampler2D blast, sampler2D map, int row, vec4 from, int n, out vec3 at, out float tb, out float radius) {
+    at = vec3(0.0); tb = 0.0; radius = 0.0;
+    if (from.w < 0.5) return false;                                   // no star did it: none here either
+    vec4 big = texelFetch(model_tex, ivec2(_eb(blast, row, 0x25), 3 + n / 3), 0);
+    int m = n - (n / 3) * 3;
+    float slot = m == 0 ? big.r : (m == 1 ? big.g : big.b);
+    if (slot < -0.5) return false;
+    PieceFlight f = _piece_flight(blast, map, row, from, int(slot + 0.5));
+    if (!f.ok) return false;
+    tb = f.tb; radius = f.radius;
+    at = f.mid + f.v * tb - vec3(0.0, 0.5 * f.g * tb * tb, 0.0);
+    return true;
+}
+
+// Corner k of triangle slot of that small star (a copy of the model star, one of the blasts' $6E-$74) t frames after
+// the thing blew up: a world point as piece_corner's, and its colour. False = not standing now, or no such triangle.
+bool break_star_corner(sampler2D blast, sampler2D map, int row, vec4 from, int star, int n, int slot, int k, float t, out vec3 pos, out int colour) {
+    pos = vec3(0.0); colour = 0;
+    if (star < 0x6E || star > 0x74) return false;
+    vec3 at; float tb, radius;
+    if (!break_star_at(blast, map, row, from, n, at, tb, radius)) return false;
+    float s = t - tb;
+    if (s < 0.0 || s >= break_star_life) return false;
+    vec4 mi = texelFetch(model_tex, ivec2(star, 0), 0);
+    int base = int(mi.r + 0.5), start = int(mi.g + 0.5), count = int(mi.b + 0.5);
+    if (slot >= count) return false;
+    vec4 tri = texelFetch(tri_tex, tri_texel(start + slot, 0), 0);
+    int meta = int(tri.a + 0.5);
+    int vidx = int((k == 0 ? tri.r : (k == 1 ? tri.g : tri.b)) + 0.5);
+    int sat = _at(base);
+    if (vidx >= _head(sat).z) return false;
+    vec3 rel = vec3(model_local(trig_tex, sat, vidx, ivec4(0)) - model_local(trig_tex, sat, 0, ivec4(0)));   // from the star's middle (its corner 0), as the model stands
+    float age = s / break_star_life;
+    int third = min(int(age * 3.0), 2);
+    bool core = (meta & 0x400000) != 0;                               // a fireball core's face (Fireball.Bit)
+    int heat = core ? third + (slot & 1) : max(_fire_heat(meta & 15), third + 1);
+    colour = FIRE_HOT[min(heat, 3)];
+    float size = break_star_size * radius / max(2.0 * fire_reach[star - 0x6E], 1.0) * min(1.0, 0.5 + 0.25 * floor(age * 4.0));   // out in steps: 0.5 0.75 1
+    float turn = floor(s / break_star_step) * 0.7853982;
+    float cs = cos(turn), sn = sin(turn);
+    rel = vec3(rel.x * cs - rel.z * sn, rel.y, rel.x * sn + rel.z * cs) * size;
+    at.y = max(at.y, _piece_ground(map, at.x, at.z) + fire_tall[star - 0x6E] * size);   // never into the ground
+    vec3 q = at + rel;
+    pos = vec3(q.x * 0.5, q.y, q.z * 0.5);
+    return true;
+}
+
+// Triangle slot of the record in blast (row) at t frames after it blew up: its corner k as a world point (x, height,
+// z in world units, z north, like gpu_model_vertex), its colour, its face direction (unit, the picture's units) for the
+// sun, when its panel breaks and when it came to rest. False = no such triangle, or the piece is gone.
+// from: where the shell, missile or blast that did it was (GpuWorld.blastInfo row 1: world units off the record's
+// +$4A / +$4C / +$4E, w = 1), or w = 0 - none: from the thing's own middle, as before.
+bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4 from, int slot, int k, float t,
+                  out vec3 pos, out int colour, out vec3 normal, out bool resting, out float t_break, out float t_rest) {
+    pos = vec3(0.0); colour = 0; normal = vec3(0.0, 1.0, 0.0); resting = false; t_break = 0.0; t_rest = 0.0;
+    PieceFlight f = _piece_flight(blast, map, row, from, slot);
+    if (!f.ok) return false;
+    colour = f.colour;
+    vec3 p[3]; p[0] = f.p0; p[1] = f.p1; p[2] = f.p2;
+    vec3 c = f.c, mid = f.mid, v = f.v, omega = f.omega;
+    float g = f.g, tb = f.tb;
+    float spin = length(omega);
+    vec3 axis = spin > 0.0 ? omega / spin : vec3(0.0, 1.0, 0.0);
     t_break = tb;
     vec3 at; float turn; vec3 about;
     if (t < tb) {

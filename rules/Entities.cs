@@ -31,6 +31,8 @@ public sealed class Entity
     public bool BlastHit;
     public ushort BlastX, BlastZ;
     public short BlastY;
+    /// <summary>picture only, with BlastHit: that shell's, missile's or blast's type (+4) - the card's small stars copy its star.</summary>
+    public int BlastType;
     /// <summary>(LIMB DAMAGE, rules/Limbs.cs): which limbs a bullet has hurt (Limbs.LegL ..
     /// ArmR bits). No free record byte is proven, so it sits beside the record: not saved, a save/load resets it.</summary>
     public byte Limbs;
