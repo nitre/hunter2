@@ -26,6 +26,8 @@ uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hi
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
 uniform float piece_kick = 0.5;          // BETTER EXPLOSIONS: the star throws the panels out with it - this much of its reach, at once...
 uniform float piece_kick_time = 3.0;     // ...over about this many frames (the star is at its full size in 6); they land where they did. 0 kick = the flight without it
+uniform float piece_break_first = 1.0;   // BETTER EXPLOSIONS: a star breaks the panels while it burns - the one at the hit after this many frames...
+uniform float piece_break_last = 10.0;   // ...and one the thing's size or more away after this many (the star is at its full size by then); with no star: at the top of the rise, as before
 uniform float piece_arms = 0.9;          // BETTER EXPLOSIONS: how far a panel's way out is pulled to the nearest spike of the star that did it (0 = not at all)
 uniform float piece_arm_rise = 0.6;      // ...and how much a spike pointing up lifts its panels' rise
 uniform sampler2D blast_info : filter_nearest;    // GpuWorld.blastInfo, a column a blast: row 0 r = the frame it blew up, g = 1 in use, b = the star model that did it; row 1 where the hit came from (w = 1 + the star's reach); rows 2-7 the star's spikes (x, z along the ground, how steeply up, 1)
@@ -137,11 +139,12 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
     // BETTER EXPLOSIONS: hit by a shell, missile or blast, the
     // push comes from where that was, not the thing's middle - away from it, the nearest panels fastest
     vec3 blast_at = centre;
-    float near = 1.0;
+    float near = 1.0, away = 0.0;                                     // away: 0 at the hit .. 1 the thing's size or more from it
     if (from.w > 0.5) {
         blast_at = vec3(float(2 * x) + 2.0 * from.x, float(y) + from.y + float(lift_to_ground(ground, low)), float(2 * z) + 2.0 * from.z);
         float size = max(length(vec3(2.0 * float(_ew(blast, row, 0x6E)), float(_ew(blast, row, 0x70)), 2.0 * float(_ew(blast, row, 0x72)))), 16.0);   // the thing's half box, the picture's units
-        near = mix(piece_near, piece_far, clamp(length(mid - blast_at) / size, 0.0, 1.0));
+        away = clamp(length(mid - blast_at) / size, 0.0, 1.0);
+        near = mix(piece_near, piece_far, away);
     }
 
     // the panel's push: out along the ground from the blast and up, each panel a little faster or slower and
@@ -204,7 +207,9 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
         if (mb.y - reach0 - _piece_ground(map, mb.x, mb.z) > 0.0) break;
         tb *= 0.5;                                                    // even before the top: a low flight into rising ground
     }
-    kt = min(kt, max(tb, 0.04) * 0.25);                               // a panel that breaks at once: its kick is over by the break (the triangles go on at the steady speed)
+    // a star did it: the blast breaks the panel while the fire is there, the nearest first (each a little sooner or
+    // later) - not whole through clear air to break long after. On its way up still: no ground to look out for
+    if (from.w > 0.5) tb = mix(piece_break_first, piece_break_last, away) * (0.8 + 0.4 * r.z);
     return PieceFlight(true, colour, p[0], p[1], p[2], c, mid, v, omega, g, radius, tb, kick, kt, push);
 }
 
@@ -310,21 +315,25 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
         vec3 cb = pb + off;
         vec3 vb = vec3(v.x, v.y - g * tb, v.z) + cross(omega, off) + (length(off) > 0.001 ? normalize(off) : _piece_hash(slot * 97 + row + 1)) * piece_crack * f.push;
         float s = t - tb;
+        // what the star's kick still had to give at the break goes on with the triangle (a panel broken at once has most of it left)
+        vec3 rem = f.kick * exp(-tb / f.kick_time);
         // it lands when its lowest point can touch: its middle a corner's reach above the ground
         float reach = max(max(length(p[0] - c), length(p[1] - c)), length(p[2] - c));
         float h = _piece_ground(map, cb.x, cb.z);
         float t1 = _piece_land(cb.y - reach - h, vb.y, g);
+        vec3 rem1 = rem * (1.0 - exp(-t1 / f.kick_time));
         for (int i = 0; i < 3; i++) {
-            h = _piece_ground(map, cb.x + vb.x * t1, cb.z + vb.z * t1);
+            h = _piece_ground(map, cb.x + vb.x * t1 + rem1.x, cb.z + vb.z * t1 + rem1.z);
             t1 = _piece_land(cb.y - reach - h, vb.y, g);
+            rem1 = rem * (1.0 - exp(-t1 / f.kick_time));
         }
         // one already lower than its reach when the panel breaks lands where it is (h + reach popped it up at the break)
-        vec3 land = vec3(cb.x + vb.x * t1, min(h + reach, cb.y + vb.y * t1 - 0.5 * g * t1 * t1), cb.z + vb.z * t1);
+        vec3 land = vec3(cb.x + vb.x * t1 + rem1.x, min(h + reach, cb.y + vb.y * t1 - 0.5 * g * t1 * t1), cb.z + vb.z * t1 + rem1.z);
         bool sea = ground_is_water(types, int(land.x * 0.5), int(land.z * 0.5));   // the coast's water halves too
         vec3 o[3];
         if (s <= t1 || sea) {
             if (sea && s - t1 > 10.0) return false;                   // at sea: no bounce, under the surface and gone
-            at = s <= t1 ? cb + vb * s - vec3(0.0, 0.5 * g * s * s, 0.0) : vec3(land.x, land.y - (g * t1 - vb.y) * (s - t1), land.z);
+            at = s <= t1 ? cb + vb * s - vec3(0.0, 0.5 * g * s * s, 0.0) + rem * (1.0 - exp(-s / f.kick_time)) : vec3(land.x, land.y - (g * t1 - vb.y) * (s - t1), land.z);
             for (int i = 0; i < 3; i++) o[i] = _piece_rotate(p[i] - c, axis, spin * t);
         } else {
             // no bounce: where it landed it tips over piece_settle frames from the way it came down to lying flat along the
