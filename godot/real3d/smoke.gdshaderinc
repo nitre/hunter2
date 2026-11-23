@@ -1,5 +1,5 @@
 // (EXPLOSIONS: PIECES, the card-drawn 3D view; BETTER EXPLOSIONS step 7): low-poly smoke where a star went out. A few
-// flat-sided grey shapes in the star's own manner - eight triangles each, hard edges, nothing see-through - come one
+// small flat-sided grey shapes in the star's own manner - eight triangles each, hard edges, nothing see-through - come one
 // after another from where the star stood, rise in steps, swell a little, then shrink away. No wind: straight up.
 // The picture only: the card keeps where each star ended (GpuWorld.AddSmoke), everything here is a pure function of
 // that place, the star's reach and the time since. World units; t in the game's frames. A height counts half of a
@@ -9,15 +9,15 @@
 
 uniform float smoke_life = 100.0;        // the game's frames a shape lasts at most: two seconds
 uniform float smoke_step = 4.0;          // frames a step of its rise and size
-uniform float smoke_next = 3.0;          // frames between one shape starting and the next
+uniform float smoke_next = 2.0;          // frames between one shape starting and the next
 uniform float smoke_rise = 1.6;          // how high it goes by its end, in the star's reach
-uniform float smoke_puff = 0.3;          // a shape's size, in the star's reach
-const int SMOKE_PUFFS = 6;               // shapes a star at most (GpuWorld.SmokePuffs); a small star has 4
+uniform float smoke_puff = 0.16;         // a shape's size, in the star's reach
+const int SMOKE_PUFFS = 12;              // shapes a star at most (GpuWorld.SmokePuffs); a small star has 8
 const int SMOKE_TRIS = 8;                // triangles a shape
 const float SMOKE_UP = 2.0;              // height units a world unit along the ground
 
 // How many shapes a star of that reach leaves.
-int smoke_count(float size) { return size >= 120.0 ? SMOKE_PUFFS : 4; }
+int smoke_count(float size) { return size >= 120.0 ? SMOKE_PUFFS : 8; }
 
 // Shape puff of the smoke left at at.xyz (world units; at.w = a number of its own, for the shapes to differ) by a
 // star reaching size, t frames after the star went out: where its middle is and how big it is. False = not there now.

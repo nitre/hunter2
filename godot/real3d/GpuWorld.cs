@@ -119,7 +119,7 @@ public sealed partial class GpuWorld : Node3D
     // BETTER EXPLOSIONS step 7: the smoke where a star went out (smoke.gdshaderinc) - a ring of the card's own, the
     // star's record being gone by then: where it stood and a number of its own, when it went out and its reach
     readonly ShaderMaterial smoke = new() { Shader = GD.Load<Shader>("res://real3d/gpusmoke.gdshader") };
-    internal const int Smokes = 24, SmokePuffs = 6, SmokeTris = 8;
+    internal const int Smokes = 24, SmokePuffs = 12, SmokeTris = 8;
     readonly Vector4[] smokeAt = new Vector4[Smokes];
     readonly Vector2[] smokeInfo = new Vector2[Smokes];
     int smokeNext, smokeCount;
