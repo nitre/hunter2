@@ -25,7 +25,7 @@ uniform float piece_crack = 0.15;        // the break's own push on each triangl
 uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hit's own point flies this much faster than the average one...
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
 uniform float piece_kick = 0.5;          // BETTER EXPLOSIONS: the star throws the panels out with it - this much of its reach, at once...
-uniform float piece_kick_time = 1.5;     // ...over about this many frames (the star is at its full size in about 2); they land where they did. 0 kick = the flight without it
+uniform float piece_kick_time = 3.0;     // ...over about this many frames (the star is at its full size in 6); they land where they did. 0 kick = the flight without it
 uniform float piece_rest = 250.0;       // frames a piece lies on the ground at most
 uniform float piece_shrink = 25.0;       // the last of them it shrinks away in, lying where it is
 uniform bool piece_stay = false;         // EXPLOSIONS: LASTING - no end to lying still

@@ -271,6 +271,9 @@ public sealed partial class GpuWorld : Node3D
     public static Color TriPixel(Image table, int x, int row) { var (px, py) = TriAt(row, x); return table.GetPixel(px, py); }
     /// <summary>The small stars' material (step 6) and a blast row's start frame, star model and whether a hit is kept - the live readback.</summary>
     public ShaderMaterial BreakStarsMaterial => breakStars;
+    /// <summary>The frames of the rules' pass in hand that the picture has still to show (0 = a pass every frame): the
+    /// star's age runs on by them between two passes.</summary>
+    public float FireTicks;
     public (float Start, int Star, bool Hit, int Model) BlastRow(int row) { var (a, b) = (blastInfo.GetPixel(row, 0), blastInfo.GetPixel(row, 1)); return (a.R, (int)a.B, b.A > 0.5f, (int)blastFloats[row * 0xA0 + 0x25]); }
     public int BlastRows => blastHigh;
     /// <summary>The pieces' own material as the game wires it (CheckPieces reads its inputs).</summary>
@@ -2221,6 +2224,7 @@ public sealed partial class GpuWorld : Node3D
         models.SetShaderParameter("better_fire", cardPieces);          // BETTER EXPLOSIONS: the fireball (gpumodels.gdshaderinc fire_look)
         for (var i = 0; i < fireHits.Length; i++) if (fireHits[i].W != 0 && clock > fireHitUntil[i]) fireHits[i] = default;
         models.SetShaderParameter("fire_reach", Fireball.Reach);
+        models.SetShaderParameter("fire_ticks", FireTicks);            // the star's age between two passes of the rules (gpumodels.gdshaderinc fire_age)
         models.SetShaderParameter("fire_hits", fireHits);              // step 5: the star sized by what it blew up
         foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks])
         {

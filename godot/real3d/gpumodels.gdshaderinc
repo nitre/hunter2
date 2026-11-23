@@ -186,9 +186,14 @@ vec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int row
 uniform bool better_fire = false;
 const int FIRE_HOT[4] = int[4](4, 7, 6, 5);
 int _fire_heat(int c) { return c == 4 ? 0 : (c == 7 ? 1 : (c == 6 ? 2 : 3)); }
+// The star's life (+$30) only counts down when the rules run - every frame in smooth play, but in passes of several
+// frames at the original's pace (the demo: about 12), where the star then had two looks and no more. fire_ticks: the
+// frames of the pass in hand still to be shown (GpuWorld.FireTicks), so the age runs every frame, as the in-between
+// places do - never past the life it started with.
+uniform float fire_ticks = 0.0;
 float fire_age(int row, int type) {
     float life = type == 0x67 ? 16.0 : 32.0;
-    return clamp(1.0 - float(_ew(ent_tex, row, 0x30)) / life, 0.0, 1.0);
+    return clamp(1.0 - min(float(_ew(ent_tex, row, 0x30)) + fire_ticks, life) / life, 0.0, 1.0);
 }
 // BETTER EXPLOSIONS step 5: the star sized by what it blew up. fire_hits (GpuWorld.AddBlast): where the shell or blast
 // stood when a thing blew up from it (x, z), that thing's size (the larger half of its box across or deep, +$6E +$72 - not its height) and 1 while

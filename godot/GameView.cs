@@ -633,6 +633,7 @@ public partial class GameView : Node2D
         var inside = play.DrawnInside;                                                   // what the game's last pass drew (the flag goes up before the fade)
         var shell = inside ? play.State.BuildingSlot : -1;
         real3d!.Gpu.PiecesStay = Settings.CardPieces && Settings.PiecesStay;            // EXPLOSIONS: LASTING
+        real3d.Gpu.FireTicks = play.Smooth ? play.LastTicks * (1f - play.AnimFraction) : 0f;   // the star's age runs every frame between passes
         real3d.Gpu.FineAngles = Settings.FineAngles;                                   // FINE ANGLES: the records' fine angles drawn
         real3d.Gpu.RealShadows = Settings.RealShadows && play.OwnShadows;              // SHADOWS: REAL (a play without own shadows, e.g. a replay, never)
         play.WithInBetweenPoses(() =>                                                   // the card reads the records itself: at their in-between places, as the camera
