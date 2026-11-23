@@ -15,7 +15,6 @@ render_mode unshaded, cull_disabled;
 #include "res://real3d/pieces.gdshaderinc"
 
 uniform sampler2D blast_tex : filter_nearest;     // the blown-up things' records as they were (0xA0 x BLASTS)
-uniform sampler2D blast_info : filter_nearest;    // row 0 r = the frame it blew up, g = 1 in use, b = the star model that did it; row 1 where the hit came from
 uniform float piece_clock = 0.0;                  // frames now
 uniform float piece_life = 600.0;
 uniform bool pieces_on = false;                   // EXPLOSIONS: PIECES

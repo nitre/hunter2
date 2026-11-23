@@ -121,8 +121,8 @@ public sealed partial class GpuWorld : Node3D
     readonly ImageTexture blastTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0, Blasts, false, Image.Format.Rf));
     // row 0: r = the frame it blew up, g = 1 in use, b = the star model that did it (0 none); row 1 (BETTER EXPLOSIONS): where the shell, missile or blast that did it
     // was, from the thing's own +$4A / +$4C / +$4E (world units, x and z the shorter way round), a = 1 - or all 0: none
-    readonly Image blastInfo = Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf);
-    readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, 2, false, Image.Format.Rgbaf));
+    readonly Image blastInfo = Image.CreateEmpty(Blasts, 2 + Fireball.MostSpikes, false, Image.Format.Rgbaf);   // rows 2 on: the star's spikes (x, z along the ground, how steeply up, 1)
+    readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, 2 + Fireball.MostSpikes, false, Image.Format.Rgbaf));
     int blastNext, blastHigh;                    // blastHigh: one past the last row whose pieces may still show - only those are drawn (pieceRows)
     readonly float[] blastStart = Enumerable.Repeat(float.NegativeInfinity, Blasts).ToArray();   // each row's blast: the frame it blew up on
     const float BlastLife = 600;                 // gpupieces.gdshader piece_life: past it a blast draws nothing
@@ -229,6 +229,10 @@ public sealed partial class GpuWorld : Node3D
             fireHitNext = (fireHitNext + 1) % fireHits.Length;
         }
         else blastInfo.SetPixel(row, 1, new Color(0, 0, 0, 0));
+        // the spikes of the star that did it: the pieces leave along them (pieces.gdshaderinc piece_arms)
+        var spikes = from is not null && star >= Fireball.First && star <= Fireball.Last ? Fireball.Spikes[star - Fireball.First] : null;
+        for (var i = 0; i < Fireball.MostSpikes; i++)
+            blastInfo.SetPixel(row, 2 + i, spikes is not null && i < spikes.Length ? new Color(spikes[i].X, spikes[i].Z, spikes[i].Up, 1) : new Color(0, 0, 0, 0));
         blastsChanged = true;
     }
 

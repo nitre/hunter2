@@ -28,6 +28,12 @@ public static class Fireball
     /// breaks is kept that far off the ground (pieces.gdshaderinc fire_tall).</summary>
     public static readonly float[] Tall = new float[Last - First + 1];
 
+    /// <summary>Each blast model's spikes that stand out sideways (a tip at least 0.6 of the farthest corner out, not
+    /// straight up or down): the way it points along the ground (X, Z, unit) and how steeply (Up: -1 down .. 1 up) - the
+    /// pieces of what it blew up leave along them (pieces.gdshaderinc piece_arms). At most MostSpikes.</summary>
+    public static readonly (float X, float Z, float Up)[][] Spikes = new (float, float, float)[Last - First + 1][];
+    public const int MostSpikes = 6;
+
     public const int Colour = 7;                                   // the core's paint at rest: the fire's yellow (the shader steps it)
 
     public static void Make(CardModels store, Dictionary<int, int[]>? origins = null)
@@ -44,6 +50,11 @@ public static class Fireball
         var reach = Enumerable.Range(1, nv - 1).Select(k => { var c = md.Raw(k); return Math.Sqrt(Sq(c.X - centre.X) + Sq(c.Y - centre.Y) + Sq(c.Z - centre.Z)); }).Average();
         Reach[model - First] = (float)Enumerable.Range(1, nv - 1).Max(k => Math.Sqrt(Sq(md.Corners[k].X - md.Corners[0].X) + Sq(md.Corners[k].Z - md.Corners[0].Z))) / 2;
         Tall[model - First] = Enumerable.Range(1, nv - 1).Max(k => Math.Abs(md.Corners[k].Y - md.Corners[0].Y));
+        var arms = Enumerable.Range(1, nv - 1).Select(k => (X: (double)(md.Corners[k].X - md.Corners[0].X), Y: (double)(md.Corners[k].Y - md.Corners[0].Y), Z: (double)(md.Corners[k].Z - md.Corners[0].Z)))
+            .Select(c => (c, Far: Math.Sqrt(c.X * c.X + c.Y * c.Y + c.Z * c.Z), Flat: Math.Sqrt(c.X * c.X + c.Z * c.Z))).ToList();
+        var farthest = arms.Max(a => a.Far);
+        Spikes[model - First] = arms.Where(a => a.Far >= 0.6 * farthest && a.Flat >= 0.35 * a.Far).OrderByDescending(a => a.Far).Take(MostSpikes)
+            .Select(a => ((float)(a.c.X / a.Flat), (float)(-a.c.Z / a.Flat), (float)(a.c.Y / a.Far))).ToArray();   // -Z: the model's z runs the other way from the world's (checked against the drawn star)
         var r = Math.Max(10.0, reach / 2);                            // at least 10: smaller, the rounded corners bend its faces (the bake splits them)
         // the icosahedron: (0, +-1, +-p) and its turns, p the golden ratio, scaled to r
         var p = (1 + Math.Sqrt(5)) / 2;

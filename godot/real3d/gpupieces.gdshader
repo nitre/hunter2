@@ -17,7 +17,6 @@ render_mode unshaded, cull_disabled;
 #include "res://real3d/pieces.gdshaderinc"
 
 uniform sampler2D blast_tex : filter_nearest;     // the blown-up things' records as they were (0xA0 x BLASTS)
-uniform sampler2D blast_info : filter_nearest;    // BLASTS x 2: row 0 r = the frame it blew up, g = 1 in use; row 1 where the hit came from (GpuWorld.blastInfo)
 uniform sampler2D types : filter_nearest;         // the map's cell types (0 = sea)
 uniform float piece_clock = 0.0;                  // frames now
 uniform float piece_life = 600.0;                 // a cap only: each piece goes itself, at most piece_rest frames after it lies still

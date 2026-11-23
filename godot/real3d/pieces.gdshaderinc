@@ -26,6 +26,9 @@ uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hi
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
 uniform float piece_kick = 0.5;          // BETTER EXPLOSIONS: the star throws the panels out with it - this much of its reach, at once...
 uniform float piece_kick_time = 3.0;     // ...over about this many frames (the star is at its full size in 6); they land where they did. 0 kick = the flight without it
+uniform float piece_arms = 0.8;          // BETTER EXPLOSIONS: how far a panel's way out is pulled to the nearest spike of the star that did it (0 = not at all)
+uniform float piece_arm_rise = 0.6;      // ...and how much a spike pointing up lifts its panels' rise
+uniform sampler2D blast_info : filter_nearest;    // GpuWorld.blastInfo, a column a blast: row 0 r = the frame it blew up, g = 1 in use, b = the star model that did it; row 1 where the hit came from (w = 1 + the star's reach); rows 2-7 the star's spikes (x, z along the ground, how steeply up, 1)
 uniform float piece_rest = 250.0;       // frames a piece lies on the ground at most
 uniform float piece_shrink = 25.0;       // the last of them it shrinks away in, lying where it is
 uniform bool piece_stay = false;         // EXPLOSIONS: LASTING - no end to lying still
@@ -147,8 +150,23 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
     vec2 out2 = vec2(mid.x - blast_at.x, mid.z - blast_at.z);
     if (length(out2) < 1.0) out2 = _piece_hash(row * 251 + key).xz;
     out2 = normalize(out2);
+    // the star's arms: the panel leaves toward the spike nearest its own way out (each a little more or less - they
+    // do not fly in lines), rising more along a spike that points up
+    float arm_lift = 1.0;
+    if (from.w > 0.5 && piece_arms > 0.0) {
+        float best = -2.0; vec3 arm = vec3(0.0);
+        for (int i = 0; i < 6; i++) {
+            vec4 s = texelFetch(blast_info, ivec2(row, 2 + i), 0);
+            if (s.w > 0.5 && dot(out2, s.xy) > best) { best = dot(out2, s.xy); arm = s.xyz; }
+        }
+        if (best > -1.5) {
+            vec2 to = mix(out2, arm.xy, piece_arms * (0.7 + 0.3 * r.z));
+            if (length(to) > 0.001) out2 = normalize(to);
+            arm_lift = 1.0 + piece_arms * piece_arm_rise * max(arm.z, 0.0);   // never lower: a big panel with less rise breaks the moment it leaves
+        }
+    }
     float g = 8.0 * piece_rise / (piece_air * piece_air);            // the rise and the air time fix gravity
-    float up = g * piece_air * 0.5 * (0.8 + 0.4 * r.y) * sqrt(near);
+    float up = g * piece_air * 0.5 * (0.8 + 0.4 * r.y) * sqrt(near) * arm_lift;
     vec3 v = vec3(out2.x, 0.0, out2.y) * (piece_spread / piece_air) * (0.6 + 0.7 * r.x) * near + vec3(0.0, up, 0.0);
 
     // its spin: the push at the centre of pressure, on the panel, off its middle toward the blast
@@ -249,7 +267,9 @@ bool break_star_corner(sampler2D blast, sampler2D map, int row, vec4 from, int s
     float turn = floor(s / break_star_step) * 0.7853982;
     float cs = cos(turn), sn = sin(turn);
     rel = vec3(rel.x * cs - rel.z * sn, rel.y, rel.x * sn + rel.z * cs) * size;
-    at.y = max(at.y, _piece_ground(map, at.x, at.z) + fire_tall[star - 0x6E] * size);   // never into the ground
+    float wide = 2.0 * fire_reach[star - 0x6E] * size;                // never into the ground: the highest ground under its middle and its reach each way (a slope)
+    float under = max(_piece_ground(map, at.x, at.z), max(max(_piece_ground(map, at.x + wide, at.z), _piece_ground(map, at.x - wide, at.z)), max(_piece_ground(map, at.x, at.z + wide), _piece_ground(map, at.x, at.z - wide))));
+    at.y = max(at.y, under + fire_tall[star - 0x6E] * size);
     vec3 q = at + rel;
     pos = vec3(q.x * 0.5, q.y, q.z * 0.5);
     return true;

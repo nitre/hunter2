@@ -262,7 +262,6 @@ public partial class GameView
         #include "res://real3d/ground_cell.gdshaderinc"
         #include "res://real3d/pieces.gdshaderinc"
         uniform sampler2D blast_tex : filter_nearest;
-        uniform sampler2D blast_info : filter_nearest;
         uniform int star_slots;
         uniform int live_row;
         uniform float live_t;
@@ -291,9 +290,9 @@ public partial class GameView
         }
         """;
 
-    /// <summary>"breakstars": the blasts kept; "breakstars ROW [T [KICK]]": that blast's small stars T frames after it blew up (left
+    /// <summary>"breakstars": the blasts kept; "breakstars ROW [T [KICK [ARMS]]]": that blast's small stars T frames after it blew up (left
     /// out: now) - "star n at x y z breaks tb size r panel x y z" a star (panel: its panel's middle at T, whole), then "n slot corner x y z colour ground" a drawn corner.</summary>
-    async System.Threading.Tasks.Task<string> LiveBreakStars(int row, float t, float kick = float.NaN)
+    async System.Threading.Tasks.Task<string> LiveBreakStars(int row, float t, float kick = float.NaN, float arms = float.NaN)
     {
         var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
         var src = gpu.BreakStarsMaterial;
@@ -312,6 +311,7 @@ public partial class GameView
         mat.SetShaderParameter("live_row", row);
         mat.SetShaderParameter("live_t", t);
         if (!float.IsNaN(kick)) mat.SetShaderParameter("piece_kick", kick);   // the readback only: the flight with another kick (0 = none)
+        if (!float.IsNaN(arms)) mat.SetShaderParameter("piece_arms", arms);   // and another pull to the star's arms
         var per = 1 + slots * 3;
         var size = new Vector2I(9, GpuWorld.BreakStars * per);
         var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
@@ -335,7 +335,7 @@ public partial class GameView
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 3 ? float.Parse(a[3], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
+        if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 3 ? float.Parse(a[3], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 4 ? float.Parse(a[4], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
         if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
     }
