@@ -332,9 +332,71 @@ public partial class GameView
         return string.Join("\n", lines);
     }
 
+    // "pieces": a blast's own pieces (pieces.gdshaderinc piece_corner, as gpupieces.gdshader calls it), run for one blast
+    // row at t frames after it blew up and read back - world units, 16ths
+    const string PiecesShader = """
+        shader_type canvas_item;
+        render_mode blend_disabled;
+        #include "res://real3d/place.gdshaderinc"
+        #include "res://real3d/world_colour.gdshaderinc"
+        #include "res://real3d/sunshade.gdshaderinc"
+        #include "res://real3d/own_colours.gdshaderinc"
+        #include "res://real3d/gpumodels.gdshaderinc"
+        #include "res://real3d/view.gdshaderinc"
+        #include "res://real3d/ground_cell.gdshaderinc"
+        #include "res://real3d/pieces.gdshaderinc"
+        uniform sampler2D blast_tex : filter_nearest;
+        uniform sampler2D types : filter_nearest;
+        uniform int live_row;
+        uniform float live_t;
+
+        void fragment() {
+            ivec2 fc = ivec2(FRAGCOORD.xy);
+            int slot = fc.y / 3, k = fc.y - slot * 3;
+            vec3 p; int colour; vec3 n; bool resting; float t_break, t_rest;
+            bool ok = piece_corner(blast_tex, cam_map, types, live_row, texelFetch(blast_info, ivec2(live_row, 1), 0), slot, k, live_t, p, colour, n, resting, t_break, t_rest);
+            float g = ok ? float(ground_height(cam_map, int(round(p.x)) & 0xFFFF, int(round(p.z)) & 0xFFFF)) : 0.0;
+            float v = fc.x == 0 ? p.x : (fc.x == 1 ? p.y : (fc.x == 2 ? p.z : (fc.x == 3 ? t_break : (fc.x == 4 ? g : (ok ? (resting ? 2.0 : 1.0) : 0.0)))));
+            int iv = int(round(v * 16.0));
+            COLOR = vec4(float(iv & 0xFF) / 255.0, float((iv >> 8) & 0xFF) / 255.0, float((iv >> 16) & 0xFF) / 255.0, 1.0);
+        }
+        """;
+
+    /// <summary>"pieces ROW T [KICK [ARMS]]": every piece corner of that blast T frames after it blew up, as the card places
+    /// it - "slot corner x y z breaks ground lying" a line (lying 1 = it has come to rest).</summary>
+    async System.Threading.Tasks.Task<string> LivePieces(int row, float t, float kick = float.NaN, float arms = float.NaN)
+    {
+        var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
+        var src = gpu.PiecesMaterial;
+        var mat = new ShaderMaterial { Shader = new Shader { Code = PiecesShader } };
+        foreach (var u in src.Shader.GetShaderUniformList())
+        {
+            var name = (string)u.AsGodotDictionary()["name"];
+            mat.SetShaderParameter(name, src.GetShaderParameter(name));
+        }
+        mat.SetShaderParameter("live_row", row);
+        mat.SetShaderParameter("live_t", t);
+        if (!float.IsNaN(kick)) mat.SetShaderParameter("piece_kick", kick);
+        if (!float.IsNaN(arms)) mat.SetShaderParameter("piece_arms", arms);
+        var size = new Vector2I(6, (int)src.GetShaderParameter("tri_slots") * 3);
+        var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
+        AddChild(vp);
+        vp.AddChild(new ColorRect { Size = size, Material = mat });
+        await ToSignal(GetTree(), "process_frame");
+        await ToSignal(GetTree(), "process_frame");
+        var img = vp.GetTexture().GetImage();
+        vp.QueueFree();
+        double V(int x, int y) { var c = img.GetPixel(x, y); return ((c.R8 | c.G8 << 8 | c.B8 << 16) << 8 >> 8) / 16.0; }
+        var lines = new System.Collections.Generic.List<string>();
+        for (var y = 0; y < size.Y; y++)
+            if (V(5, y) > 0) lines.Add($"{y / 3} {y % 3} {V(0, y)} {V(1, y)} {V(2, y)} {V(3, y)} {V(4, y)} {(V(5, y) > 1.5 ? 1 : 0)}");
+        return lines.Count == 0 ? "no pieces" : string.Join("\n", lines);
+    }
+
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (a.Length > 2 && a[0] == "pieces") { float F(int i) => a.Length > i ? float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture) : float.NaN; return LivePieces(ParseNum(a[1]), F(2), F(3), F(4)); }
         if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 3 ? float.Parse(a[3], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 4 ? float.Parse(a[4], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
         if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));

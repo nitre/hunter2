@@ -373,6 +373,11 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
         return true;
     }
     vec3 q0 = _piece_rotate(p[0] - about, axis, turn), q1 = _piece_rotate(p[1] - about, axis, turn), q2 = _piece_rotate(p[2] - about, axis, turn);
+    // flying whole over rising ground (the star's kick takes it sideways fast): no corner deeper under the ground than
+    // the thing stood itself (a thing on a slope has corners in it)
+    float stood = max(max(_piece_ground(map, p[0].x, p[0].z) - p[0].y, _piece_ground(map, p[1].x, p[1].z) - p[1].y), max(_piece_ground(map, p[2].x, p[2].z) - p[2].y, 0.0));
+    float dip = max(max(_piece_ground(map, at.x + q0.x, at.z + q0.z) - (at.y + q0.y), _piece_ground(map, at.x + q1.x, at.z + q1.z) - (at.y + q1.y)), _piece_ground(map, at.x + q2.x, at.z + q2.z) - (at.y + q2.y));
+    at.y += max(dip - stood, 0.0);
     vec3 nn = cross(q1 - q0, q2 - q0);
     if (length(nn) > 0.0) normal = normalize(nn);
     vec3 q = (k == 0 ? q0 : (k == 1 ? q1 : q2)) + at;                // stage 1: at = the panel's middle
