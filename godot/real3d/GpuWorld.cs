@@ -214,7 +214,7 @@ public sealed partial class GpuWorld : Node3D
             int U(int o) => record[o] << 8 | record[o + 1];
             blastInfo.SetPixel(row, 1, new Color((short)(f.X - U(0x4A)), (short)(f.Y - U(0x4C)), (short)(f.Z - U(0x4E)), 1));
             // BETTER EXPLOSIONS step 5: the star there is drawn at this thing's size (gpumodels.gdshaderinc fire_big)
-            var size = Math.Max((short)U(0x6E), Math.Max((short)U(0x70), (short)U(0x72)));
+            var size = Math.Max((short)U(0x6E), (short)U(0x72));   // across and deep only: a tall thin thing does not get a big star
             fireHits[fireHitNext] = new Vector4(f.X, f.Z, size, 1);
             fireHitUntil[fireHitNext] = clock + FireHitLife;
             fireHitNext = (fireHitNext + 1) % fireHits.Length;
