@@ -26,7 +26,7 @@ uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hi
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
 uniform float piece_kick = 0.5;          // BETTER EXPLOSIONS: the star throws the panels out with it - this much of its reach, at once...
 uniform float piece_kick_time = 3.0;     // ...over about this many frames (the star is at its full size in 6); they land where they did. 0 kick = the flight without it
-uniform float piece_arms = 0.8;          // BETTER EXPLOSIONS: how far a panel's way out is pulled to the nearest spike of the star that did it (0 = not at all)
+uniform float piece_arms = 0.9;          // BETTER EXPLOSIONS: how far a panel's way out is pulled to the nearest spike of the star that did it (0 = not at all)
 uniform float piece_arm_rise = 0.6;      // ...and how much a spike pointing up lifts its panels' rise
 uniform sampler2D blast_info : filter_nearest;    // GpuWorld.blastInfo, a column a blast: row 0 r = the frame it blew up, g = 1 in use, b = the star model that did it; row 1 where the hit came from (w = 1 + the star's reach); rows 2-7 the star's spikes (x, z along the ground, how steeply up, 1)
 uniform float piece_rest = 250.0;       // frames a piece lies on the ground at most
@@ -150,17 +150,23 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
     vec2 out2 = vec2(mid.x - blast_at.x, mid.z - blast_at.z);
     if (length(out2) < 1.0) out2 = _piece_hash(row * 251 + key).xz;
     out2 = normalize(out2);
-    // the star's arms: the panel leaves toward the spike nearest its own way out (each a little more or less - they
+    // the star's arms: the panel leaves toward a spike near its own way out (each a little more or less - they
     // do not fly in lines), rising more along a spike that points up
     float arm_lift = 1.0;
     if (from.w > 0.5 && piece_arms > 0.0) {
-        float best = -2.0; vec3 arm = vec3(0.0);
+        float best = -2.0, next = -2.0; vec3 arm = vec3(0.0), arm2 = vec3(0.0);
         for (int i = 0; i < 6; i++) {
             vec4 s = texelFetch(blast_info, ivec2(row, 2 + i), 0);
-            if (s.w > 0.5 && dot(out2, s.xy) > best) { best = dot(out2, s.xy); arm = s.xyz; }
+            if (s.w < 0.5) continue;
+            float d = dot(out2, s.xy);
+            if (d > best) { next = best; arm2 = arm; best = d; arm = s.xyz; }
+            else if (d > next) { next = d; arm2 = s.xyz; }
         }
+        // half the panels take the second nearest spike, when that is not behind them (never back through the wreck):
+        // a hit on one side still throws everything away from it, over two or three of the star's arms
+        if (next > 0.0 && _piece_hash(key * 17 + row * 3 + 5).x > 0.0) arm = arm2;
         if (best > -1.5) {
-            vec2 to = mix(out2, arm.xy, piece_arms * (0.7 + 0.3 * r.z));
+            vec2 to = mix(out2, arm.xy, piece_arms * (0.85 + 0.15 * r.z));
             if (length(to) > 0.001) out2 = normalize(to);
             arm_lift = 1.0 + piece_arms * piece_arm_rise * max(arm.z, 0.0);   // never lower: a big panel with less rise breaks the moment it leaves
         }
