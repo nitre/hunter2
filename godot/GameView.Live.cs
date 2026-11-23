@@ -393,10 +393,84 @@ public partial class GameView
         return lines.Count == 0 ? "no pieces" : string.Join("\n", lines);
     }
 
+    // "smoke": the smoke where a star went out (smoke.gdshaderinc), run for one of the card's smoke rows at t frames after
+    // the star went out and read back - world units, 16ths
+    const string SmokeShader = """
+        shader_type canvas_item;
+        render_mode blend_disabled;
+        #include "res://real3d/place.gdshaderinc"
+        #include "res://real3d/world_colour.gdshaderinc"
+        #include "res://real3d/sunshade.gdshaderinc"
+        #include "res://real3d/own_colours.gdshaderinc"
+        #include "res://real3d/gpumodels.gdshaderinc"
+        #include "res://real3d/view.gdshaderinc"
+        #include "res://real3d/ground_cell.gdshaderinc"
+        #include "res://real3d/pieces.gdshaderinc"
+        #include "res://real3d/smoke.gdshaderinc"
+        uniform vec4 live_at;
+        uniform float live_size;
+        uniform float live_t;
+
+        void fragment() {
+            ivec2 fc = ivec2(FRAGCOORD.xy);
+            int per = 1 + SMOKE_TRIS * 3;                       // a shape's lines: its middle, then its corners
+            int puff = fc.y / per, r = fc.y - puff * per;
+            vec3 p = vec3(0.0); float a = 0.0, age = 0.0;
+            bool ok;
+            if (r == 0) ok = smoke_puff_at(live_at, live_size, live_t, puff, p, a, age);
+            else ok = smoke_corner(live_at, live_size, live_t, puff, (r - 1) / 3, (r - 1) % 3, p, a);
+            float g = ok ? float(ground_height(cam_map, int(p.x) & 0xFFFF, int(p.z) & 0xFFFF)) : 0.0;
+            float v = fc.x == 0 ? p.x : (fc.x == 1 ? p.y : (fc.x == 2 ? p.z : (fc.x == 3 ? a : (fc.x == 4 ? g : (ok ? 1.0 : 0.0)))));
+            int iv = int(round(v * 16.0));
+            COLOR = vec4(float(iv & 0xFF) / 255.0, float((iv >> 8) & 0xFF) / 255.0, float((iv >> 16) & 0xFF) / 255.0, 1.0);
+        }
+        """;
+
+    /// <summary>"smoke": the card's smoke rows; "smoke ROW T": that row's shapes T frames after its star went out -
+    /// "shape n at x y z size r ground g" a shape, then "n side corner x y z light ground" a corner.</summary>
+    async System.Threading.Tasks.Task<string> LiveSmoke(int row, float t)
+    {
+        var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
+        var src = gpu.SmokeMaterial;
+        var clock = (float)src.GetShaderParameter("piece_clock");
+        if (row < 0)
+            return string.Join("\n", Enumerable.Range(0, GpuWorld.Smokes).Select(i => (i, s: gpu.SmokeRow(i))).Where(p => p.s.Reach > 0)
+                .Select(p => $"smoke {p.i}: at {p.s.At.X} {p.s.At.Y} {p.s.At.Z}, the star reached {p.s.Reach}, went out {clock - p.s.Start} frames ago, pieces {(src.GetShaderParameter("pieces_on").AsBool() ? "on" : "off")}").DefaultIfEmpty("no smoke"));
+        var mat = new ShaderMaterial { Shader = new Shader { Code = SmokeShader } };
+        foreach (var u in src.Shader.GetShaderUniformList())
+        {
+            var name = (string)u.AsGodotDictionary()["name"];
+            mat.SetShaderParameter(name, src.GetShaderParameter(name));
+        }
+        var info = gpu.SmokeRow(row);
+        mat.SetShaderParameter("live_at", info.At);
+        mat.SetShaderParameter("live_size", info.Reach);
+        mat.SetShaderParameter("live_t", t);
+        var per = 1 + GpuWorld.SmokeTris * 3;
+        var size = new Vector2I(6, GpuWorld.SmokePuffs * per);
+        var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
+        AddChild(vp);
+        vp.AddChild(new ColorRect { Size = size, Material = mat });
+        await ToSignal(GetTree(), "process_frame");
+        await ToSignal(GetTree(), "process_frame");
+        var img = vp.GetTexture().GetImage();
+        vp.QueueFree();
+        double V(int x, int y) { var c = img.GetPixel(x, y); return ((c.R8 | c.G8 << 8 | c.B8 << 16) << 8 >> 8) / 16.0; }
+        var lines = new System.Collections.Generic.List<string>();
+        for (var y = 0; y < size.Y; y++)
+        {
+            if (V(5, y) <= 0) continue;
+            int n = y / per, r = y % per;
+            lines.Add(r == 0 ? $"shape {n} at {V(0, y)} {V(1, y)} {V(2, y)} size {V(3, y)} ground {V(4, y)}" : $"{n} {(r - 1) / 3} {(r - 1) % 3} {V(0, y)} {V(1, y)} {V(2, y)} {V(3, y)} {V(4, y)}");
+        }
+        return lines.Count == 0 ? "none there" : string.Join("\n", lines);
+    }
+
     System.Threading.Tasks.Task<string> LiveRun(string line)
     {
         var a = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (a.Length > 2 && a[0] == "pieces") { float F(int i) => a.Length > i ? float.Parse(a[i], System.Globalization.CultureInfo.InvariantCulture) : float.NaN; return LivePieces(ParseNum(a[1]), F(2), F(3), F(4)); }
+        if (a[0] == "smoke") return LiveSmoke(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : 0f);
         if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 3 ? float.Parse(a[3], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 4 ? float.Parse(a[4], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
         if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
@@ -615,6 +689,7 @@ public partial class GameView
                     + $"\nlast message: {last}"
                     + (play.Pilot is null ? "" : $"\nplayed by {play.Pilot.GetType().Name}{(play.Pilot is Bot { Brain: Hunt h } ? $": {h.Doing}" : "")}");   // a bot run: who has the stick and what it is doing
             }
+            case "palette": return real3d?.PaletteText ?? "no card view";   // the view's 16 colours, $RGB, colour 0 first
             case "frame":
             {
                 var p = ents[0];

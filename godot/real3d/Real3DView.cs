@@ -26,6 +26,8 @@ public readonly record struct FreeCamera((double X, double Y, double Z) Eye, flo
 /// camera's default -z look is north and screen-right is +x, as in the game.</summary>
 public sealed partial class Real3DView : Node
 {
+    /// <summary>The view's 16 colours this frame as $RGB words, 0 first (the live "palette" command).</summary>
+    public string PaletteText = "";
     public SubViewport Viewport { get; }
     public ShaderMaterial Sky { get; }
     public ShaderMaterial Sea { get; }
@@ -236,6 +238,7 @@ public sealed partial class Real3DView : Node
         }
         // the bands stay on the original's rows: its sea starts below the eye line, where a round sea's edge would
         // be from the camera's height, and the flat sea plane shows sky above that edge (world.gdshader)
+        PaletteText = string.Join(" ", pal.View.Select(v => $"{v:X3}"));   // the live "palette" reads it
         Variant palRaw = pal.View, skyRaw = pal.Sky;                    // turned into the card's arrays once a frame, not once a material
         var (sunElev, sunAz) = SunPath(Gpu.Clock.Hour, Gpu.Clock.Minute);     // SKY's time of day: none indoors
         bool todOn = skyTime && !interior;

@@ -67,7 +67,7 @@ public sealed partial class GpuWorld : Node3D
     readonly int model0, faces0;                 // model 0 (the debris model) and where its ten faces start ($59FE)
     readonly byte[] model0Seen = new byte[11], model0Now = new byte[11];   // its scale byte and the ten face colours: as last uploaded, and now
     /// <summary>The materials that need the palette uniforms every frame (Real3DView.Frame).</summary>
-    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks];
+    public ShaderMaterial[] Materials => materials ??= [ground, models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, smoke, marks];
     ShaderMaterial[]? materials, things, sunLit;  // made once: the lists Update sets uniforms on every frame
     readonly float[] animFloats = new float[320 * 2], dposFloats = new float[30];   // SMOOTH PARTS: anim row 1 = the table one step back
     readonly byte[] animBytes = new byte[320 * 2 * 4], dposBytes = new byte[30 * 4];
@@ -116,6 +116,41 @@ public sealed partial class GpuWorld : Node3D
     readonly ShaderMaterial breakStars = new() { Shader = GD.Load<Shader>("res://real3d/gpubreakstars.gdshader") };
     internal const int BreakStars = 6;           // small stars a blast at most (model_tex rows 3 and 4)
     MultiMesh? breakRows;
+    // BETTER EXPLOSIONS step 7: the smoke where a star went out (smoke.gdshaderinc) - a ring of the card's own, the
+    // star's record being gone by then: where it stood and a number of its own, when it went out and its reach
+    readonly ShaderMaterial smoke = new() { Shader = GD.Load<Shader>("res://real3d/gpusmoke.gdshader") };
+    internal const int Smokes = 24, SmokePuffs = 6, SmokeTris = 8;
+    readonly Vector4[] smokeAt = new Vector4[Smokes];
+    readonly Vector2[] smokeInfo = new Vector2[Smokes];
+    int smokeNext, smokeCount;
+    readonly (int X, int Y, int Z, float Reach)[] starWas = new (int, int, int, float)[LiveRows];
+    const float SmokeLeast = 30;                 // a star reaching less (a bullet's spark) leaves none
+
+    /// <summary>A live record this frame: a star ($61-$67) that stood here last frame and is gone now leaves smoke.</summary>
+    void TrackStar(int r, Entity e, bool on, float clock)
+    {
+        var type = e.W(4);
+        var model = e.B[0x25];
+        var star = on && e.B[0] != 0 && type >= 0x61 && type <= 0x67 && model >= Fireball.First && model <= Fireball.Last;
+        if (starWas[r].Reach > 0 && !star && on)
+        {
+            smokeAt[smokeNext] = new Vector4(starWas[r].X, starWas[r].Y, starWas[r].Z, smokeCount++ % 1000);
+            smokeInfo[smokeNext] = new Vector2(clock, starWas[r].Reach);
+            smokeNext = (smokeNext + 1) % Smokes;
+        }
+        if (!star) { starWas[r] = default; return; }
+        int x = e.UW(0x4A), z = e.UW(0x4E);
+        var own = Fireball.Reach[model - Fireball.First];
+        var big = 1f;                                                 // as the star is drawn (gpumodels.gdshaderinc fire_big)
+        foreach (var h in fireHits)
+            if (h.W > 0.5f && Math.Min(Math.Abs(x - h.X), 65536 - Math.Abs(x - h.X)) <= 96 && Math.Min(Math.Abs(z - h.Y), 65536 - Math.Abs(z - h.Y)) <= 96) big = Math.Max(big, h.Z / Math.Max(own, 1f));
+        var reach = own * Math.Min(big, 3f);
+        starWas[r] = reach >= SmokeLeast ? (x, e.W(0x4C), z, reach) : default;
+    }
+
+    /// <summary>The smoke's own material as the game wires it, and its ring (the live "smoke" reads them).</summary>
+    public ShaderMaterial SmokeMaterial => smoke;
+    public (Vector4 At, float Start, float Reach) SmokeRow(int row) => (smokeAt[row], smokeInfo[row].X, smokeInfo[row].Y);
     readonly float[] blastFloats = new float[Blasts * 0xA0];
     readonly byte[] blastBytes = new byte[Blasts * 0xA0 * 4];
     readonly ImageTexture blastTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0, Blasts, false, Image.Format.Rf));
@@ -390,7 +425,7 @@ public sealed partial class GpuWorld : Node3D
         faces0 = edges0 + 2 + m0.U(edges0) * 2 + 2;
         debris.SetShaderParameter("debris_base", model0);
         var trigTex = TrigTexture.From(sinfile);
-        foreach (var m in new[] { models, glassFaces, shadows, lines, dots, debris, pieces, breakStars })
+        foreach (var m in new[] { models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, smoke })
         {
             m.SetShaderParameter("mdl_tex", mdlTex);
             m.SetShaderParameter("mdl_at", atTex);
@@ -1329,7 +1364,8 @@ public sealed partial class GpuWorld : Node3D
         breakRows = SlotRows(BreakStars * starTris * 3, Blasts);
         breakRows.VisibleInstanceCount = blastHigh;
         AddChild(new MultiMeshInstance3D { Multimesh = breakRows, MaterialOverride = breakStars, CustomAabb = Huge });
-        foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces, breakStars })
+        AddChild(new MultiMeshInstance3D { Multimesh = SlotRows(SmokePuffs * SmokeTris * 3, Smokes), MaterialOverride = smoke, CustomAabb = Huge });   // step 7: the smoke, a row a star
+        foreach (var m in new[] { this.models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, smoke })
         {
             m.SetShaderParameter("tri_tex", triTex);
             m.SetShaderParameter("model_tex", infoTex);
@@ -2100,6 +2136,7 @@ public sealed partial class GpuWorld : Node3D
         for (var r = 0; r < entities.Count && r < LiveRows; r++)
         {
             var b = entities.All[r].B;
+            TrackStar(r, entities.All[r], cardPieces, clock);            // step 7: a star gone since the last frame leaves smoke
             for (var o = 0; o < 0xA0; o++) entFloats[r * 0xA0 + o] = b[o];
             Fine(entFloats, r * 0xA0, FineAngles ? entities.All[r] : null);
             if (!insideView) Lift(entFloats, r * 0xA0);
@@ -2208,7 +2245,7 @@ public sealed partial class GpuWorld : Node3D
         if (lean != leanShown || LeanRow != leanRowShown)
         {
             (leanShown, leanRowShown) = (lean, LeanRow);
-            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
+            foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, smoke, marks]) { m.SetShaderParameter("steer_lean", lean); m.SetShaderParameter("steer_lean_row", LeanRow); }
         }
         SendBlasts();
         if (!PiecesStay)                                                // the rows past the last live blast are not drawn
@@ -2217,6 +2254,10 @@ public sealed partial class GpuWorld : Node3D
             while (high > 0 && clock - blastStart[high - 1] > BlastLife) high--;
             if (high != blastHigh) { blastHigh = high; if (pieceRows is not null) pieceRows.VisibleInstanceCount = high; if (breakRows is not null) breakRows.VisibleInstanceCount = high; }
         }
+        smoke.SetShaderParameter("piece_clock", clock);
+        smoke.SetShaderParameter("pieces_on", cardPieces);
+        smoke.SetShaderParameter("smoke_at", smokeAt);
+        smoke.SetShaderParameter("smoke_info", smokeInfo);
         breakStars.SetShaderParameter("piece_clock", clock);
         breakStars.SetShaderParameter("pieces_on", cardPieces);
         breakStars.SetShaderParameter("fire_reach", Fireball.Reach);
@@ -2230,7 +2271,7 @@ public sealed partial class GpuWorld : Node3D
         models.SetShaderParameter("fire_reach", Fireball.Reach);
         models.SetShaderParameter("fire_ticks", FireTicks);            // the star's age between two passes of the rules (gpumodels.gdshaderinc fire_age)
         models.SetShaderParameter("fire_hits", fireHits);              // step 5: the star sized by what it blew up
-        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, marks])
+        foreach (var m in things ??= [models, glassFaces, shadows, lines, dots, debris, pieces, breakStars, smoke, marks])
         {
             m.SetShaderParameter("inside_view", insideView);
             m.SetShaderParameter("shell_row", shellRow);                  // the building drawn from inside ($48F8)
