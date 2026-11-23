@@ -217,9 +217,13 @@ public sealed partial class GpuWorld : Node3D
         if (from is { } f)
         {
             int U(int o) => record[o] << 8 | record[o + 1];
-            blastInfo.SetPixel(row, 1, new Color((short)(f.X - U(0x4A)), (short)(f.Y - U(0x4C)), (short)(f.Z - U(0x4E)), 1));
             // BETTER EXPLOSIONS step 5: the star there is drawn at this thing's size (gpumodels.gdshaderinc fire_big)
             var size = Math.Max((short)U(0x6E), (short)U(0x72));   // across and deep only: a tall thin thing does not get a big star
+            // how far that star reaches as drawn (fire_big's own sum; 0 = which star is not known): the pieces' kick
+            // goes by it (pieces.gdshaderinc piece_kick) - kept as 1 + it, so 0 stays "no hit"
+            var own = star >= Fireball.First && star <= Fireball.Last ? Fireball.Reach[star - Fireball.First] : 0f;
+            var reach = own <= 0 ? 0f : own * Math.Clamp(size / Math.Max(own, 1f), 1f, 3f);
+            blastInfo.SetPixel(row, 1, new Color((short)(f.X - U(0x4A)), (short)(f.Y - U(0x4C)), (short)(f.Z - U(0x4E)), 1 + reach));
             fireHits[fireHitNext] = new Vector4(f.X, f.Z, size, 1);
             fireHitUntil[fireHitNext] = clock + FireHitLife;
             fireHitNext = (fireHitNext + 1) % fireHits.Length;

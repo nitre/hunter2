@@ -24,7 +24,9 @@ uniform float piece_settle = 8.0;       // frames a landed triangle takes to tip
 uniform float piece_crack = 0.15;        // the break's own push on each triangle, as a part of the panel's speed
 uniform float piece_near = 1.6;          // BETTER EXPLOSIONS: a panel at the hit's own point flies this much faster than the average one...
 uniform float piece_far = 0.6;           // ...and one the thing's size or more away this much (the push falls off with distance)
-uniform float piece_rest = 250.0;        // frames a piece lies on the ground at most
+uniform float piece_kick = 0.5;          // BETTER EXPLOSIONS: the star throws the panels out with it - this much of its reach, at once...
+uniform float piece_kick_time = 1.5;     // ...over about this many frames (the star is at its full size in about 2); they land where they did. 0 kick = the flight without it
+uniform float piece_rest = 250.0;       // frames a piece lies on the ground at most
 uniform float piece_shrink = 25.0;       // the last of them it shrinks away in, lying where it is
 uniform bool piece_stay = false;         // EXPLOSIONS: LASTING - no end to lying still
 
@@ -74,10 +76,19 @@ void _piece_tri(sampler2D blast, int row, int base, int model, int tri_row, out 
 // A panel's flight, the same for every triangle of it (slot = any triangle of the panel): the triangle's own corners
 // as the thing stood (p0 p1 p2, their middle c), the panel's middle, its speed and spin from the push, gravity, its
 // round size, and when it breaks (tb) - all in the picture's units. ok false = no such triangle, or not a panel.
-struct PieceFlight { bool ok; int colour; vec3 p0; vec3 p1; vec3 p2; vec3 c; vec3 mid; vec3 v; vec3 omega; float g; float radius; float tb; };
+// The star's kick: the first part of the way out is done at once (kick, over about kick_time frames) and the steady
+// speed v is that much less, so the panel is where it was after piece_air frames; push = the speed without the kick
+// (what the spin and the break's own push go by).
+struct PieceFlight { bool ok; int colour; vec3 p0; vec3 p1; vec3 p2; vec3 c; vec3 mid; vec3 v; vec3 omega; float g; float radius; float tb; vec3 kick; float kick_time; float push; };
+
+// The panel's middle t frames after the thing blew up, flying whole (t no later than its break).
+vec3 _piece_kicked(vec3 kick, float kick_time, float t) { return kick * (1.0 - exp(-t / kick_time)); }
+vec3 _piece_mid(PieceFlight f, float t) {
+    return f.mid + f.v * t - vec3(0.0, 0.5 * f.g * t * t, 0.0) + _piece_kicked(f.kick, f.kick_time, t);
+}
 
 PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, int slot) {
-    PieceFlight f = PieceFlight(false, 0, vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), 1.0, 1.0, 0.0);
+    PieceFlight f = PieceFlight(false, 0, vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), 1.0, 1.0, 0.0, vec3(0.0), 1.0, 0.0);
     int model = _eb(blast, row, 0x25);
     if (model == 0) return f;
     vec4 mi = texelFetch(model_tex, ivec2(model, 0), 0);
@@ -148,20 +159,29 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
     float spin = length(omega);
     vec3 axis = spin > 0.0 ? omega / spin : vec3(0.0, 1.0, 0.0);
 
+    // the star's kick (from.w = 1 + how far the star that did it reaches as drawn, world units): that part of the
+    // panel's way out at once, the rest at a steady speed that much lower - never more than half of it
+    float push = length(v);
+    float part = min(piece_kick * 2.0 * max(from.w - 1.0, 0.0) / piece_spread, 0.5);
+    vec3 kick = vec3(v.x, 0.0, v.z) * piece_air * part;
+    float kt = max(piece_kick_time, 0.01);
+    v = vec3(v.x * (1.0 - part), v.y, v.z * (1.0 - part));
+
     // stage 1: the panel whole, up and out and back down to halfway between its top and the ground under it, then it
     // breaks into its triangles - the same moment for every triangle of the panel
     float top = v.y / g;
-    vec3 pt = mid + v * top - vec3(0.0, 0.5 * g * top * top, 0.0);
+    vec3 pt = mid + v * top - vec3(0.0, 0.5 * g * top * top, 0.0) + _piece_kicked(kick, kt, top);
     float tb = top + sqrt(max(pt.y - _piece_ground(map, pt.x, pt.z), 0.0) * 2.0 * piece_break_down / g);
     // but never once the panel, falling whole, is down to its reach above the ground under it (a slope, a short drop):
     // halved back toward the top - the panel's own middle and size, so all its triangles still break together
     float reach0 = radius * 2.5;                                      // a long panel's far corner reaches past its round size
     for (int i = 0; i < 8; i++) {
-        vec3 mb = mid + v * tb - vec3(0.0, 0.5 * g * tb * tb, 0.0);
+        vec3 mb = mid + v * tb - vec3(0.0, 0.5 * g * tb * tb, 0.0) + _piece_kicked(kick, kt, tb);
         if (mb.y - reach0 - _piece_ground(map, mb.x, mb.z) > 0.0) break;
         tb *= 0.5;                                                    // even before the top: a low flight into rising ground
     }
-    return PieceFlight(true, colour, p[0], p[1], p[2], c, mid, v, omega, g, radius, tb);
+    kt = min(kt, max(tb, 0.04) * 0.25);                               // a panel that breaks at once: its kick is over by the break (the triangles go on at the steady speed)
+    return PieceFlight(true, colour, p[0], p[1], p[2], c, mid, v, omega, g, radius, tb, kick, kt, push);
 }
 
 // BETTER EXPLOSIONS step 6: a small star where a panel breaks. The thing's six biggest panels (model_tex rows 3 and 4,
@@ -184,7 +204,21 @@ bool break_star_at(sampler2D blast, sampler2D map, int row, vec4 from, int n, ou
     PieceFlight f = _piece_flight(blast, map, row, from, int(slot + 0.5));
     if (!f.ok) return false;
     tb = f.tb; radius = f.radius;
-    at = f.mid + f.v * tb - vec3(0.0, 0.5 * f.g * tb * tb, 0.0);
+    at = _piece_mid(f, tb);
+    return true;
+}
+
+// The middle of that same panel (the picture's units) t frames after the thing blew up, while it flies whole - for
+// reading back how far out it is (the live "breakstars").
+bool break_panel_at(sampler2D blast, sampler2D map, int row, vec4 from, int n, float t, out vec3 at) {
+    at = vec3(0.0);
+    vec4 big = texelFetch(model_tex, ivec2(_eb(blast, row, 0x25), 3 + n / 3), 0);
+    int m = n - (n / 3) * 3;
+    float slot = m == 0 ? big.r : (m == 1 ? big.g : big.b);
+    if (slot < -0.5) return false;
+    PieceFlight f = _piece_flight(blast, map, row, from, int(slot + 0.5));
+    if (!f.ok) return false;
+    at = _piece_mid(f, min(t, f.tb));
     return true;
 }
 
@@ -240,15 +274,15 @@ bool piece_corner(sampler2D blast, sampler2D map, sampler2D types, int row, vec4
     t_break = tb;
     vec3 at; float turn; vec3 about;
     if (t < tb) {
-        at = mid + v * t - vec3(0.0, 0.5 * g * t * t, 0.0);
+        at = _piece_mid(f, t);
         turn = spin * t;
         about = mid;                                                  // turned about the panel's middle
     } else {
         // stage 2: the triangle on its own, from where it was at the break, with the speed its spot on the panel had
-        vec3 pb = mid + v * tb - vec3(0.0, 0.5 * g * tb * tb, 0.0);
+        vec3 pb = _piece_mid(f, tb);
         vec3 off = _piece_rotate(c - mid, axis, spin * tb);
         vec3 cb = pb + off;
-        vec3 vb = vec3(v.x, v.y - g * tb, v.z) + cross(omega, off) + (length(off) > 0.001 ? normalize(off) : _piece_hash(slot * 97 + row + 1)) * piece_crack * length(v);
+        vec3 vb = vec3(v.x, v.y - g * tb, v.z) + cross(omega, off) + (length(off) > 0.001 ? normalize(off) : _piece_hash(slot * 97 + row + 1)) * piece_crack * f.push;
         float s = t - tb;
         // it lands when its lowest point can touch: its middle a corner's reach above the ground
         float reach = max(max(length(p[0] - c), length(p[1] - c)), length(p[2] - c));
