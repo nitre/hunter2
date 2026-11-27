@@ -11,7 +11,12 @@ uniform int band_green_h[3];                     // GroundBands.Heights(green): 
 uniform int band_brown_h[3];                     // GroundBands.Heights(brown)
 const int BAND_GREEN[3] = int[](0x251, 0x362, 0x372);   // GroundBands.GreenKeys' colours
 const int BAND_BROWN[3] = int[](0x521, 0x732, 0xA53);   // GroundBands.BrownKeys' colours
-int band_key(bool brown, int k) { return brown ? BAND_BROWN[k] : BAND_GREEN[k]; }
+// ENHANCEMENT (PLANET, THE SAND ZONE): the sand face's own keys - its sand where the green would be, its rock where the
+// brown would be (rock = a cell coloured 9, SandZone.Rock; sand = 11), wet sand at the water and dry sand above it
+uniform bool sand_face = false;
+const int SAND_KEYS[3] = int[](0xB84, 0xC95, 0xDB7);
+const int ROCK_KEYS[3] = int[](0x532, 0x643, 0x865);
+int band_key(bool brown, int k) { return sand_face ? (brown ? ROCK_KEYS[k] : SAND_KEYS[k]) : (brown ? BAND_BROWN[k] : BAND_GREEN[k]); }
 uniform sampler2D band_shore : filter_linear, repeat_disable;   // ShoreDistance.BuildFromCoast: the distance from the sea as drawn, 8 samples a cell, 0..1 of shore_far
 
 int band_mix(int a, int b, int step, int steps) {
@@ -39,17 +44,19 @@ int ground_band_word(int h, int bend, int slope, int shore, int brown64) {
     int e = h + bend / 8;
     int land = band_mix(band_ramp_green(e), band_ramp_brown(e), (brown64 * 4 + 32) / 64, 4);
     int t = clamp(max(shore * 4 / 256, h * 4 / 24), 0, 4);   // the beach: ShoreReach, ShoreHigh
+    if (sand_face) return t == 0 ? 0xA86 : band_mix(0xDB8, land, t - 1, 3);
     return t == 0 ? 0x974 : band_mix(0xCA6, land, t - 1, 3);
 }
 
 // GroundBands.Brown64: how brown the land is at (x, z), 0..64, the squares' kinds blended between square middles
 int band_brown_at(sampler2D types, int c, int r, int own) {
     int t = ground_cell_colour(types, clamp(c, 0, 127), clamp(r, 0, 127));
+    if (sand_face) return (t < 9 || t > 14) ? own : (t == 9 ? 64 : 0);
     return (t < 9 || t > 14) ? own : (t <= 11 ? 64 : 0);
 }
 int band_brown64(sampler2D types, int x, int z) {
     int t = ground_cell_colour(types, clamp(x / 512, 0, 127), clamp(z / 512, 0, 127));
-    int own = (t >= 9 && t <= 11) ? 64 : 0;
+    int own = sand_face ? (t == 9 ? 64 : 0) : (t >= 9 && t <= 11) ? 64 : 0;
     int gx = x + 256, gz = z + 256, c0 = gx / 512 - 1, r0 = gz / 512 - 1, fx = gx % 512, fz = gz % 512;
     return ((band_brown_at(types, c0, r0, own) * (512 - fx) + band_brown_at(types, c0 + 1, r0, own) * fx) * (512 - fz)
           + (band_brown_at(types, c0, r0 + 1, own) * (512 - fx) + band_brown_at(types, c0 + 1, r0 + 1, own) * fx) * fz) / (512 * 512);

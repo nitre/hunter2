@@ -7,7 +7,7 @@ namespace Hunter.Rules;
 /// Extras (roomy_memory): the extension block's payload, when the save has one - kept apart from
 /// every original array.</summary>
 public sealed record SavedGame(short MissionNo, short LogLine, byte Flags99, byte FlagsA7, byte FlagsA4,
-    byte[] Kills, byte[] SoldierRecord, byte[] MissionTable, byte[] LogPlaces, SaveExtras? Extras = null);
+    byte[] Kills, byte[] SoldierRecord, byte[] MissionTable, byte[] LogPlaces, SaveExtras? Extras = null, SavedPlanet? Planet = null);
 
 /// <summary>The roomy_memory extras a save can carry (the layout is in findings/notes.md):
 /// the player's fuel low byte, the parked things' fuel low bytes by grid record offset, the full
@@ -94,7 +94,7 @@ public static class SaveGame
     {
         if (s.Entities.All[0].Alive) GameToSoldier(s);                       // not again after EndPlay
         var b = scratch is null ? new byte[Size] : (byte[])scratch.Clone();
-        var home = Home(s);
+        var home = Home(s);                                                  // PLANET: the played world's records, wherever the game is
         W(b, 0, (int)s.Mode); W(b, 2, s.MissionNo);                          // $1048A, $1048E
         W(b, 4, s.Minute); W(b, 6, s.Hour); W(b, 8, s.Day);                  // $104AC-$104B2
         W(b, 0xC, s.Log.Selected);                                           // $10494
@@ -117,14 +117,18 @@ public static class SaveGame
         Array.Copy(s.Log.Places, 0, b, 0x320, 0x176);                        // $1054E
         Array.Copy(s.MissionTable, 0, b, 0x260, 0xC0);                       // $1055C
         W(b, 0x3E, Checksum(b));
-        if (!s.RoomyMemory && !s.Graves && s.FineN == 0) return b;           // the original's block, byte for byte
+        var planet = s.Planet is { } pl ? PlanetSave.Write(s, pl) : [];       // ENHANCEMENT (PLANET): its own block, last
+        if (!s.RoomyMemory && !s.Graves && s.FineN == 0) return [.. b, .. planet];   // the original's block, byte for byte (and the planet's)
         var ext = ExtrasBlock(s);                                            // ENHANCEMENT (roomy_memory / graves): the
-        return [.. b, .. ext];                                               // extras ride after the block
+        return [.. b, .. ext, .. planet];                                    // extras ride after the block
     }
 
-    /// <summary>The played world's grid and roomy extras.</summary>
+    /// <summary>The played world's grid and roomy extras: the state's own, or - the game on another face of the planet -
+    /// the played world face's (Planet.Faces[WorldFace]), never the current face's.</summary>
     static (byte[] Grid, Dictionary<int, byte> FuelLow, Dictionary<int, List<byte[]>> Overflow) Home(WorldState s) =>
-        (s.Grid, s.FuelLow, s.Overflow);
+        s.Planet is { } p && p.Current != Planet.WorldFace
+            ? (p.Faces[Planet.WorldFace].Grid, p.Faces[Planet.WorldFace].FuelLow, p.Faces[Planet.WorldFace].Overflow)
+            : (s.Grid, s.FuelLow, s.Overflow);
 
     /// <summary>A tagged block: 8 tag, 4 payload length (to the end, the sum included), the payload padded even, 2 word sum.</summary>
     public static byte[] Tagged(string tag, List<byte> p)
@@ -141,7 +145,7 @@ public static class SaveGame
         return b;
     }
 
-    /// <summary>The tagged blocks after the original's (the roomy extension), each whole: tag and bytes.
+    /// <summary>The tagged blocks after the original's (the roomy extension, the planet's), each whole: tag and bytes.
     /// Throws on bytes that are not one, a wrong length or a failed sum - the save is then damaged where the original's
     /// checksum cannot see.</summary>
     static List<(string Tag, byte[] Seg)> Segments(byte[] block)
@@ -151,7 +155,7 @@ public static class SaveGame
         {
             if (block.Length - o < 14) throw new InvalidDataException("trailing bytes that are not an extension");
             var tag = Encoding.ASCII.GetString(block, o, 8);
-            if (tag is not ("HUNTRMY1" or "HUNTRMY2")) throw new InvalidDataException("trailing bytes that are not a roomy_memory extension");
+            if (tag is not ("HUNTRMY1" or "HUNTRMY2" or PlanetSave.Tag)) throw new InvalidDataException("trailing bytes that are not a roomy_memory extension");
             var len = block[o + 8] << 24 | block[o + 9] << 16 | block[o + 10] << 8 | block[o + 11];
             if (len < 2 || o + 12 + len > block.Length) throw new InvalidDataException("the extension's length is wrong");
             var seg = block[o..(o + 12 + len)];
@@ -163,6 +167,10 @@ public static class SaveGame
         }
         return list;
     }
+
+    /// <summary>The planet's block of a save, or null (PlanetSave).</summary>
+    public static SavedPlanet? ParsePlanet(byte[] block) =>
+        block.Length <= Size ? null : Segments(block).Where(t => t.Tag == PlanetSave.Tag).Select(t => PlanetSave.Parse(t.Seg)).FirstOrDefault();
 
     /// <summary>The extension block (only with roomy_memory or graves on), byte by byte:
     ///   +$00  8  tag "HUNTRMY1"
@@ -227,7 +235,7 @@ public static class SaveGame
     {
         if (block.Length == Size) return null;
         var found = Segments(block).FirstOrDefault(t => t.Tag.StartsWith("HUNTRMY"));
-        if (found.Seg is null) return null;
+        if (found.Seg is null) return null;                                  // the planet's block alone
         var wideTypes = found.Tag == "HUNTRMY2";
         block = [.. new byte[Size], .. found.Seg];                           // the extension alone after the block's room, as read below
         var p = Size + 12;                                                   // the payload
@@ -283,7 +291,7 @@ public static class SaveGame
         var saved = new SavedGame((short)W(block, 2), (short)W(block, 0xC), block[0xE], block[0xF], block[0x10],
             block.AsSpan(0x40, 0xAE).ToArray(), block.AsSpan(0x240, 0x20).ToArray(),
             block.AsSpan(0x260, 0xC0).ToArray(), block.AsSpan(0x320, 0x176).ToArray());
-        if (block.Length > Size) saved = saved with { Extras = ParseExtras(block) };
+        if (block.Length > Size) saved = saved with { Extras = ParseExtras(block), Planet = ParsePlanet(block) };
         return (mode, block.AsSpan(WorldAt, WorldSize).ToArray(), saved);
     }
 

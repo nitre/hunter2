@@ -68,7 +68,7 @@ The settings menu is grouped into pages:
 - Sound: Amiga filter, extra sound effects and voices
 - Controls: message log, pause in background, manual and quit buttons, vehicle handling, analog steering, mouse aiming
 
-The release build starts with these changes turned on. A build run from source asks on first start whether to
+The release build starts with these changes turned on (vehicle handling stays off). A build run from source asks on first start whether to
 turn them on.
 
 ## Download

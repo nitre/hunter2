@@ -48,8 +48,6 @@ public sealed partial class Play
     public bool AnalogSteering { get => State.AnalogSteering; set => State.AnalogSteering = value; }
     /// <summary>the player's land vehicle has momentum and a reverse gear (WorldState.WeightyHandling).</summary>
     public bool WeightyHandling { get => State.WeightyHandling; set => State.WeightyHandling = value; }
-    /// <summary>a bullet hurts the limb it hits and a limb hit does not kill (WorldState.LimbDamage).</summary>
-    public bool LimbDamage { get => State.LimbDamage; set => State.LimbDamage = value; }
     /// <summary>bullets get a small box, not model 0's (WorldState.BulletBox).</summary>
     public bool BulletBox { get => State.BulletBox; set => State.BulletBox = value; }
     /// <summary>what the original does once a pass happens at the A500's pace (WorldState.A500Pace).</summary>
@@ -345,9 +343,9 @@ public sealed partial class Play
     }
 
     public Play(GameData d, GameMode mode, byte[]? world = null, short? energy = null, Soldier? soldier = null, int fullerWorld = 0, int players = 1, bool maths32 = false,
-        int finerGround = 0, bool fixSpikes = false, ushort? groundSeed = null, int relief = 0)
+        int finerGround = 0, bool fixSpikes = false, ushort? groundSeed = null, int relief = 0, bool planet = false, int scrTrack = -1, bool sandIsland = false)
         : this(d, StartState.For(mode, d, world, soldier, energy: energy, fullerWorld: fullerWorld, players: players, maths32: maths32,
-            finerGround: finerGround, fixSpikes: fixSpikes, groundSeed: groundSeed, relief: relief)) { }
+            finerGround: finerGround, fixSpikes: fixSpikes, groundSeed: groundSeed, relief: relief, planet: planet, scrTrack: scrTrack, sandIsland: sandIsland)) { }
 
     /// <summary>A game from a state already made: a loaded one (SaveGame.Read; PlayGame $24B4 from $23BE).</summary>
     public Play(GameData d, WorldState state)
@@ -434,6 +432,7 @@ public sealed partial class Play
             _opening = 0;
         }
         D6 = d6; D4 = d4;
+        (State.StickD6, State.StickD4) = (d6, d4);                            // STUNTIN': ScrDrive reads them in the movement
         D6Second = d62; D4Second = d42;
         // The screens' waited fades ($6918/$691E/$6924 all end in the $6952 WaitFade spin): the work
         // the original ran once one released runs here, on the first blank after its last step.
@@ -701,7 +700,7 @@ public sealed partial class Play
         for (var n = 0; n < s.Entities.Count; n++)
             Array.Copy(live, n * EntityTable.Size, s.Entities.All[n].B, 0, EntityTable.Size);
         grid.CopyTo(s.Grid, 0);
-        Refill(s.FuelLow, parkedFuel);                                       // in place
+        Refill(s.FuelLow, parkedFuel);                                       // in place: with the planet, the face keeps these by reference
         Refill(s.Overflow, overflow);                                        // (a new dictionary would cut the current face loose from its own)
         s.BuildingFuelLow = insideFuel;
         player.CopyTo(s.Entities.All[0].B, 0);
@@ -924,8 +923,12 @@ public sealed partial class Play
             Controls.Apply(_d.Main, s.Entities.All[1], D6Second, (D4Second & 1) != 0,   // record - the original ran $25D8 for entity 0 only
                 s.ViewAngle2);                                // mp_view_finish: his stick is relative to HIS south-facing camera
         for (var n = 0; n < s.Entities.Count; n++)                           // $2610: every live record, in slot order
-            if (s.Entities.All[n].Alive) Movement.Update(s, s.Entities.All[n], LastTicks, n);
+            if (s.Entities.All[n].Alive && Convoy?.Holds(n) != true) Movement.Update(s, s.Entities.All[n], LastTicks, n);   // the convoy's escorts: flown by it alone
+        if (!_interior) Convoy?.Step(_d, s);                                 // recording only (HUNTER_CONVOY): the followers on his way
     }
+
+    /// <summary>Recording only (HUNTER_CONVOY, set by GameView): land vehicles following the player's way (rules/Convoy.cs).</summary>
+    public Convoy? Convoy;
 
     // ENHANCEMENT (A500 PACE, WorldState.A500Pace): whether this pass is an A500 pass - every PaceBlanks blanks gathered;
     // each record's height then is where its next landing's drop is measured from (Entity.PaceY). Off: every pass is one.
@@ -1031,7 +1034,8 @@ public sealed partial class Play
             // rows in the same order, stepped without the paint
             for (var row = 0; row < _objects.Rows.Length; row++) _objects.StepRow(s.Entities, row);
         }
-        s.Panel.Update(s, s.Entities.All[0]);                                // $25B0 UpdatePanel $9A60
+        if (ScrPanel.On(s)) ScrPanel.Update(s, s.Panel);                     // STUNTIN': the panel as a racing console
+        else s.Panel.Update(s, s.Entities.All[0]);                           // $25B0 UpdatePanel $9A60
         if (s.Panel2 is { } p2) p2.Update(s, s.Entities.All[1], 1);          // ENHANCEMENT (mp_panel): his own panel, his entity, n = 1
         _pictureCamera = null;
         if (Smooth) NoteSmoothPass();                                        // ENHANCEMENT (Play.Smooth.cs)
@@ -1051,6 +1055,7 @@ public sealed partial class Play
             return;
         }
         Keys.EndOfPass(State);
+        State.Planet?.Pass();                                        // ENHANCEMENT (PLANET step 3): the player's crossing = the frame switch
         if (State.Graves) Hunter.Rules.Graves.RetryPending(State);   // ENHANCEMENT (Play.Graves): a grave whose cell was full enters when a slot frees
         if (State.VultureGraves) Hunter.Rules.VultureGraves.Tick(State);   // ENHANCEMENT (Play.VultureGraves): the visits' pairs keep circling
         if (State.ScreenRoutine == 0) { if (_interior) AfterInteriorPass(); return; }

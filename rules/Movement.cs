@@ -33,7 +33,9 @@ public static partial class Movement
         a4 = rec; d7 = nd7;
         if (ended && noTail) return (a4, d7);                                // a crash in a fall reached by a branch (Direct): no steer, sound or fire this pass
         if (Bit(d7, 0)) a4.SetL(0x0A, Behaviour.Steer(s, a4, ref d7, ticks));   // $266E, $2672
-        if (Bit(d7, 19)) s.Channels.UpdateEntity(a4, ref d7, recSlot, s.Entities);   // $267C
+        if (Bit(d7, 19))
+            if (ScrDrive.Takes(s, a4, recSlot)) s.Channels.Hush(a4, d7);       // STUNTIN': the car sounds as the original's (ScrDrive.Sound)
+            else s.Channels.UpdateEntity(a4, ref d7, recSlot, s.Entities);   // $267C
         FireTimer(s, a4, recSlot, ref d7, ticks);                            // $2680
         return (a4, d7);
     }
@@ -48,9 +50,7 @@ public static partial class Movement
         if (e.W(0x26) <= 0) return;
         if ((sbyte)e.B[0x2E] >= 0) { e.B[0x2E] = (byte)(e.B[0x2E] - ticks); return; }   // $268E sub.b
         if (e.B[0x1D] == 0) return;
-        var arms = s.LimbDamage ? Limbs.HurtArms(e) : 0;                     // ENHANCEMENT (LIMB DAMAGE): see Limbs.OneArmReload
-        if (arms == 2) { e.B[0x1D] = 0; return; }                            // both arms hurt: no shot, the round stays
-        e.B[0x2E] = arms == 1 ? Limbs.Reload(e.B[0x2F]) : e.B[0x2F];         // $269E
+        e.B[0x2E] = e.B[0x2F];                                               // $269E
         if (e.Bit(0x0D, 1)) { s.Channels.StartEntity(e, ref d7, slot, s.Entities); return; }   // $26AA: a cry, not a shot
         var rounds = (short)(e.W(0x32) - 1);
         e.SetW(0x32, rounds);
@@ -77,6 +77,11 @@ public static partial class Movement
     // MoveByModeBurnFuel ($2964)
     static Step MoveByModeBurnFuel(WorldState s, Entity e, int slot, int d7, int ticks)
     {
+        if (ScrDrive.Takes(s, e, slot))                                      // STUNTIN': the original's physics moves his car
+        {
+            ScrDrive.Drive(s, e, slot);
+            return new Step(e, slot, d7, false);
+        }
         if (!Bit(d7, 27)) return Direct(FallIfAirborne(s, e, slot, d7, ticks));   // $2968: buildings, items: gravity only
         if ((d7 & 0x8000) != 0) return MoveAndTurn(s, e, slot, d7, ticks);   // $296E on foot
         if (Weighty(s, e, slot, d7)) return WeightyStep(s, e, slot, d7, ticks);  // ENHANCEMENT (VEHICLE HANDLING: WEIGHTY, Handling.cs): the player's land vehicle has momentum and a reverse gear
@@ -160,6 +165,7 @@ public static partial class Movement
         if (st.Ended) return st;
         if (Aim.Active(s, slot, d7)) { Aim.Turn(s, e, ticks); return st; }   // ENHANCEMENT (AIMING: RETICLE): the soldier turns to the reticle, not by the keys
         var turn = (sbyte)e.B[0x18];                                         // $29FE
+        if (s.Ground.Road is { } road) RoadSteer(road, e, turn, ticks);     // STUNTIN': the road turns the car with it
         if (turn == 0) return st;
         var shift = e.W(0x3C) & 63;
         if (slot == 0 && s.AnalogLean != 0 && (d7 & 0x8000) == 0 && Math.Sign(s.AnalogLean) == Math.Sign(turn))
@@ -173,6 +179,29 @@ public static partial class Movement
         e.SetW(0x7E, e.UW(0x7E) + (int)((uint)t * (uint)ticks));             // mulu.w, add.w
         e.HeadingFine = e.UW(0x7E);                                          // FINE ANGLES: the word is the turn's own fine heading
         return st;
+    }
+
+    /// <summary>STUNTIN' (as the original, StuntCarRacer.s calculateSteeringResponse 10266): on the road a car is steered
+    /// RELATIVE TO THE ROAD - with the stick centred its heading is pulled to the road's own direction where it is (on a
+    /// corner it turns with the bend; on a straight it straightens), the more the faster it goes; while steering the pull
+    /// is a quarter as strong, so the stick still takes it across the road. Facing more than a quarter turn from the road's
+    /// way round the lap, it is pulled to the reverse (driving the lap backwards). Only while the road carries it (the
+    /// ground Settle stood it on, +$74, above the land) and it moves; off the road, the game's own turning alone.</summary>
+    public const int RoadPullCentred = 5, RoadPullSteering = 20;          // the pull a pass: the gap / this, x the speed's share
+
+    static void RoadSteer(ScrRoadSurface road, Entity e, sbyte turn, int ticks)
+    {
+        var speed = Math.Abs((short)e.W(0x3E));
+        var top = Math.Max(1, (int)(short)e.W(0x36));
+        if (speed == 0) return;
+        int x = e.UW(0x4A), z = e.UW(0x4E), y = e.W(0x4C);
+        if (road.Direction(x, z, y) is not { } way) return;
+        var gap = (short)(way - e.UW(0x7E));
+        if (Math.Abs((int)gap) > 0x4000) gap = (short)(gap + 0x8000);     // the lap backwards: the reverse way
+        var pull = gap * Math.Min(speed, top) / top / (turn == 0 ? RoadPullCentred : RoadPullSteering) * ticks;
+        if (pull == 0 && gap != 0 && turn == 0) pull = Math.Sign(gap);
+        e.SetW(0x7E, e.UW(0x7E) + pull);
+        e.HeadingFine = e.UW(0x7E);
     }
 
     /// <summary>FINE ANGLES (Entity.PitchFine): the angle words as the original keeps them whole here (a flier's pitch and
@@ -211,7 +240,6 @@ public static partial class Movement
     static Step MoveAndSettleOnGround(WorldState s, Entity e, int slot, int d7, int ticks)
     {
         var dist = (short)((uint)e.UW(0x3E) * (uint)ticks);                 // mulu.w; d0.w used
-        if (s.LimbDamage) dist = Limbs.Pace(e, dist);                        // ENHANCEMENT (LIMB DAMAGE): a hurt leg limps
         var (x, y, z) = s.FinePositions ? FineStep(s, e, dist) : Vector(s.Trig, e, dist, s.StraightMoves);
         var step = Settle(s, e, slot, d7, x, y, z, ticks);
         if (s.FinePositions) e.FracAt = ((short)e.W(0x4A), (short)e.W(0x4C), (short)e.W(0x4E));   // the words this fraction is above
@@ -257,6 +285,8 @@ public static partial class Movement
         x = (short)(x + e.W(0x4A)); y = (short)(y + e.W(0x4C)); z = (short)(z + e.W(0x4E));
         e.SetW(0x4A, x); e.SetW(0x4C, y); e.SetW(0x4E, z);
         var (h, land, blocked) = s.Ground.Sample((ushort)x, (ushort)z, Ground.IsShot(e));   // $2B0E (FINER GROUND: shots the smooth ground)
+        if (s.Ground.Road is { } road)                                      // STUNTIN': the road carries what is on it -
+            h = (short)road.Under((ushort)x, (ushort)z, Math.Max(y, e.W(0x52)), h);         // judged from where it was before the fall
         if (blocked) { e.SetW(0x4A, e.W(0x50)); e.SetW(0x4E, e.W(0x54)); }  // $2B14
         e.SetW(0x74, h);                                                     // $2B20
         var onGround = h >= e.W(0x4C);                                       // $2B24 cmp, sge

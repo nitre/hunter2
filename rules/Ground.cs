@@ -43,6 +43,18 @@ public sealed class Ground
     readonly MapMemory _map;
     public Ground(MapMemory map) => _map = map;
 
+    Planet? _planet; int _face;
+    int[]? _east, _south;
+    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (PLANET): this ground is face `face` of the planet; the current face's
+    /// sampler then routes a point past a fold to the neighbour's ground (Planet.Route). Null (the default): nothing.</summary>
+    public void SetPlanet(Planet p, int face) { _planet = p; _face = face; }
+    /// <summary>ENHANCEMENT (PLANET, no fine store): the heights (&lt;&lt; 4) past column 127 (east, by row 0..128) and past row
+    /// 127 (south, by column 0..128) - the neighbour's own points (Planet.Stitch) in place of the memory walk's.</summary>
+    public void SetPlanetEdges(int[] east, int[] south) { _east = east; _south = south; }
+    /// <summary>The stitched edge lines (tests), or null without them.</summary>
+    public (int[] East, int[] South)? PlanetEdges => _east is null ? null : (_east, _south!);
+    bool Routes => _planet is not null && _planet.Current == _face;
+
     bool _farView;
     /// <summary>(Play.FarView): the grid grows - four more point
     /// rows beyond the far row ($1D00-$2900, one $400 depth step each) and 7 -> 11 cell rows,
@@ -78,6 +90,37 @@ public sealed class Ground
     /// null (the default), the map bytes and the original's word maths, bit for bit.</summary>
     public FineGround? Fine { get => _fine; set => _fine = value; }
 
+    /// <summary>STUNTIN': a road things can stand on over this ground (ScrRoadSurface; null on every other ground).</summary>
+    public ScrRoadSurface? Road { get; set; }
+
+    /// <summary>The surface under a thing at height y: the road where it carries it (ScrRoadSurface.Under), else the
+    /// ground (Height). Without a road, Height itself.</summary>
+    public short Surface(ushort x, ushort z, int y, int climb = ScrRoadSurface.Climb)
+    {
+        var land = Height(x, z);
+        return Road is null ? land : (short)Road.Under(x, z, y, land, climb);
+    }
+
+    /// <summary>Surface on this face's own land, never routed past a fold: for a thing that never leaves the face but may
+    /// be more than half a face from the player, where the current frame's words read the neighbour's land (Planet.Unfold
+    /// takes the nearer side) - a Stuntin' car on the far side of the track.</summary>
+    public short SurfaceOnFace(ushort x, ushort z, int y, int climb = ScrRoadSurface.Climb)
+    {
+        var land = HeightLocal(x, z);
+        return Road is null ? land : (short)Road.Under(x, z, y, land, climb);
+    }
+
+    /// <summary>The height a thing at height y leans toward at a point just ahead ($42A6's look): the surface there; with a
+    /// road, a drop past ScrRoadSurface.Climb (the road's edge, the land far below) leans nothing - the thing keeps level,
+    /// drives off and falls (the pitch would point its move into the ground, so it never left the edge). Without a road,
+    /// Height itself.</summary>
+    public short LeanTo(ushort x, ushort z, int y)
+    {
+        if (Road is null) return Height(x, z);
+        var h = Surface(x, z, y);
+        return y - h > ScrRoadSurface.Climb ? (short)y : h;
+    }
+
     FineGround? _smooth;
     /// <summary>(FINER GROUND, the second lookup): the smooth ground - the original's
     /// bilinear of its points times the factor, risen from the sea (FineGround.Smooth), for the readers where the original's behaviour
@@ -85,7 +128,12 @@ public sealed class Ground
     public FineGround? Smooth { get => _smooth; set => _smooth = value; }
 
     /// <summary>ENHANCEMENT (FINER GROUND): the smooth lookup; with finer ground off, Height itself ($36AA).</summary>
-    public short SmoothHeight(ushort x, ushort z) => _smooth != null ? _smooth.Height(x, z) : Height(x, z);
+    public short SmoothHeight(ushort x, ushort z)
+    {
+        if (Routes) { var (g, lx, lz) = _planet!.Route(x, z); return g.SmoothLocal(lx, lz); }   // PLANET: past a fold, the neighbour's
+        return SmoothLocal(x, z);
+    }
+    short SmoothLocal(ushort x, ushort z) => _smooth != null ? _smooth.Height(x, z) : HeightLocal(x, z);
 
     /// <summary>ENHANCEMENT (FINER GROUND): the shot types $52-$5F (re/formats/weapons.md 2, the record's type word
     /// +$04) - they take the smooth ground, so a shot flies and lands as the original's would.</summary>
@@ -134,12 +182,20 @@ public sealed class Ground
     /// only sets the triangle flag $1510, which nothing here uses; sea cells interpolate too.</summary>
     public short Height(ushort x, ushort z)
     {
+        if (Routes) { var (g, lx, lz) = _planet!.Route(x, z); return g.HeightLocal(lx, lz); }   // PLANET: past a fold, the neighbour's
+        return HeightLocal(x, z);
+    }
+
+    /// <summary>$36AA on this ground alone (PLANET: the face's own words).</summary>
+    short HeightLocal(ushort x, ushort z)
+    {
         if (_fine != null) return _fine.Height(x, z);              // ENHANCEMENT (FINER GROUND)
         int fx = x & 0x1FF, fz = z & 0x1FF;
         int col = x >> 9, row = z >> 9;
         int off = (row * 128 + col) * 2;
         fx <<= 3;
         fz <<= 3;
+        if (_east != null && (col == 127 || row == 127)) return EdgeHeight(col, row, off, fx, fz);   // PLANET: the stitched fold
         int h00 = _map[off] << 4, h01 = _map[off + 0x100] << 4;
         int a = Lerp(h00, h01, fz, _maths32);
         int h10 = _map[off + 2] << 4, h11 = _map[off + 0x102] << 4;
@@ -147,9 +203,28 @@ public sealed class Ground
         return (short)Lerp(a, b, fx, _maths32);
     }
 
+    /// <summary>ENHANCEMENT (PLANET): the last column's / row's cell with its far corners from the stitched edges
+    /// (SetPlanetEdges) in place of the memory walk - the same three lerps.</summary>
+    short EdgeHeight(int col, int row, int off, int fx, int fz)
+    {
+        int h00 = _map[off] << 4;
+        int h01 = row == 127 ? _south![col] : _map[off + 0x100] << 4;
+        int h10 = col == 127 ? _east![row] : _map[off + 2] << 4;
+        int h11 = col == 127 ? _east![row + 1] : _south![col + 1];
+        int a = Lerp(h00, h01, fz, _maths32);
+        int b = Lerp(h10, h11, fz, _maths32);
+        return (short)Lerp(a, b, fx, _maths32);
+    }
+
     /// <summary>$36AA as movement uses it: the height, $1510 (the point's triangle is land) and the
     /// returned N flag (cell type byte bit 7: the cell cannot be entered). See movement.md.</summary>
     public (short Height, bool Land, bool Blocked) Sample(ushort x, ushort z, bool smooth = false)
+    {
+        if (Routes) { var (g, lx, lz) = _planet!.Route(x, z); return g.SampleLocal(lx, lz, smooth); }   // PLANET: past a fold, the neighbour's
+        return SampleLocal(x, z, smooth);
+    }
+
+    (short Height, bool Land, bool Blocked) SampleLocal(ushort x, ushort z, bool smooth)
     {
         int off = ((z >> 9) * 128 + (x >> 9)) * 2;
         var t = _map[off + 1];                                   // $36D2 -> $1511
@@ -171,7 +246,7 @@ public sealed class Ground
                 land = (9 >> (k & 7) & 1) != 0;                  // $36F6 btst d0,#9
             }
         }
-        return (smooth ? SmoothHeight(x, z) : Height(x, z), land, (t & 0x80) != 0);   // smooth: ENHANCEMENT (FINER GROUND), shots
+        return (smooth ? SmoothLocal(x, z) : HeightLocal(x, z), land, (t & 0x80) != 0 && _planet is null);   // PLANET: the map's edge is no wall ($98's bit 7, $2B14) - the next face lies past it;   // smooth: ENHANCEMENT (FINER GROUND), shots
     }
 
     // $3710-$371A: (d1 - d0) * f / $100 (divs.w), asr.w #4, + d0, all in words.

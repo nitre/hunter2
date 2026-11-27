@@ -48,6 +48,10 @@ public sealed class Panel
         _mainFont = ui.Glyphs;
     }
 
+    /// <summary>STUNTIN': the panel is the racing console (ScrPanel, set each pass): Hunter's own readouts are not drawn over it
+    /// (the clock still sets the daylight).</summary>
+    public bool Racing { get; set; }
+
     /// <summary>The messages' printer ($C1B2) on the text plane of this buffer; its X / Line are
     /// the cursor $134 / $136 (Messages.cs).</summary>
     public Text Text { get; }
@@ -138,6 +142,7 @@ public sealed class Panel
     /// set for the first energy + 1 rows (dbf on d0), bits 7-6 clear above.</summary>
     public void EnergyBar(int energy)
     {
+        if (Racing) return;
         var off = 0x568;
         var d0 = energy;
         var d2 = 0x80;
@@ -169,6 +174,7 @@ public sealed class Panel
     /// table (WaitItemClick $A93C). mp_life: n's own pack's count (0 = the original's array).</summary>
     public void WeaponIcon(WorldState s, int item, int n = 0)
     {
+        if (Racing) return;
         Icon(item, 0x46);
         var o = 0x28 + item * 32;                                            // $A982 $9E46 + d0 * 32
         var t = s.PlayerAt(n).Items;
@@ -204,6 +210,7 @@ public sealed class Panel
     /// digits at column 27, row 29 ($C53A: no ext.l; the sign goes in front, $9A34).</summary>
     public void Score(WorldState s)
     {
+        if (Racing) return;
         var (digits, sign) = Digits(s.Score);
         PanelText(0x1B, 0x1D, [sign, .. digits]);
     }
@@ -220,6 +227,7 @@ public sealed class Panel
     /// $C4BE + 4 * byte $C4CE[day]) at column 11, then PanelHour.</summary>
     public void Clock(WorldState s)
     {
+        if (Racing) { Hour(s); return; }
         ClockField(s, 9, 0x13, s.Day + 1);                                   // $C43A-$C444
         var k = _main[0xC4CE - 0x800 + s.Day];                               // $C44E move.b $10(a0,d0.w)
         PanelText(0xB, 0x13, Until(0xC4BE + k * 4));                         // $C452-$C45A $C60E
@@ -241,7 +249,7 @@ public sealed class Panel
     public void Minute(WorldState s) => ClockField(s, 0xC, 8, s.Minute);
 
     // $C488: the value only while the clock is on ($A7 bit 6, ClockToggle $A702), else 0; $C542
-    void ClockField(WorldState s, int col, int row, int v) => Number(col, row, s.ClockOn ? v : 0, 3);
+    void ClockField(WorldState s, int col, int row, int v) { if (!Racing) Number(col, row, s.ClockOn ? v : 0, 3); }
 
     /// <summary>BlankTimers ($6C46): while any $A3 bit is set, every 16th blank ($220 from 15) the
     /// lamps step ($6CFA).</summary>
@@ -290,6 +298,7 @@ public sealed class Panel
     /// the 32 x 32 at $B2 (row 4, x 144); on fills plane 0, draws the cross ($A544) and clears plane 1.</summary>
     public void Radar(WorldState s)
     {
+        if (Racing) return;
         if (!s.Radar)
         {
             for (var p = 0; p < 3; p++) RadarFill(p, 0);

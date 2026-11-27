@@ -39,6 +39,19 @@ public sealed class Terrain
         return t;
     }
 
+    /// <summary>A landscape from given raw heights (col, row) instead of a seed's, then the same
+    /// classify and outer ring as a generated one (the Stunt Car Racer island).</summary>
+    public static Terrain Shaped(Func<int, int, int> height, short seaLevel)
+    {
+        var t = new Terrain();
+        for (var row = 0; row < Size; row++)
+            for (var col = 0; col < Size; col++)
+                t.Map[row * RowBytes + col * 2] = (byte)Math.Clamp(height(col, row), 0, 255);
+        t.Classify(seaLevel);
+        t.Edges();
+        return t;
+    }
+
     // $CB3C
     void Heights(ushort seed)
     {

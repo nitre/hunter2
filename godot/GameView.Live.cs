@@ -217,6 +217,57 @@ public partial class GameView
         }
         """;
 
+    const string PartsShader = """
+        shader_type canvas_item;
+        render_mode blend_disabled;
+        #include "res://real3d/place.gdshaderinc"
+        #include "res://real3d/world_colour.gdshaderinc"
+        #include "res://real3d/sunshade.gdshaderinc"
+        #include "res://real3d/gpumodels.gdshaderinc"
+        uniform int live_row;
+
+        void fragment() {
+            ivec2 fc = ivec2(FRAGCOORD.xy);
+            int b25 = _eb(ent_tex, live_row, 0x25);
+            int base = int(texelFetch(model_tex, ivec2(b25, 0), 0).r + 0.5);
+            int at = _at(base);
+            ivec4 artic = entity_artic(ent_tex, entprev_tex, anim_tex, 0, 1, live_row, base);
+            bool ok = fc.y < _measured(at);
+            ivec3 v = ok ? model_local(trig_tex, at, fc.y, artic) : ivec3(0);
+            float f = fc.x == 0 ? float(v.x) : (fc.x == 1 ? float(v.y) : (fc.x == 2 ? float(v.z) : (ok ? float(_corner(at, fc.y).w) + 1.0 : 0.0)));
+            int iv = int(round(f * 16.0));
+            COLOR = vec4(float(iv & 0xFF) / 255.0, float((iv >> 8) & 0xFF) / 255.0, float((iv >> 16) & 0xFF) / 255.0, 1.0);
+        }
+        """;
+
+    /// <summary>Record row's model's corners as the card's part walk turns them this frame (model_local: each part by its
+    /// articulation, before the record's own turn and place): "corner x y z flag" a line, the model's own units.</summary>
+    async System.Threading.Tasks.Task<string> LiveParts(int row)
+    {
+        var gpu = real3d?.Gpu ?? throw new InvalidOperationException("no card view (renderer=3d)");
+        var src = gpu.ModelsMaterial;
+        var mat = new ShaderMaterial { Shader = new Shader { Code = PartsShader } };
+        foreach (var u in src.Shader.GetShaderUniformList())
+        {
+            var name = (string)u.AsGodotDictionary()["name"];
+            mat.SetShaderParameter(name, src.GetShaderParameter(name));
+        }
+        mat.SetShaderParameter("live_row", row);
+        var size = new Vector2I(4, 1024);
+        var vp = new SubViewport { Size = size, Disable3D = true, RenderTargetUpdateMode = SubViewport.UpdateMode.Once };
+        AddChild(vp);
+        vp.AddChild(new ColorRect { Size = size, Material = mat });
+        await ToSignal(GetTree(), "process_frame");
+        await ToSignal(GetTree(), "process_frame");
+        var img = vp.GetTexture().GetImage();
+        vp.QueueFree();
+        double V(int x, int y) { var c = img.GetPixel(x, y); return ((c.R8 | c.G8 << 8 | c.B8 << 16) << 8 >> 8) / 16.0; }
+        var lines = new System.Collections.Generic.List<string>();
+        for (var y = 0; y < size.Y; y++)
+            if (V(3, y) > 0) lines.Add($"{y} {V(0, y)} {V(1, y)} {V(2, y)} {V(3, y) - 1}");
+        return lines.Count == 0 ? "none" : string.Join("\n", lines);
+    }
+
     /// <summary>Where the card puts record row's triangle corners this frame: "slot corner x y z colour" a line,
     /// world units; shadow = its shadow layer (on the ground), else the model as drawn.</summary>
     async System.Threading.Tasks.Task<string> LiveCorners(int row, bool shadow, int raw = 0)
@@ -473,6 +524,7 @@ public partial class GameView
         if (a[0] == "smoke") return LiveSmoke(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : 0f);
         if (a[0] == "breakstars") return LiveBreakStars(a.Length > 1 ? ParseNum(a[1]) : -1, a.Length > 2 ? float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 3 ? float.Parse(a[3], System.Globalization.CultureInfo.InvariantCulture) : float.NaN, a.Length > 4 ? float.Parse(a[4], System.Globalization.CultureInfo.InvariantCulture) : float.NaN);
         if (a.Length > 1 && a[0] == "corners") return LiveCorners(ParseNum(a[1]), a.Length > 2 && a[2] == "shadow", a.Length < 3 ? 0 : a[2] == "raw" ? 1 : a[2] == "old" ? 2 : a[2] == "ids" ? 3 : a[2] == "fit" ? 4 : 0);
+        if (a.Length > 1 && a[0] == "parts") return LiveParts(ParseNum(a[1]));
         return System.Threading.Tasks.Task.FromResult(LiveCommand(line));
     }
 
@@ -694,6 +746,38 @@ public partial class GameView
             {
                 var p = ents[0];
                 return $"frame {liveSteps} clock {play.State.Hour:00}:{play.State.Minute:00} player {p.UW(0x4A)} {p.W(0x4C)} {p.UW(0x4E)} inside {play.State.InsideView}";
+            }
+            case "planet":   // PLANET: planet N - he goes to face N (the sand zone is 2) at its land point nearest the middle; no N = where he is
+            {
+                if (play.State.Planet is not { } pl) return "ERROR no planet (WORLD page: PLANET ON, 3D WORLD on, a new game)";
+                if (a.Length > 1)
+                {
+                    var face = N(1);
+                    var t = pl.Faces[face].Terrain;
+                    var best = (C: 64, R: 64, D: int.MaxValue);
+                    for (var r = 0; r < Terrain.Size; r++)
+                        for (var c = 0; c < Terrain.Size; c++)
+                            if (t.Type(c, r) != 0 && (pl.Faces[face].Sand is not { } z || z.Kind[r * Terrain.Size + c] == SandZone.Sand)
+                                && (c - 64) * (c - 64) + (r - 64) * (r - 64) < best.D) best = (c, r, (c - 64) * (c - 64) + (r - 64) * (r - 64));
+                    pl.Enter(face, best.C * 512 + 256, best.R * 512 + 256);
+                }
+                var me = play.State.Entities.All[0];
+                return $"planet face {pl.Current} at {me.UW(0x4A)},{me.UW(0x4E)} worm {(pl.Worm is { } w ? $"{w.X},{w.Z} left {w.Left} depth {w.Depth}{(w.Rising ? " rising" : "")}{(w.Backing ? " backing" : "")} target {w.Target} trail {w.Trail.Count}" : "none")} meals {pl.WormMeals} row {WormRow}";
+            }
+            case "wormcard":   // PLANET: the worm's rows as the card holds them, and its models' baked triangle counts
+            {
+                if (real3d is null || play.State.Planet is null) return "ERROR no 3D view or no planet";
+                var gw = real3d.Gpu;
+                var info = gw.ModelTable!.GetImage();
+                string Tris(int m) => m < 0 ? "-" : $"{m}:{(int)info.GetPixel(m, 0).B} tris";
+                var sb = new System.Text.StringBuilder($"models head {Tris(gw.WormModel)} segment {Tris(gw.WormSegmentModel)} funnel {Tris(gw.WormFunnelModel)} sign {Tris(gw.WormSignModel)} slots {gw.TriSlots}; worm row {WormRow}");
+                if (WormRow >= 0)
+                    for (var r = WormRow; r < WormRow + 14; r++)
+                    {
+                        int U(int o) => gw.RecordByte(r, o) << 8 | gw.RecordByte(r, o + 1);
+                        sb.Append($"\n row {r}: alive {gw.RecordByte(r, 0)} seen {gw.RecordByte(r, 0x1C)} b20 {gw.RecordByte(r, 0x20)} b24 {gw.RecordByte(r, 0x24)} model {gw.RecordByte(r, 0x25)} at {U(0x4A)},{(short)U(0x4C)},{U(0x4E)} ground {(short)U(0x74)} heading {gw.RecordByte(r, 0x7E)} pitch {gw.RecordByte(r, 0x7C)}");
+                    }
+                return sb.ToString();
             }
             case "yaw":   // the 3D view turned as Q / E turn it: yaw N, N in 256ths of a turn (64 = looking east)
                 if (real3d is null) return "ERROR no 3D view";

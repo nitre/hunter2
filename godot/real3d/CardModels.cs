@@ -24,7 +24,7 @@ namespace Hunter;
 public sealed partial class CardModels
 {
     public const int Width = 1024, Height = 1024;                    // the cap: 1M texels = 16 MB
-    public const int MaxCorners = 1024, MaxEdges = 4096, MaxFaces = 2048;   // a model's cap
+    public const int MaxCorners = 4096, MaxEdges = 4096, MaxFaces = 2048;   // a model's cap (corners run on across the store's rows; nothing on the card is sized by it)
     /// <summary>The most corners a face may have: slots.gdshaderinc FACE_MAX, the bake's width (GpuWorld) and CheckSlots' follow it.
     /// An array size on the card, not the objfile's 15 edges (an open loop has a corner more than its edges).</summary>
     public const int MaxFaceCorners = 64;
@@ -88,9 +88,28 @@ public sealed partial class CardModels
 
     public Model[] Models { get; private set; }
 
-    /// <summary>ENHANCEMENT: one more model, a copy of model from (its header bytes, set and shift) under
-    /// a key no objfile model has - the highest free offset - for a builder to fill (Model.Replace).
+    /// <summary>ENHANCEMENT (PLANET: the worm): one more model, a copy of model from (its header bytes, set and shift) under
+    /// a key no objfile model has - the highest free offset - for a builder to fill (Model.Replace / DuneModels.PutWorm).
     /// The rules never see it; its number is the next after the objfile's.</summary>
+    /// <summary>A model of its own after the rest: a copy of model from AS THE CARD HAS IT NOW (its builders' work kept - round
+    /// wheels, an interior), not the objfile's bytes as AppendCopy. Returns its number.</summary>
+    public int AppendClone(int from)
+    {
+        var used = new HashSet<int>(Models.Select(m => m.Offset));
+        var key = 0xFFFE;
+        while (used.Contains(key)) key -= 2;
+        var s = Models[from];
+        var m = new Model
+        {
+            Number = Models.Length, Offset = key, Head = (byte[])s.Head.Clone(), Set = s.Set, Shift = s.Shift,
+            Corners = (Corner[])s.Corners.Clone(), Edges = (Edge[])s.Edges.Clone(), Faces = (Face[])s.Faces.Clone(),
+            Tail = (byte[])s.Tail.Clone(), Replaced = true, Waterline = s.Waterline, Unmeasured = s.Unmeasured,
+        };
+        Models = [.. Models, m];
+        Layout();
+        return m.Number;
+    }
+
     public int AppendCopy(int from)
     {
         var used = new HashSet<int>(Models.Select(m => m.Offset));

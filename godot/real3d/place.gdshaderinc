@@ -46,8 +46,10 @@ uniform int rotor_times = 1;
 // the byte one step back (SMOOTH PARTS, GpuWorld holds +$18 with the part bytes). A finer (analog) byte later needs only another
 // scale. steer_models = the objfile offsets + 1 of CarInside.Models (cars, cabs, aircraft), 0 = none
 // (a uniform array takes no default).
-uniform int steer_models[13];
-uniform int steer_turns[13];
+uniform int steer_models[16];   // + the Stuntin racers (GpuWorld.RacerModel, JeepRacerModel), 0 when not built
+uniform float racer_parts[64];  // the Stuntin racers, per live row under 16 (GpuWorld.RacerParts): the right hand's way to the boost button 0-255, the springs FL, FR, rear
+uniform int steer_turns[16];
+uniform int steer_fine_from = 16;   // steer_models from this index on (the Stuntin racers) carry the steering byte in sixteenths of full lock
 uniform int steer_lean = 0;   // STICK STEERING: the player's stick lean, -16..16 sixteenths of full lock (0 = none or off), on steer_lean_row only
 uniform int steer_lean_row = 0;   // the player's record (slot 0); a check may point it elsewhere
 
@@ -65,13 +67,18 @@ uniform int steer_lean_row = 0;   // the player's record (slot 0); a check may p
 // Channels 1 to 3 are 0 for the tanks: their clods are no part of the model (GpuWorld.ClodThrows notes them in the world).
 // track_clock is the game's clock (its own frames, still while paused), which gputracks.gdshader ages the marks and clods by.
 uniform bool track_on = false;
-uniform int track_models[2];   // the two tanks
+uniform int track_models[4];   // the two tanks, then the worm's wormsign and its funnel (their dust: channels 1 and 2)
 uniform sampler2D roll_tex : hint_default_black, filter_nearest;
 uniform float track_clock = 0.0;
+const float FLING_BLANKS = 24.0;   // the worm's dust: one throw over this many of the game's frames (track_clock), offset by the row
 
 ivec4 entity_artic(sampler2D ent, sampler2D pent, sampler2D anim, int arow, int prow, int row, int base) {
-    if (track_on && (base + 1 == track_models[0] || base + 1 == track_models[1]))
-        return ivec4(int(round(texelFetch(roll_tex, ivec2(row & 255, row >> 8), 0).r)) & 255, 0, 0, 0);
+    if (track_on && (base + 1 == track_models[0] || base + 1 == track_models[1] || base + 1 == track_models[2] || base + 1 == track_models[3]))
+        return ivec4(int(round(texelFetch(roll_tex, ivec2(row & 255, row >> 8), 0).r)) & 255,
+            base + 1 == track_models[0] || base + 1 == track_models[1]
+                ? clamp(_ew(ent, row, 0x3E), 0, 255)                     // the tanks: their speed (0 still, backing up as still) - the clods' trail
+                : (_ew(ent, row, 0x3E) != 0 ? 1 : 0),                    // the worm's dust: under way or not, as before (not shared)
+            int(fract(track_clock / FLING_BLANKS + float(row) * 0.618) * 256.0) & 255, 0);
     int set = _head(_at(base)).x;
     bool f19 = ((_eb(ent, row, 6) >> 1) & 1) != 0, f1b = ((_eb(ent, row, 6) >> 3) & 1) != 0;
     if (!f19 && f1b && _ew(ent, row, 0x3E) <= 0) return ivec4(0);        // $56D0: a dead thing's parts rest
@@ -94,14 +101,21 @@ ivec4 entity_artic(sampler2D ent, sampler2D pent, sampler2D anim, int arow, int 
         }
         a[k] = v;
     }
-    int steer_turn = 0;
-    for (int i = 0; i < 13; i++) if (base + 1 == steer_models[i]) steer_turn = steer_turns[i];
+    int steer_turn = 0, per = 1;
+    for (int i = 0; i < 16; i++) if (base + 1 == steer_models[i]) { steer_turn = steer_turns[i]; per = i >= steer_fine_from ? 16 : 1; }
     if (steer_turn != 0) {                                                        // the steering wheel: slid from the byte one step back like the part bytes
-        int now = clamp(_sb(_eb(ent, row, 0x18)) * steer_turn, -steer_turn, steer_turn);
-        int was = clamp(_sb(_eb(pent, row, 0x18)) * steer_turn, -steer_turn, steer_turn);
+                                                                                  // (the Stuntin racers' byte is sixteenths of full lock: ScrDrive)
+        int now = clamp(_sb(_eb(ent, row, 0x18)) * steer_turn / per, -steer_turn, steer_turn);
+        int was = clamp(_sb(_eb(pent, row, 0x18)) * steer_turn / per, -steer_turn, steer_turn);
         if (row == steer_lean_row && steer_lean != 0) { now = steer_lean * steer_turn / 16; was = now; }   // the stick's own lean: as far as it leans
         a[2] = (was + int(round(float(now - was) * anim_frac))) & 0xFF;
     }
+    if (is_racer(base) && row < 16)                   // the Stuntin' racer: channel 3 its right hand's way to the boost
+        a[3] = (int(racer_parts[row * 4] + 0.5) & 255)                           // button (GpuWorld.RacerParts; RacingKit's hand part), and above
+            | ((clamp(int(round(racer_parts[row * 4 + 1])), -63, 63) + 64) << 8)   // it each wheel's squash, model units + 64: front left, front
+            | ((clamp(int(round(racer_parts[row * 4 + 2])), -63, 63) + 64) << 15)  // right, rear (model.gdshaderinc _racer_spring)
+            | ((clamp(int(round(racer_parts[row * 4 + 3])), -63, 63) + 64) << 22)
+            | (((int(racer_parts[row * 4] + 0.5) >> 8) & 3) << 29);                // the boost flames' frame, 256s over the hand (0: none)
     return a;
 }
 

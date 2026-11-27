@@ -42,7 +42,7 @@ public static class RoundWheels
     /// cannot rebuild cleanly stays as it was (named in notes).</summary>
     public static void Make(CardModels store, List<string>? notes = null, Dictionary<int, int[]>? origins = null) => Make(store, WheelModels, notes, origins);
 
-    /// <summary>The same for these models only.</summary>
+    /// <summary>The same for these models only (DuneModels: the quad's and the trike's wheels, built eight-sided).</summary>
     public static void Make(CardModels store, IEnumerable<int> models, List<string>? notes, Dictionary<int, int[]>? origins)
     {
         foreach (var n in models)

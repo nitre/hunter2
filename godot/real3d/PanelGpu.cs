@@ -21,6 +21,8 @@ public sealed partial class PanelGpu : ColorRect
     float[] graves = new float[1024 * 3];
     byte[] gravesBytes = new byte[1024 * 3 * 4], gravesSent = [];
     ImageTexture gravesTex;
+    ImageTexture? rawTex;                                   // STUNTIN's racing console: the processor's panel, sent when it changed
+    readonly byte[] rawSent = new byte[320 * Rules.Panel.Rows];
 
     public PanelGpu(GameData data, Rules.Panel font, byte[] pointerSprite, ImageTexture entTex)
     {
@@ -115,6 +117,18 @@ public sealed partial class PanelGpu : ColorRect
         mat.SetShaderParameter("pointer_colour", (int)pointerColour);
         mat.SetShaderParameter("pointer_on", pointerOn);
         var px = s.Panel.Pixels.Pixels;
+        mat.SetShaderParameter("raw_on", s.Panel.Racing);
+        if (s.Panel.Racing && (rawTex is null || !px.AsSpan(0, rawSent.Length).SequenceEqual(rawSent)))
+        {                                                                  // the console as the processor drew it (ScrPanel)
+            px.AsSpan(0, rawSent.Length).CopyTo(rawSent);
+            var f = new float[rawSent.Length];                             // Rf: the index itself (as base), not a 0-1 level
+            for (var i = 0; i < f.Length; i++) f[i] = rawSent[i];
+            var fb = new byte[f.Length * 4];
+            Buffer.BlockCopy(f, 0, fb, 0, fb.Length);
+            var img = Image.CreateFromData(320, Rules.Panel.Rows, false, Image.Format.Rf, fb);
+            if (rawTex is null) { rawTex = ImageTexture.CreateFromImage(img); mat.SetShaderParameter("raw_tex", rawTex); }
+            else rawTex.Update(img);
+        }
         var changed = !msgSent;
         for (var row = 41; row < 59; row++)                                // the message window's text plane (rows 41-58)
             for (var x = 0; x < 320; x++)

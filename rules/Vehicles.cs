@@ -77,7 +77,7 @@ public static class Vehicles
     static (Entity, int) Leave(WorldState s, Entity e, int slot, int d7)
     {
         e.B[0x1F] = 0;
-        if (!ExtraKinds.IsVehicle(e.W(4))) return (e, d7);                    // $2FE8: not in a vehicle
+        if (!ExtraKinds.IsVehicle(e.W(4))) return (e, d7);                    // $2FE8: not in a vehicle (the harvester is one)
         var vslot = MoveToFreeSlot(s, slot);
         if (vslot < 0) return (e, d7);                                       // $316A: no room, nothing happens
         var v = s.Entities.All[vslot];

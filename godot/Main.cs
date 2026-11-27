@@ -220,6 +220,7 @@ public partial class Main : Node2D
             GetTree().Quit();
             return;
         }
+        if (Settings.NoPlanet) Hunter.Rules.SettingsMenu.Hidden.Add("planet");   // the test release: no planet, no row for it
         var dir = System.Environment.GetEnvironmentVariable("HUNTER_DATA")
                   ?? ProjectSettings.GlobalizePath("res://../game_data");
         if (!OS.HasFeature("editor") && !System.IO.Directory.Exists(dir))   // an exported release: game_data beside the exe (docs/handoff-history.md, the Windows test release)
@@ -300,7 +301,19 @@ public partial class Main : Node2D
 
         // Verification only: HUNTER_GAME=hunter|missions|action goes straight to a started game's view.
         var game = System.Environment.GetEnvironmentVariable("HUNTER_GAME");
-        if (game is not null) StartGame(System.Enum.Parse<GameMode>(game, ignoreCase: true));
+        // HUNTER_GAME=scr0..scr7: the Stunt Car Racer island of that track; HUNTER_GAME=shaihulud: the sand island.
+        if (game is not null && game.StartsWith("scrdemo", System.StringComparison.OrdinalIgnoreCase))
+        {                                                    // HUNTER_GAME=scrdemo (or scrdemo0..7, the track): Stuntin' with two AI drivers (his car on one)
+            System.Environment.SetEnvironmentVariable("HUNTER_SCR_DEMO", "1");
+            StartGame(GameMode.Hunter, scrTrack: game.Length > 7 ? int.Parse(game[7..]) : 0);
+        }
+        else if (game is not null && game.Equals("scrleague", System.StringComparison.OrdinalIgnoreCase))
+            ShowTitle(0, StartEntry.League);                 // HUNTER_GAME=scrleague: the Stuntin' league screen
+        else if (game is not null && game.Equals("shaihulud", System.StringComparison.OrdinalIgnoreCase))
+            StartGame(GameMode.Hunter, sandIsland: true);
+        else if (game is not null && game.StartsWith("scr", System.StringComparison.OrdinalIgnoreCase))
+            StartGame(GameMode.Hunter, scrTrack: int.Parse(game[3..]));
+        else if (game is not null) StartGame(System.Enum.Parse<GameMode>(game, ignoreCase: true));
         else ShowTitle(0, StartEntry.Boot);
 
         // Verification only: HUNTER_ITEMS="13:1,1:6" puts items in the pack (a fresh game carries
@@ -463,6 +476,7 @@ public partial class Main : Node2D
                 "zoom" => n => (n as GameView)?.ScriptZoom(p[2] == "out", p[2] == "in"),
                 "quick" => n => (n as GameView)?.ScriptQuick(int.Parse(p[2])),
                 "quickhold" => n => (n as GameView)?.ScriptQuickHold(int.Parse(p[2])),
+                "lean" => n => (n as GameView)?.ScriptLean(int.Parse(p[2])),            // STICK STEERING: the stick's lean in 16ths (lean:-8)
                 "space" => n => (n as GameView)?.KeyDown(0x40),
                 "help" => n => (n as GameView)?.ToggleHelp(),
                 "quicksave" => n => (n as GameView)?.QuickSave(),             // easy_saves F5
@@ -504,33 +518,37 @@ public partial class Main : Node2D
         if (askStart)
             seq.StartAnswered += () => { askStart = false; StartAudio(); Audio.Instance?.Music(song); };
         seq.Init(Data!, scriptedInput: capturing, career, entry, askStart);
-        seq.GameChosen += m => Swap(m, seq.Loaded, seq.PausePressed, seq.Demo ? StartState.DefaultSoldier(Data!) : seq.Soldier, seq.Demo);
+        seq.GameChosen += m => Swap(m, seq.Loaded, seq.PausePressed, seq.Demo ? StartState.DefaultSoldier(Data!) : seq.Soldier, seq.Demo, seq.ScrTrack, seq.SandIsland);
         (shown, step, save, what) = (seq, seq.Frame, seq.Save, () => seq.Current);
         if (capturing) seq.SetPhysicsProcess(false);   // a headless run steps the frames itself
         if (old is not null) old.QueueFree();
     }
 
-    void Swap(GameMode mode, WorldState? loaded, bool paused = false, Soldier? soldier = null, bool demo = false)
+    void Swap(GameMode mode, WorldState? loaded, bool paused = false, Soldier? soldier = null, bool demo = false, int scrTrack = -1, bool sandIsland = false)
     {
         var old = shown;
-        StartGame(mode, loaded, paused, soldier, demo);
+        StartGame(mode, loaded, paused, soldier, demo, scrTrack, sandIsland);
         old.QueueFree();
     }
 
-    void StartGame(GameMode mode, WorldState? loaded = null, bool paused = false, Soldier? soldier = null, bool demo = false)
+    void StartGame(GameMode mode, WorldState? loaded = null, bool paused = false, Soldier? soldier = null, bool demo = false, int scrTrack = -1, bool sandIsland = false)
     {
         var view = new GameView();
         AddChild(view);
         view.ManualRequested += ToggleManual;                               // the options menu's MANUAL button (setting on)
         Audio.Instance?.EnterPlay();  // music never plays in play (music_in_play: it keeps on quietly)
-        view.Init(Data!, mode, scriptedInput: capturing, loaded, paused, soldier, demo);
+        view.Init(Data!, mode, scriptedInput: capturing, loaded, paused, soldier, demo, scrTrack, sandIsland);
         // the run's record now lives in this game - not the demo's: SoldierBackup $22F2 keeps the run's aside,
         // CopyDefaultSoldier $22F6 plays the demo with the default one, SoldierRestore $22FE puts it back
         if (!demo) career = view.Career;
         // a mission failed on time returns through $2404 (the title, song 2); everything else -
         // $975C a won game, $9064 Quit Game - straight back to the menu loop $1F6C (song 0)
-        view.QuitToTitle += after => ShowTitle(after == AfterGame.Title ? 2 : 0,
-            after switch { AfterGame.Title => StartEntry.Title, AfterGame.DemoOver => StartEntry.Boot, _ => StartEntry.Menus });   // DemoOver: $2308 TitlePicture, $230C bra $1F2E - the boot's way in
+        view.QuitToTitle += after =>
+        {
+            if (ScrLeagueRun.Done()) { ShowTitle(0, StartEntry.League); return; }   // STUNTIN': a league race or practice: the league screen
+            ShowTitle(after == AfterGame.Title ? 2 : 0,
+                after switch { AfterGame.Title => StartEntry.Title, AfterGame.DemoOver => StartEntry.Boot, _ => StartEntry.Menus });   // DemoOver: $2308 TitlePicture, $230C bra $1F2E - the boot's way in
+        };
         if (shown is not null && !shown.IsPhysicsProcessing()) view.SetPhysicsProcess(false);
         (shown, step, save, what) = (view, view.Frame, view.Save, () => "game " + mode);
     }

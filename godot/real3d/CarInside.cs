@@ -100,7 +100,7 @@ public static class CarInside
     /// their pilot: a full-height seat back, his head and his hands on the grip in the glass, the panel low; the narrow one's pilot sits in its NOSE, in the middle, behind the nose pane - its only glass): seat cushion 0-7, seat back 8-15, dash 16-23,
     /// the stick's pivot 24 (foot of the column, turns about z), column 25-32, grip 33-40 - all to the model's end, so the
     /// stick's part runs to it. KitFaces numbers these. The boats (jobs/vehicle_interiors/boats_grid.md: boats.md's design
-    /// on each model's grid, margins checked again by .scratch/boats_grid.py): seat, console, gauges, helm column, then the
+    /// on each model's grid, margins checked again): seat, console, gauges, helm column, then the
     /// helm's pivot and the plate and hub that turn about it.</summary>
     static readonly Dictionary<int, Kit> Kits = new()
     {

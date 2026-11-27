@@ -230,9 +230,6 @@ public static class Behaviour
             var rounds = e.W(0x32);
             e.B[0x1D] = (byte)(rounds > 0 ? 0xFF : 0);
             if (rounds <= 0) d6 |= 1 << 13;                                  // out of rounds: flee
-            // ENHANCEMENT (LIMB DAMAGE + LIVING WORLD): both arms hurt, it cannot fire (FireTimer) - so it flees as
-            // one out of rounds does
-            else if (s.LimbDamage && s.LivingWorld && Limbs.HurtArms(e) == 2) d6 |= 1 << 13;
         }
         if (Bit(d6, 5)) e.SetW(0x3E, 0);                                     // $2934: stop there
         return d6;

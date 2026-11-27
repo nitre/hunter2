@@ -33,11 +33,6 @@ public sealed class Entity
     public short BlastY;
     /// <summary>picture only, with BlastHit: that shell's, missile's or blast's type (+4) - the card's small stars copy its star.</summary>
     public int BlastType;
-    /// <summary>(LIMB DAMAGE, rules/Limbs.cs): which limbs a bullet has hurt (Limbs.LegL ..
-    /// ArmR bits). No free record byte is proven, so it sits beside the record: not saved, a save/load resets it.</summary>
-    public byte Limbs;
-    /// <summary>LIMB DAMAGE: the part of a step a limp has not walked yet (Limbs.Pace), carried to the next pass. Not saved.</summary>
-    public int PaceCarry;
     /// <summary>(a pass per blank): a shot still in its shooter's box since it left his hand -
     /// the two do not bump (Collisions.Check). The A500's ~7 blanks a pass took its first step clear of him; at one
     /// blank a grenade (a mover, no owner check on a bump) went off on the thrower. Not saved.</summary>

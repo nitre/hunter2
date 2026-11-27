@@ -67,6 +67,7 @@ public sealed class SettingsMenu
             new Row("world", "WORLD", Effect.NewGame),                  // MERGED: fuller world, objects, living world, graves (graves at once, the rest at a new game)
             new Row("finer_ground", "FINER GROUND", Effect.NewGame),    // original / 2x / hills / cliffs: the game's ground grown finer between the map's points and 1.5x taller (FineGround; HILLS 2x and CLIFFS 3x, rougher: Reliefs), new games (the attract demo: the picture alone)
             new Row("ground_seed", "GROUND SEED", Effect.NewGame),      // world / random / last: where finer ground's detail grows from - the world's own seed, a fresh one each new game, the last drawn one again (the coast and every placed thing stay the world's)
+            new Row("planet", "PLANET", Effect.NewGame),                // off / on: the world one face of six, the sand zone and its worm past the east edge (docs/planet-plan.md; drawn on the card)
             new Row("leave_behind", "LEAVING A VEHICLE", Effect.Now),   // original (you step out on its east side first) / behind: on the side away from its heading, so a moving boat does not run you down (LeaveBehind)
             new Row("bullet_box", "BULLET BOX", Effect.Now),            // original (model 0's: 0 wide, 288 long - bullets jam on north-south lines) / small: 16 across, the height kept; new bullets, the attract demo too (DemoFollow)
         ]),
@@ -94,7 +95,7 @@ public sealed class SettingsMenu
     public static readonly IReadOnlySet<string> ThreeDOnly = new HashSet<string>
     {
         "gpu_scale", "wide_view", "demo_camera", "view_distance", "ground",
-        "living_sea", "own_colours", "glass", "sea_bodies", "card_pieces",
+        "living_sea", "own_colours", "glass", "sea_bodies", "card_pieces", "planet",
         // the flat picture is the original: these could show or play in it, and are held at the original's there (Settings.FlatOriginal)
         "sky", "own_shadows", "world", "finer_ground", "ground_seed", "sound", "analog_steering", "aiming",
     };
@@ -196,6 +197,7 @@ public sealed class SettingsMenu
         ["own_colours"] = ["ORIGINAL", "AGA"],
         ["glass"] = ["ORIGINAL", "SEE-THROUGH"],
         ["sea_bodies"] = ["ORIGINAL", "WHOLE"],
+        ["planet"] = ["OFF", "ON"],
         ["smooth_animation"] = ["ORIGINAL", "SMOOTH"],
         ["living_sea"] = ["ORIGINAL", "LIVING", "CYCLING"],
         ["view_distance"] = ["ORIGINAL", "11", "15", "23", "31", "47", "63", "ALL"],
@@ -263,6 +265,7 @@ public sealed class SettingsMenu
         ["demo_world"] = "the wild cut is picked per video (run_game --wild)",
         ["ground_seed"] = "a film's hills must come out the same each run: the world's own seed",
         ["a500_filter"] = "which Amiga's sound filter - a choice of machine, not an extra",
+        ["planet"] = "the planet and its sand zone are being built (step 4 of docs/planet-plan.md): the films play the missions' own world",
         ["message_log"] = "a control, nothing on screen in play",
         ["pause_on_focus_loss"] = "a control",
         ["manual_button"] = "a control",
@@ -293,7 +296,8 @@ public sealed class SettingsMenu
         return (p.Group, Hidden.Count == 0 ? p.Rows : p.Rows.Where(r => !Hidden.Contains(r.Key)).ToArray());
     }
 
-    /// <summary>Rows a build leaves off its pages (the shell fills it). Every row still exists for the exactly-once test (AllRows).</summary>
+    /// <summary>Rows a build leaves off its pages (the shell fills it: the Windows test release has no PLANET - 
+    /// "Make the test release just the Hunter no planet"). Every row still exists for the exactly-once test (AllRows).</summary>
     public static readonly HashSet<string> Hidden = [];
 
     /// <summary>Every row on every page - the exactly-once test walks this.</summary>

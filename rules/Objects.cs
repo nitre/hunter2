@@ -49,7 +49,7 @@ public sealed class Objects
     readonly Models _models;
     readonly Trig _trig;
     readonly Ground _ground0;
-    /// <summary>The ground: the running game's own, else the one given.</summary>
+    /// <summary>The ground: the running game's own (it changes face with the planet's frame switch), else the one given.</summary>
     Ground _ground => World?.Ground ?? _ground0;
     readonly Raster _raster;
     /// <summary>$577E: 16 animation sets x 20 bytes (4 control bytes, then 4 x value/step/min/max).
@@ -223,6 +223,7 @@ public sealed class Objects
     // too. One player runs the original's single test, byte for byte.
     static void WriteBackIfFar(WorldState s, Entity e, bool moreObjects)
     {
+        if (s.ScrAi.ContainsKey(e)) return;                                  // STUNTIN': an AI car races the whole lap, seen or not
         if (!InWindow(s, e, moreObjects)) WriteBack(s, e, e.Flags);
     }
 
@@ -231,6 +232,7 @@ public sealed class Objects
     {
         var (dx0, dx1, dz0, dz1) = Window(moreObjects);
         int ex = e.UW(0x4A), ez = e.UW(0x4E);
+        if (s.Planet is { } planet) (ex, ez) = planet.Unfold((ushort)ex, (ushort)ez);   // ENHANCEMENT (PLANET): a thing past a fold is in the cell past the edge
         int dx = (ex >> 12) - s.Camera.G1540, dz = (ez >> 12) - s.Camera.G1542;
         if (dx >= dx0 && dx <= dx1 && dz >= dz0 && dz <= dz1) return true;
         if (s.Players > 1)
@@ -261,6 +263,11 @@ public sealed class Objects
         int x = e.UW(0x4A), z = e.UW(0x4E);
         var heading = e.B[0x7E];
         byte[] grid = s.Grid; var fuelLow = s.FuelLow; var overflow = s.Overflow;
+        if (s.Planet is { } planet && planet.Beyond((ushort)x, (ushort)z) is { } beyond)   // ENHANCEMENT (PLANET): past a fold the
+        {                                                                    // record goes to the neighbour face's grid, in
+            (grid, fuelLow, overflow) = (beyond.Face.Grid, beyond.Face.FuelLow, beyond.Face.Overflow);   // its words, its heading turned
+            (x, z, heading) = (beyond.X, beyond.Z, (byte)(heading + beyond.Turn * 64));
+        }
         var cell = ((z >> 1) & 0x7800) + ((x >> 5) & 0x780);                 // $82BA
         void Store(byte[] g, int r)
         {
@@ -298,9 +305,10 @@ public sealed class Objects
 
     void Tilt(Entity e)
     {
+        if (World is { } w && w.Ground.Road is not null && (w.ScrDrive?.Entity == e || w.ScrAi.ContainsKey(e))) return;   // STUNTIN': its pitch is the original physics'
         if (World is { FineTilt: true }) { FineTilt(e); return; }
         var k = (e.B[0x7E] >> 3 & 0x1E) / 2;
-        var h = _ground.Height((ushort)(e.W(0x4A) + AheadX[k]), (ushort)(e.W(0x4E) + AheadZ[k]));
+        var h = _ground.LeanTo((ushort)(e.W(0x4A) + AheadX[k]), (ushort)(e.W(0x4E) + AheadZ[k]), e.W(0x4C));   // STUNTIN': the road where it carries the thing (else Height)
         e.B[0x7C] = TiltAngle(e.W(0x4C), h, _ground.Fine != null);
     }
 
@@ -338,7 +346,7 @@ public sealed class Objects
         double ax = x + sx * reach, az = z + cz * reach;
         int x0 = (int)Math.Floor(ax), z0 = (int)Math.Floor(az);
         double fx = ax - x0, fz = az - z0;
-        double H(int px, int pz) => g.Height((ushort)px, (ushort)pz);
+        double H(int px, int pz) => g.LeanTo((ushort)px, (ushort)pz, y);    // STUNTIN': the road where it carries the thing
         var h = (H(x0, z0) * (1 - fx) + H(x0 + 1, z0) * fx) * (1 - fz) + (H(x0, z0 + 1) * (1 - fx) + H(x0 + 1, z0 + 1) * fx) * fz;
         var p = y - h;
         return g.Fine != null ? Math.Clamp(p, -63, 63) : p;
@@ -645,6 +653,10 @@ public sealed class Objects
     /// was at that moment, and where the shell, missile or blast that did it was (Entity.BlastHit; null = none, a bullet,
     /// a ram, a crash). The picture only - nothing in the game reads it; null outside the card-drawn view.</summary>
     public static Action<byte[], (ushort X, short Y, ushort Z)?, int>? Exploded;   // the int: that shell's, missile's or blast's type, 0 with none
+
+    /// <summary>STUNTIN's wreck (ScrDrive): a car's record as it was and the velocity its pieces carry (the picture's units a
+    /// frame: x and z doubled world units, heights whole). The picture only; null outside the card-drawn view.</summary>
+    public static Action<byte[], (float X, float Y, float Z)>? Wrecked;
 
     /// <summary>StartDebris ($59FE): 20 draws, offsets cleared, model 0 takes the victim's scale
     /// (+$9C) and, face by face, its faces' colours (cycling). Rewrites the game's own models.</summary>

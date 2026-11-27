@@ -18,6 +18,8 @@ public enum StartEntry
     Title,
     /// <summary>$975C / $9064: straight into the menu loop $1F6C.</summary>
     Menus,
+    /// <summary>STUNTIN': back from a league race or practice - the league screen, then the menus.</summary>
+    League,
 }
 
 /// <summary>The original from switch-on to the start of play, frame by frame at 50 Hz
@@ -34,6 +36,10 @@ public partial class StartSequence : Node2D
 {
     /// <summary>The player has picked a game and read the briefing; the view starts.</summary>
     public event Action<GameMode>? GameChosen;
+    /// <summary>The Stunt Car Racer track chosen on the game menu (-1: none - a game of its own world).</summary>
+    public int ScrTrack { get; private set; } = -1;
+    /// <summary>Shai Hulud was chosen on the game menu: the sand island.</summary>
+    public bool SandIsland { get; private set; }
 
     /// <summary>A click on the main menu's MANUAL button (a shell extra, Settings.ManualButton):
     /// Main opens the manual over the menu - nothing here moves, and when it closes the menu is
@@ -231,7 +237,12 @@ public partial class StartSequence : Node2D
             foreach (var _ in WaitClick()) yield return "loading";
             foreach (var _ in FadeTo(0)) yield return "loading";
         }
-        if (entry != StartEntry.Menus)
+        if (entry == StartEntry.League)
+        {
+            foreach (var f in League()) yield return f;
+            if (ScrTrack >= 0) { GameChosen?.Invoke(GameMode.Hunter); yield break; }
+        }
+        else if (entry != StartEntry.Menus)
         {
             // title ($1F4C: picture file 5, its own palette): held 50 frames on boot ($1F2E),
             // waited on with a click when $2404 got here ($9758 WaitClick)
@@ -299,8 +310,21 @@ public partial class StartSequence : Node2D
                     // SoldierOrDefault $8666 (at $2310): a record the checks reject is replaced by
                     // the default soldier before the game menu names its first game
                     if (!soldier.Valid) soldier = StartState.DefaultSoldier(data);
-                    foreach (var f in Menu(menus.GameMenu(screen, soldier.R[2]), "game_menu", h => handler = h)) yield return f;
+                    foreach (var f in Menu(menus.GameMenu(screen, soldier.R[2], scrTracks: true), "game_menu", h => handler = h)) yield return f;
                     if (handler == 0x22D4) break;                               // CANCEL
+                    if (handler == Menus.SandHandler)
+                    {                                                           // Shai Hulud: the sand island, no briefing
+                        SandIsland = true;
+                        GameChosen?.Invoke(GameMode.Hunter);
+                        yield break;
+                    }
+                    if (handler == Menus.ScrHandler)
+                    {                                                           // Stuntin': the league screen, its race or practice
+                        foreach (var f in League()) yield return f;
+                        if (ScrTrack < 0) break;
+                        GameChosen?.Invoke(GameMode.Hunter);
+                        yield break;
+                    }
                     var mode = (GameMode)((handler - 0x2354) / 4);              // $2354/$2358/$235C
                     foreach (var f in Briefing(mode)) yield return f;
                     GameChosen?.Invoke(mode);
@@ -342,6 +366,62 @@ public partial class StartSequence : Node2D
             yield return name;
         }
         foreach (var _ in FadeTo(0)) yield return name;
+    }
+
+    /// <summary>STUNTIN's league screen (ScrLeagueScreen): RACE starts the round's race against the named opponent, NEXT runs
+    /// a round the player sits out, PRACTICE drives his next track alone, NEW asks and starts a new league, BACK returns to
+    /// the menus (ScrTrack stays -1). Without the drivers' file there is no league: straight onto Little Ramp, alone.</summary>
+    IEnumerable<string> League()
+    {
+        ScrLeagueRun.DataDir = data.Directory;
+        if (ScrLeague.Drivers(data.Directory) is null)
+        {
+            ScrTrack = 0;
+            yield break;
+        }
+        while (true)
+        {
+            var l = ScrLeagueRun.League;
+            var (buttons, shown) = ScrLeagueScreen.Draw(screen, ui, l, ScrLeagueRun.Names(), ScrLeagueRun.News);
+            faces = shown.Select(f => (FaceImage(f.Id), f.X, f.Y)).Where(f => f.Item1 is not null).Select(f => (f.Item1!, f.X, f.Y)).ToList();
+            var handler = 0;
+            foreach (var f in Menu(buttons, "scr_league", h => handler = h)) yield return f;
+            faces = null;
+            switch (handler)
+            {
+                case ScrLeagueScreen.RaceHandler when ScrLeagueRun.Next(data.Directory) is { } next:
+                    ScrLeagueRun.Race = next.Opponent;
+                    ScrTrack = next.Track;
+                    yield break;
+                case ScrLeagueScreen.NextHandler:
+                    ScrLeagueRun.SitOut();
+                    break;
+                case ScrLeagueScreen.PracticeHandler:
+                    ScrLeagueRun.Practice = true;
+                    ScrTrack = l.Track(l.PlayerDivision, l.Round);
+                    yield break;
+                case ScrLeagueScreen.NewHandler:
+                    var yes = 0;
+                    foreach (var f in Menu(ScrLeagueScreen.AskNew(screen, ui), "scr_league_new", h => yes = h)) yield return f;
+                    if (yes == ScrLeagueScreen.YesHandler) ScrLeagueRun.New();
+                    break;
+                case ScrLeagueScreen.BackHandler:
+                    ScrLeagueRun.News = null;
+                    yield break;
+            }
+        }
+    }
+
+    /// <summary>The faces the league screen shows, painted over it in their own colours (Present).</summary>
+    List<(Image Image, int X, int Y)>? faces;
+    readonly Dictionary<int, Image?> faceImages = [];
+    Image? FaceImage(int id)
+    {
+        if (faceImages.TryGetValue(id, out var img)) return img;
+        var path = Path.Combine(data.Directory, "scr", "drivers", $"{id:00}.png");
+        img = File.Exists(path) ? Image.LoadFromFile(path) : null;
+        img?.Convert(Image.Format.Rgb8);
+        return faceImages[id] = img;
     }
 
     /// <summary>$1014A DiskMenuRun from the main menu: Load Game picks a slot ($101F0) and ends with a
@@ -480,8 +560,23 @@ public partial class StartSequence : Node2D
                 rgb[3 * p + 2] = (byte)((s & 15) * 17);
                 continue;
             }
+            if ((screen.Pixels[p] & 1 << Menus.ScrTextPlane) != 0)
+            {                                                   // the track buttons' text: cyan, faded with the menu
+                var c = (byte)((15 * fade.Level >> 4) * 17);    // as a bank's $0FF would be
+                rgb[3 * p] = 0; rgb[3 * p + 1] = c; rgb[3 * p + 2] = c;
+                continue;
+            }
             rgb[3 * p] = lut[3 * i]; rgb[3 * p + 1] = lut[3 * i + 1]; rgb[3 * p + 2] = lut[3 * i + 2];
         }
+        if (faces is not null)                                  // the league screen's faces, faded with the menu
+            foreach (var (img, fx, fy) in faces)
+                for (var y = 0; y < img.GetHeight() && fy + y < 200; y++)
+                    for (var x = 0; x < img.GetWidth() && fx + x < 320; x++)
+                    {
+                        var c = img.GetPixel(x, y);
+                        var p = 3 * ((fy + y) * 320 + fx + x);
+                        rgb[p] = (byte)(c.R8 * fade.Level / 15); rgb[p + 1] = (byte)(c.G8 * fade.Level / 15); rgb[p + 2] = (byte)(c.B8 * fade.Level / 15);
+                    }
         // the pointer sprite over everything, top left at the mouse - (7, 6) ($AA1C); it uses colour 17 only
         Hunter.Pointer.Draw(rgb, pointer, pointerColour, mouseX, mouseY);
         image.SetData(320, 200, false, Image.Format.Rgb8, rgb);

@@ -123,7 +123,7 @@ public sealed class Ui
 
     /// <summary>One menu button, $AD08: frame = style + $17, centred on 160 + dx*2, text centred on it.
     /// Returns the button height (the next button's y offset).</summary>
-    public int DrawMenuItem(IndexedScreen s, MenuItem item, int y)
+    public int DrawMenuItem(IndexedScreen s, MenuItem item, int y, int textPlane = 0)
     {
         var f = Frames[item.Style + 0x17];
         var centre = (s.Width >> 1) + item.Dx * 2;          // $AD26-$AD36
@@ -132,7 +132,7 @@ public sealed class Ui
         var tx = centre - (Measure(item.Text + "*") >> 1);   // $AD6E-$AD78
         var ty = (f.Height >> 1) + y - 4;                    // $AD7C-$AD86
         var x = tx;
-        foreach (var c in item.Text) x += DrawChar(s, c, x, ty, 0);
+        foreach (var c in item.Text) x += DrawChar(s, c, x, ty, textPlane);
         return f.Height;
     }
 }

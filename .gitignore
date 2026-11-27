@@ -11,3 +11,6 @@ bin/
 obj/
 .godot/
 /release/
+
+# Stuntin' data exported from the original disk stays local
+game_data/scr/

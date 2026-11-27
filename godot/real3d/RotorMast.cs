@@ -171,7 +171,7 @@ public static class RotorMast
 
         /// <summary>A round drum about (x, z) from y0 up to y1: two rings of sides corners each, every one rounded to a
         /// whole unit (the points must still come out distinct), a quad a side, and
-        /// the top and bottom discs when ends is true (left off for an open tube). Wound as a box is wound:
+        /// the top and bottom discs when ends is true (left off for an open tube). Wound as DuneModels.Shape.Box winds a box:
         /// the top ring as it goes round from +x toward +z, the bottom the other way, each side from the bottom ring up.</summary>
         public void Drum(int x, int z, int radius, int sides, int y0, int y1, bool ends)
         {

@@ -132,6 +132,10 @@ public partial class GameView : Node2D
 
     /// <summary>This game is the demo (RunDemo $22D6): its soldier record is not the run's.</summary>
     public bool Demo => play.State.DemoMode;
+    /// <summary>The Stunt Car Racer track whose island this game is on (-1: the game's own world).</summary>
+    public int ScrTrack { get; private set; } = -1;
+    /// <summary>SHAI HULUD: this game is the sand island (rules/ShaiHulud.cs) - the worm's models are baked for it.</summary>
+    public bool SandIsland { get; private set; }
 
     /// <summary>A loaded game's briefing is on (main menu or in-game Load): its click starts play as the
     /// loaded state stands. Play.Rebrief is only for the options screen's Re-brief - run on a loaded game it
@@ -140,9 +144,11 @@ public partial class GameView : Node2D
     bool afterLoad;
 
     public void Init(GameData d, GameMode mode, bool scriptedInput = false, WorldState? loaded = null, bool paused = false,
-        Soldier? soldier = null, bool demo = false)
+        Soldier? soldier = null, bool demo = false, int scrTrack = -1, bool sandIsland = false)
     {
         data = d;
+        ScrTrack = scrTrack;
+        SandIsland = sandIsland;
         ui = Ui.Load(d.Directory);
         // ENHANCEMENT (DEMO WORLD: WILD, or a recording's HUNTER_WILD / run_game --wild): the demo plays the
         // fullest world, groups beside its own route and the way kept clear (Wild, DemoRoute) - its route holds to pass 13782
@@ -159,9 +165,19 @@ public partial class GameView : Node2D
             else if (Settings.GroundSeed == "last" && Settings.LastGroundSeed >= 0) groundSeed = (ushort)Settings.LastGroundSeed;
             GD.Print($"HUNTER: ground seed {groundSeed?.ToString() ?? "the world's"}, relief {FineGround.Reliefs[Math.Clamp(Settings.GroundRelief, 0, FineGround.Reliefs.Count - 1)].Name}");
         }
-        play = loaded is null ? new Play(d, mode, soldier: soldier, fullerWorld: fuller, players: Settings.Players, maths32: Settings.Maths32, finerGround: demo ? 0 : Settings.FinerGround, fixSpikes: Settings.FixSpikes, groundSeed: groundSeed, relief: Settings.GroundRelief) { AnimEveryBlanks = A500PassBlanks }   // ENHANCEMENT: the fuller world, the player's new games only - a demo is a new game too and plays its authored world; a loaded game's grid is the saved one; players = 2 spawns the second soldier (mp_two_soldiers)
+        play = loaded is null ? new Play(d, mode, soldier: soldier, fullerWorld: fuller, players: Settings.Players, maths32: Settings.Maths32, finerGround: demo ? 0 : Settings.FinerGround, fixSpikes: Settings.FixSpikes, groundSeed: groundSeed, relief: Settings.GroundRelief, planet: !demo && Settings.Planet && Settings.Renderer == "3d", scrTrack: scrTrack, sandIsland: sandIsland) { AnimEveryBlanks = A500PassBlanks }   // ENHANCEMENT: the fuller world, the player's new games only - a demo is a new game too and plays its authored world; a loaded game's grid is the saved one; players = 2 spawns the second soldier (mp_two_soldiers)
                               : new Play(d, loaded) { AnimEveryBlanks = A500PassBlanks };
         if (demo) Rules.Demo.Start(play.State);                                        // RunDemo $22D6
+        ScrDrive.League = scrTrack >= 0 && ScrLeagueRun.Race is not null && ScrLeagueRun.League.Super ? 1 : 0;   // STUNTIN: the league's car values
+        if (System.Environment.GetEnvironmentVariable("HUNTER_SCR_DICE") is { } dice) ScrBrain.DiceParts = dice;   // checks: which dice are rolled
+        if (scrTrack >= 0 && System.Environment.GetEnvironmentVariable("HUNTER_SCR_DEMO") is not null && System.Environment.GetEnvironmentVariable("HUNTER_SCR_VS") is { } vs
+            && ScrLeague.Drivers(d.Directory) is { } named && ScrRace.League(play.State, ScrLeagueRun.Race = new ScrRace.Opponent(int.Parse(vs), named[int.Parse(vs)].Name,
+                named[int.Parse(vs)].Traits, System.Environment.GetEnvironmentVariable("HUNTER_SCR_CORNER") is { } corner ? System.Convert.ToInt32(corner, 16) : new ScrLeague(1).Cornering(scrTrack), System.Environment.GetEnvironmentVariable("HUNTER_SCR_SEED") is { } seed ? int.Parse(seed) : 1), autopilot: true))
+            GD.Print($"HUNTER: Stuntin' demo v {named[int.Parse(vs)].Name}");                // checks: the demo against one of the league's drivers
+        else if (scrTrack >= 0 && System.Environment.GetEnvironmentVariable("HUNTER_SCR_DEMO") is not null && ScrRace.Demo(play.State))
+            GD.Print("HUNTER: Stuntin' demo - two AI drivers");                        // STUNTIN': his car on one driver, an AI car on another
+        else if (scrTrack >= 0 && ScrLeagueRun.Race is { } opponent && ScrRace.League(play.State, opponent, autopilot: System.Environment.GetEnvironmentVariable("HUNTER_SCR_AUTO") is not null))
+            GD.Print($"HUNTER: Stuntin' league race v {opponent.Name} (id {opponent.Id}, traits {opponent.Traits:X2}, cornering {opponent.Cornering:X2}, seed {opponent.Seed})");
         // ENHANCEMENT: the demo follows the plain demo's route (rules/DemoFollow.cs)
         // - the recording's own input while he is exactly where it had him (nothing changed: the original, blank for blank), the
         // bot's body back onto the route and the key moments waited for once an extra moves him
@@ -221,6 +237,15 @@ public partial class GameView : Node2D
                 var f = item.Split(':');
                 GD.Print("HUNTER_PLACE: " + PlaceRecord(ParseNum(f[0]), ParseNum(f[1]), ParseNum(f[2]), f.Length > 3 ? ParseNum(f[3]) : null));
             }
+        // Recording only: HUNTER_CONVOY=model,model,... (0x15 a tank, 0x22 a jeep ...) - land vehicles follow his way (rules/Convoy.cs)
+        if (System.Environment.GetEnvironmentVariable("HUNTER_CONVOY") is { Length: > 0 } convoy)
+        {
+            // HUNTER_CONVOY_AIR=model@k,... - flying escorts over follower k (0 the first behind him), e.g. 0x17@0,0x19@2
+            var air = (System.Environment.GetEnvironmentVariable("HUNTER_CONVOY_AIR") ?? "").Split(',', System.StringSplitOptions.RemoveEmptyEntries)
+                .Select(a => a.Split('@')).Select(a => (ParseNum(a[0]), int.Parse(a[1])));
+            play.Convoy = new Hunter.Rules.Convoy(convoy.Split(',').Select(ParseNum), air);
+            GD.Print("HUNTER_CONVOY: " + string.Join(", ", convoy.Split(',').Select(m => $"model {m} = type {Hunter.Rules.Convoy.TypeOf(d, ParseNum(m))}")));
+        }
         SetupView(d, scriptedInput);
         if (loaded is null) play.StartPlay();                                    // PlayGame's PlayStart ($24FA): the fade in runs once play's frames do
         if (paused) play.State.PauseKey = !play.State.PauseKey;                  // 'p' on the new game's briefing
@@ -240,7 +265,6 @@ public partial class GameView : Node2D
         play.WeightyHandling = !demo && Settings.WeightyHandling;               // ENHANCEMENT: momentum and a reverse gear for the player's land vehicle; never the attract demo
         play.AnalogSteering = !demo && Settings.AnalogSteering;                 // ENHANCEMENT: a stick's lean turns a vehicle by as much; never the attract demo
         play.AimReticle = !demo && Settings.AimReticle;                       // ENHANCEMENT: on foot the soldier turns to the reticle, the shot goes under it; never the attract demo
-        play.LimbDamage = false;                                                 // LIMB DAMAGE amputated for now - its code (rules/Limbs.cs) kept, off everywhere, a saved "on" ignored
         // The attract demo is the recording exactly: the four extras that change
         // play (bullet box, fine tilt, A500 pace, straight moves) are never in it - each loses the recording its way and the
         // follower then steers a different world (the wiggle, the shed's items missed, the tank lost). Picture extras stay on.
@@ -322,13 +346,23 @@ public partial class GameView : Node2D
             var lvl = FineGround.Reliefs[Math.Clamp(Settings.GroundRelief, 0, FineGround.Reliefs.Count - 1)];
             fine = FineGround.Grow(play.State.Terrain, seed, Settings.FinerGround, lvl.Num, lvl.Den, seed, lvl.Dim, lvl.Hold);
         }
-        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScaleX, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
+        AddChild(real3d = new Real3DView(play.State.Terrain.Map, gpuScaleX, gpuScale, new GpuWorld(data.Objfile, data.Sinfile, play.State.Terrain.Map, data.Main, fine, seaBodies: Settings.SeaBodies, worm: Settings.Planet || SandIsland || ScrTrack >= 0, viewPalette: data.PaletteBanks[2])));   // FINER GROUND: the card reads the game's store; SHARKS AND SUBS baked here
         var card = real3d.Gpu;
         if (pictureOnly) card.PictureLift = (x, z) => fine!.Height(x, z) - play.State.Ground.Height(x, z);
         Objects.Exploded = (record, from, by) =>                                            // EXPLOSIONS: PIECES - the card throws them itself
         {
+            if (Swallowed(record))                                                       // PLANET: the worm took him whole - the game's own end
+            {                                                                            // goes on (Planet.WormPass), but no wreck flies out of the sand
+                GD.Print($"HUNTER: swallowed at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, no blast");
+                return;
+            }
             card.AddBlast(record, GameClock(), from, StarModel(by));                                     // this pass's blanks are already counted: the frame it blew up on
             GD.Print($"HUNTER: explosion at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, {(record[0x1C] != 0 ? "in view" : "out of view")}{(from is { } f ? $", by a blast at {f.X} {f.Z}, its size {Math.Max((short)(record[0x6E] << 8 | record[0x6F]), (short)(record[0x72] << 8 | record[0x73]))}" : "")}");   // a recording finds its explosions here
+        };
+        Objects.Wrecked = (record, carry) =>                                             // STUNTIN: a wreck comes apart going the way it went
+        {
+            card.AddBlast(record, GameClock(), carry: carry);
+            GD.Print($"HUNTER: wreck at frame {Audio.Frame}, type {record[4] << 8 | record[5]:X2}, carrying {carry.X:F1},{carry.Y:F1},{carry.Z:F1}");
         };
         real3dSprite = new Sprite2D
         {
@@ -345,6 +379,354 @@ public partial class GameView : Node2D
     }
 
     bool wide3d;
+    int shownFace;
+    MeshInstance3D? scrMountains;                                                        // STUNTIN': the mountain horizon (MountainMesh)
+    MeshInstance3D? scrRoad;                                                             // STUNTIN': the road on its face (RoadMesh)
+    /// <summary>STUNTIN's chase camera: the share of the gap to the car's heading it turns each frame.</summary>
+    const float FollowEase = 0.12f;
+    /// <summary>STUNTIN's chase camera (ChaseStep): how far behind the car (world units - the car is about 180 long), how
+    /// high above it (height units, drawn half size), and the point it looks at: this far ahead, this much above the car.</summary>
+    const double ChaseBack = 300, ChaseLift = 240, ChaseAhead = 600, ChaseAim = 40;
+    /// <summary>Another car this near the chase camera (world units) is not drawn: the camera would be inside it.</summary>
+    const double ChaseClear = 200;
+    bool chasing, scrCameraDue;
+    float chaseTurn;
+    /// <summary>STUNTIN's in-car view (V; HUNTER_SCR_VIEW=car starts in it): the original's only view.</summary>
+    bool inCar = System.Environment.GetEnvironmentVariable("HUNTER_SCR_VIEW") == "car", viewKey;
+
+    /// <summary>STUNTIN's in-car view, as the original's: the eye at the car's body (the physics' own camera height), looking
+    /// along its heading, pitched and rolled with it (the lens rolled: Real3DView.Roll); his own car not drawn, nor another
+    /// right on top of the eye. The cars are heard from here.</summary>
+    void InCarStep(Entity me, ScrDrive drive)
+    {
+        chasing = true;
+        var (x, y, z) = real3d!.Gpu.PlaceOf(0);                      // as the card was just given it (Real3DFrame, after the upload)
+        var turn = -me.UW(0x7E) / 65536f * Mathf.Tau;
+        // the camera turned exactly as the card turns his car's model (+$7C pitch, nose down positive - the free camera's tilt is
+        // down too; +$80 roll; with FINE ANGLES the fine words ScrDrive writes, else the bytes), so the inside stays put round the eye
+        var fine = real3d!.Gpu.FineAngles;
+        double pitchA = fine ? (short)me.PitchFine / 256.0 : (sbyte)me.B[0x7C];   // 256ths of a turn
+        double rollA = fine ? (short)me.RollFine / 256.0 : (sbyte)me.B[0x80];
+        var tilt = (float)(pitchA / 256 * Math.Tau);
+        // in HUNTER'S OWN CAR: the eye where the seated driver's head is (CarInside's figure: the driver's seat, x DriverSide)
+        // turned as the card turns the car's corners (corner.gdshaderinc corner_fine: roll +$80, pitch +$7C, then the heading),
+        // a model's x and z in doubled world units, y whole (place.gdshaderinc entity_vertex2), lifted as its lowest corner sits
+        double px = HeadX, py = HeadY, pz = HeadZ, c, sn, t;
+        c = Math.Cos(rollA * Math.Tau / 256); sn = Math.Sin(rollA * Math.Tau / 256); t = c * px + sn * py; py = c * py - sn * px; px = t;
+        c = Math.Cos(pitchA * Math.Tau / 256); sn = Math.Sin(pitchA * Math.Tau / 256); t = c * pz + sn * py; py = c * py - sn * pz; pz = t;
+        var h = me.UW(0x7E) / 65536.0 * Math.Tau;
+        c = Math.Cos(h); sn = Math.Sin(h); t = c * px + sn * pz; pz = c * pz - sn * px; px = t;
+        double ex = x + px / 2, ez = z + pz / 2;
+        // lifted as the card lifts the model it draws (lift_to_ground): the racer by its lowest corner at rest, Hunter's own car
+        // by its lowest corner after the same roll and pitch; the eye fixed in the drawn body, no bounce of its own (one the
+        // drawing did not share slid the cockpit against the eye)
+        carCorners ??= CarCorners();
+        double lowest = double.MaxValue;
+        double cr = Math.Cos(rollA * Math.Tau / 256), sr = Math.Sin(rollA * Math.Tau / 256);
+        double cp = Math.Cos(pitchA * Math.Tau / 256), sp = Math.Sin(pitchA * Math.Tau / 256);
+        if (real3d.Gpu.RacerModel >= 0)                              // the racer: its lowest corner at rest, as the card lifts it
+            foreach (var (_, qy0, _) in carCorners) lowest = Math.Min(lowest, Math.Round(qy0));   // (model.gdshaderinc model_min_y)
+        else
+            foreach (var (qx, qy0, qz) in carCorners)
+            {
+                var ry = cr * qy0 - sr * qx;
+                lowest = Math.Min(lowest, cp * ry - sp * qz);
+            }
+        real3d.Free = new FreeCamera((ex, y - lowest + py, ez), turn, tilt);
+        real3d.Roll = -(float)(rollA / 256 * Math.Tau);
+        real3d.NearScale = 0.25f;                                    // the steering wheel and the hands on it, 15 world units and less from the eye
+        real3d.Gpu.NearCamera = (ex, ez, 120);
+        real3d.Gpu.HideSelf = false;                                 // his car drawn round him: its dash, wheel, windscreen frame and bonnet
+        real3d.Gpu.HideDriver = true;                                // but not the driver figure the eye is in
+        real3d.Gpu.HideOwnGlass = real3d.Gpu.RacerModel < 0;          // the racer's own panes (windscreen, side windows) seen from inside
+        ScrDrive.Listener = (ex, ez, turn);
+    }
+
+    /// <summary>STUNTIN's racers: each one's right hand on its way to the boost button (0-255), per live row.</summary>
+    readonly float[] racerHand = new float[16];
+    /// <summary>STUNTIN's racers: each one's boost flame frame showing (1-3, 0 none), per live row.</summary>
+    readonly int[] racerFlame = new int[16];
+    /// <summary>The share of the way left the hand moves each frame (about a fifth of a second there).</summary>
+    const float RacerHandEase = 0.3f;
+    /// <summary>STUNTIN's racers' springs: the physics' squash words at rest on the flat (front, rear - read back over the demo
+    /// race), and the most a wheel is drawn riding up into the body or hanging below it (model units; a banked corner squashes
+    /// the physics' springs by up to 60).</summary>
+    const int SpringRestFront = 296, SpringRestRear = 343;
+    const float SpringBump = 12, SpringDroop = 8;
+    /// <summary>A spring's squash as the drawn wheel's rise against the body, model units: the physics' wheel units over its
+    /// rest, a wheel unit ScrRoad.Scale / 32 height units (a model's y is whole height units).</summary>
+    static float Squash(int word, int rest) => ((short)word - rest) * (float)ScrRoad.Scale / 32;
+    /// <summary>The eye in the racer, model units: the seated driver's head (CarInside's figure, the driver's side x
+    /// negative, z forward), raised with the racer's seat (RacingKit.SeatRaise) - at 52 the bonnet pointed at the eye and
+    /// showed as a line.</summary>
+    const double HeadX = -30, HeadY = 52 + RacingKit.SeatRaise, HeadZ = -16;
+    (double X, double Y, double Z)[]? carCorners;
+
+    /// <summary>STUNTIN's crane (ScrDrive.Chains): four chains from the corners of the cage's top straight up ScrDrive.ChainLength,
+    /// pulled up by their Rise after the drop; links of ChainLink height units, every other one turned a quarter. Colour words
+    /// as the road's (road.gdshader), world units (x, height, -z) as RoadMesh's.</summary>
+    MeshInstance3D? scrChains;
+    (double X, double Y, double Z)[]? racerCorners, jeepCorners;
+    const int ChainDark = 0x444, ChainLight = 0x777;
+    const double ChainLink = 12, ChainWide = 3, ChainThick = 1;
+
+    void CraneStep()
+    {
+        var st = play.State;
+        var hung = new System.Collections.Generic.List<((double X, double Y, double Z, int Yaw, double Rise) At, bool Jeep)>();
+        // a car's chains drawn only while the card draws the car (its in-view mark, +$1C): far off, out of the game's view, the
+        // car is not drawn and the chains alone hung in the sky
+        void Take(ScrDrive d)
+        {
+            if (d.Chains is not { } c || d.Entity is not { } e) return;
+            var row = st.Entities.All.ToList().IndexOf(e);
+            if (row < 0 || real3d!.Gpu.RecordByte(row, 0x1C) == 0) return;
+            hung.Add((c, e.W(4) == ScrRace.Jeep));
+        }
+        if (st.ScrDrive is { } me) Take(me);
+        foreach (var ai in st.ScrAi.Values) Take(ai.Drive);
+        if (hung.Count == 0) { if (scrChains is not null) scrChains.Visible = false; return; }
+        if (scrChains is null)
+        {
+            scrChains = new MeshInstance3D { MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") }, CustomAabb = GpuWorld.Huge };
+            real3d!.AddWorldMesh(scrChains);
+        }
+        // the racers' drawn corners - those of their faces (a kit leaves the corners of the faces it takes off, unused: the jeep's
+        // canvas top's stood over its cage), full units
+        static (double X, double Y, double Z)[] Drawn(CardModels.Model m) =>
+            [.. m.Faces.SelectMany(f => f.Edges).SelectMany(e => new[] { m.Edges[e].A, m.Edges[e].B }).Distinct()
+                .Select(k => (m.Corners[k].X / (double)RacingKit.Fine, m.Corners[k].Y / (double)RacingKit.Fine, m.Corners[k].Z / (double)RacingKit.Fine))];
+        var gpu = real3d!.Gpu;
+        racerCorners ??= gpu.RacerModel >= 0 ? Drawn(gpu.Store.Models[gpu.RacerModel]) : CarCorners();
+        jeepCorners ??= gpu.JeepRacerModel >= 0 ? Drawn(gpu.Store.Models[gpu.JeepRacerModel]) : racerCorners;
+        // the cage's top rails (front hoop to rear hoop): the chains on its corners
+        static (double MinY, double MaxY, double Side, double Front, double Back) Cage((double X, double Y, double Z)[] k)
+        {
+            double maxY = k.Max(q => q.Y);
+            var roof = k.Where(q => q.Y >= maxY - 4).ToArray();
+            return (k.Min(q => q.Y), maxY, roof.Max(q => Math.Abs(q.X)), roof.Max(q => q.Z), roof.Min(q => q.Z));
+        }
+        var carCage = Cage(racerCorners);
+        var jeepCage = Cage(jeepCorners);
+        var v = new System.Collections.Generic.List<Vector3>();
+        var uv = new System.Collections.Generic.List<Vector2>();
+        void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, int word, float light)
+        {
+            v.Add(a); v.Add(b); v.Add(c); v.Add(a); v.Add(c); v.Add(d);
+            for (var i = 0; i < 6; i++) uv.Add(new Vector2(word, light));
+        }
+        foreach (var ((x, y, z, yaw, rise), jeep) in hung)
+        {
+            var (minY, maxY, side, front, back) = jeep ? jeepCage : carCage;
+            var h = (ushort)yaw / 65536.0 * Math.Tau;
+            double cs = Math.Cos(h), sn = Math.Sin(h);
+            var top = y - minY + maxY;                                   // the cage's top, as the card lifts the model (lowest corner on y)
+            foreach (var (mx, mz) in new[] { (-side, front), (side, front), (-side, back), (side, back) })
+            {
+                double ax = x + (cs * mx + sn * mz) / 2, az = z + (cs * mz - sn * mx) / 2;   // model x, z are doubled world units
+                var n = 0;
+                for (var b = top + rise; b < top + ScrDrive.ChainLength; b += ChainLink, n++)
+                {
+                    // a link: a thin box, flat across the car or along it in turn
+                    double ux = n % 2 == 0 ? cs : -sn, uz = n % 2 == 0 ? -sn : -cs;   // the link's wide way (across / along)
+                    double wx = ux * ChainWide / 2, wz = uz * ChainWide / 2, tx = -uz * ChainThick / 2, tz = ux * ChainThick / 2;
+                    float y0 = (float)b, y1 = (float)(b + ChainLink * 0.9);
+                    Vector3 P(double px, float py, double pz) => new((float)px, py, (float)-pz);
+                    var word = n % 2 == 0 ? ChainLight : ChainDark;
+                    Quad(P(ax - wx + tx, y0, az - wz + tz), P(ax + wx + tx, y0, az + wz + tz), P(ax + wx + tx, y1, az + wz + tz), P(ax - wx + tx, y1, az - wz + tz), word, 1f);
+                    Quad(P(ax - wx - tx, y0, az - wz - tz), P(ax + wx - tx, y0, az + wz - tz), P(ax + wx - tx, y1, az + wz - tz), P(ax - wx - tx, y1, az - wz - tz), word, 0.8f);
+                    Quad(P(ax + wx - tx, y0, az + wz - tz), P(ax + wx + tx, y0, az + wz + tz), P(ax + wx + tx, y1, az + wz + tz), P(ax + wx - tx, y1, az + wz - tz), word, 0.6f);
+                    Quad(P(ax - wx - tx, y0, az - wz - tz), P(ax - wx + tx, y0, az - wz + tz), P(ax - wx + tx, y1, az - wz + tz), P(ax - wx - tx, y1, az - wz - tz), word, 0.6f);
+                }
+            }
+        }
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+        arrays[(int)Mesh.ArrayType.TexUV] = uv.ToArray();
+        var mesh = new ArrayMesh();
+        if (v.Count > 0) mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        scrChains.Mesh = mesh;
+        scrChains.Visible = v.Count > 0;
+    }
+
+    /// <summary>The corners of the model the card draws for his car, full units: the Stuntin' racer's (stored RacingKit.Fine
+    /// times its size), else Hunter's car ($13) from the objfile (the scale shift applied).</summary>
+    (double X, double Y, double Z)[] CarCorners()
+    {
+        if (real3d?.Gpu.RacerModel is int racer && racer >= 0)
+            return [.. real3d.Gpu.Store.Models[racer].Corners.Select(q => (q.X / (double)RacingKit.Fine, q.Y / (double)RacingKit.Fine, q.Z / (double)RacingKit.Fine))];
+        var m = data.Models;
+        var o = m.Offsets[CarInside.Car];
+        var shift = m.Buf[o + 0x11];
+        var n = m.U(o + 0x12);
+        var c = new (double, double, double)[n];
+        for (var i = 0; i < n; i++)
+            c[i] = ((sbyte)m.Buf[o + 0x15 + 4 * i] * (1 << shift), (sbyte)m.Buf[o + 0x16 + 4 * i] * (1 << shift), (sbyte)m.Buf[o + 0x17 + 4 * i] * (1 << shift));
+        return c;
+    }
+
+    /// <summary>STUNTIN': the card's free camera a few car lengths behind his car and above it, turned with the car's heading
+    /// (eased round, the short way), looking along the road at a point ahead; never under the road or the land where it
+    /// stands. The car's place as the card draws it (the in-between upload), so the camera and the car move together.</summary>
+    void ChaseStep(Entity me)
+    {
+        var want = -me.UW(0x7E) / 65536f * Mathf.Tau;               // the facing is (-sin, cos), as Shots / the missile ride
+        if (!chasing) chaseTurn = want;
+        chasing = true;
+        chaseTurn = Mathf.Wrap(chaseTurn + Mathf.Wrap(want - chaseTurn, -Mathf.Pi, Mathf.Pi) * FollowEase, -Mathf.Pi, Mathf.Pi);
+        var (x, y, z) = real3d!.Gpu.PlaceOf(0);                      // as the card was just given it (Real3DFrame, after the upload)
+        double ex = x + Math.Sin(chaseTurn) * ChaseBack, ez = z - Math.Cos(chaseTurn) * ChaseBack;
+        var under = play.State.Ground.Surface((ushort)Math.Clamp((int)ex, 0, 65535), (ushort)Math.Clamp((int)ez, 0, 65535), short.MaxValue);
+        var ey = Math.Max(y + ChaseLift, under + 60);
+        double ax = x - Math.Sin(chaseTurn) * ChaseAhead, az = z + Math.Cos(chaseTurn) * ChaseAhead, ay = y + ChaseAim;
+        double dx = ax - ex, dz = az - ez;
+        real3d.Free = new FreeCamera((ex, ey, ez), (float)Math.Atan2(-dx, dz), (float)Math.Atan((ey - ay) / 2 / Math.Max(Math.Sqrt(dx * dx + dz * dz), 1)));
+        real3d.Gpu.NearCamera = (ex, ez, ChaseClear);
+        real3d.Gpu.HideSelf = false;
+        real3d.Gpu.HideDriver = false;
+        real3d.Gpu.HideOwnGlass = false;
+        real3d.Roll = 0;
+        real3d.NearScale = 1;
+        ScrDrive.Listener = (ex, ez, Math.Atan2(-dx, dz));                 // the cars heard from here
+    }
+    public int WormRow = -1;
+    /// <summary>PLANET's worm in the picture (WithWorm): the body is drawn while its head is shallower than DrawDepth; its sign
+    /// shows while its head is shallower than SignDepth, a swell every SignEvery points of its path, each older one SignFade
+    /// lower; how deep its victim sinks by the time the mouth reaches the surface (world height units).</summary>
+    const int DrawDepth = 600, SignDepth = 650, SignEvery = 8, SignFade = 4, VictimSink = 140;
+    /// <summary>After the swallow: how much further the victim goes down each pass, into the mouth as it backs down, and how
+    /// many passes the picture keeps him gone (the player's record stays until the game's own end - Planet.WormPass).</summary>
+    const int SwallowSink = 8, SwallowPasses = 200;
+    (int Row, float Depth) sinking = (-1, 0);
+    /// <summary>The worm's victim as it was when the mouth reached him (row, place); row -1: none.</summary>
+    (int Row, int X, int Z) swallowed = (-1, 0, 0);
+
+    /// <summary>The worm has just swallowed this record (still where the mouth took him): the picture keeps him under the sand.</summary>
+    bool Swallowed(byte[] rec) =>
+        swallowed.Row >= 0 && play.State.Planet is { } pl && (pl.Worm ?? pl.Departing) is { SinceMeal: < SwallowPasses }
+        && Math.Abs((rec[0x4A] << 8 | rec[0x4B]) - swallowed.X) <= Sandworm.Reach && Math.Abs((rec[0x4E] << 8 | rec[0x4F]) - swallowed.Z) <= Sandworm.Reach;
+
+    /// <summary>PLANET: the sand zone's worm, drawn where the rules' worm really is - its head at its place and depth (Sandworm.X, Z, Depth), its body a chain of segments laid
+    /// along the path its head really took (Sandworm.Trail), each segment's own record; nothing here keeps time of its own:
+    ///   its SIGN while it is near the surface and not rising - swells of sand along its path, the newest over its head with
+    ///     dust flying while it moves, the older ones lower;
+    ///   while it RISES under its prey, and while it goes back down after - the sand giving way over its head (the funnel,
+    ///     open as far as the head has come up), and its target sinking into it (GpuWorld.SinkInto) as the head nears the sand;
+    ///   its BODY whenever any of it could be in sight - mostly only the mouth and teeth break the surface, and the back where
+    ///     its path crests.
+    /// Each record has its ground word far below, so the card adds no lift and it stands exactly at its height word.</summary>
+    System.Collections.Generic.List<byte[]>? WithWorm(System.Collections.Generic.List<byte[]>? stored)
+    {
+        WormRow = -1;
+        var planet = play.State.Planet;
+        if (planet is null || real3d is not { Gpu.WormModel: >= 0 } r3) return stored;
+        var list = new System.Collections.Generic.List<byte[]>(stored ?? []);
+        byte[] Rec(int model, int x, int z, int depth, byte heading, int pitch = 0, bool moving = false)
+        {
+            var b = new byte[0xA0];
+            void W(int o, int v) { b[o] = (byte)(v >> 8); b[o + 1] = (byte)v; }
+            var g = play.State.Ground.Height((ushort)x, (ushort)z);
+            b[0] = 1;
+            W(4, 0x30);                                                 // a kind of $30 and up: it stands level
+            b[0x25] = (byte)model;
+            W(0x4A, x); W(0x4C, g - depth); W(0x4E, z);
+            W(0x74, g - depth - 4000);                                  // the ground far below: no lift, it stands at +$4C
+            W(0x72, 1024);                                              // its reach: seen while any of it is in view
+            W(0x3E, moving ? 1 : 0);                                    // dust flies while it moves
+            b[0x7E] = heading;
+            b[0x7C] = (byte)pitch;                                      // nose down is positive
+            return b;
+        }
+        sinking = (-1, 0);
+        foreach (var w in new[] { planet.Worm, planet.Departing })
+            if (w is not null) Draw(w);
+        r3.Gpu.SinkInto(sinking.Row, sinking.Depth);
+        return list;
+
+        void Draw(Sandworm w)
+        {
+            // the head's path in the picture's units (x and z twice the world's, y up from the sand): the head, then back along it
+            var path = new System.Collections.Generic.List<(double X, double Y, double Z)> { (2.0 * w.X, -w.Depth, 2.0 * w.Z) };
+            for (var k = w.Trail.Count - 1; k >= 0; k--)
+            {
+                var p = (2.0 * w.Trail[k].X, -(double)w.Trail[k].Depth, 2.0 * w.Trail[k].Z);
+                if (p != path[^1]) path.Add(p);
+            }
+            if (w.Depth < DrawDepth) Body(w, path);
+            var near = w.Depth < Sandworm.ShallowDepth;                 // the sand giving way over its head
+            if (near && (w.Rising || w.SinceMeal < 200))
+            {
+                var open = 1 - Math.Max(0, w.Depth) / (double)Sandworm.ShallowDepth;
+                list.Add(Rec(r3.Gpu.WormFunnelModel, w.X, w.Z, (int)Math.Round(40 * (1 - open)), (byte)(open * 200), 0, true));
+                if (w.Rising && w.Target >= 0 && w.Target < play.State.Entities.Count && play.State.Entities.All[w.Target] is { } v && v.B[0] != 0
+                    && Math.Max(Math.Abs(v.UW(0x4A) - w.X), Math.Abs(v.UW(0x4E) - w.Z)) <= Sandworm.Reach)
+                {
+                    sinking = (w.Target, (float)(VictimSink * open));
+                    swallowed = (w.Target, v.UW(0x4A), v.UW(0x4E));
+                }
+            }
+            // swallowed: on down into the mouth as it backs away - not back up at full height until the game's end takes him
+            if (!w.Rising && w.SinceMeal < SwallowPasses && swallowed.Row >= 0 && swallowed.Row < play.State.Entities.Count
+                && play.State.Entities.All[swallowed.Row] is { } sv && sv.B[0] != 0 && Swallowed(sv.B))
+                sinking = (swallowed.Row, VictimSink + SwallowSink * (w.SinceMeal + 1f));
+            if (!w.Rising && !w.Gone && w.Depth < SignDepth && w.SinceMeal > 200) Sign(w, path);
+        }
+
+        // a point along the path, d model units back from the head; past its end, on the way its last piece goes (or straight down)
+        (double X, double Y, double Z) Along(System.Collections.Generic.List<(double X, double Y, double Z)> path, double d)
+        {
+            for (var k = 0; k + 1 < path.Count; k++)
+            {
+                var (a, b) = (path[k], path[k + 1]);
+                var len = Math.Sqrt((b.X - a.X) * (b.X - a.X) + (b.Y - a.Y) * (b.Y - a.Y) + (b.Z - a.Z) * (b.Z - a.Z));
+                if (d <= len) { var t = d / len; return (a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t, a.Z + (b.Z - a.Z) * t); }
+                d -= len;
+            }
+            var end = path[^1];
+            var dir = path.Count > 1 ? Unit(path[^2], end) : (0.0, -1.0, 0.0);
+            return (end.X + dir.Item1 * d, end.Y + dir.Item2 * d, end.Z + dir.Item3 * d);
+        }
+        static (double, double, double) Unit((double X, double Y, double Z) from, (double X, double Y, double Z) to)
+        {
+            double dx = to.X - from.X, dy = to.Y - from.Y, dz = to.Z - from.Z, l = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+            return l == 0 ? (0, -1, 0) : (dx / l, dy / l, dz / l);
+        }
+        // a record standing at rear and pointing at front (both in the picture's units): its heading and its pitch from upright
+        byte[] Piece(int model, (double X, double Y, double Z) rear, (double X, double Y, double Z) front)
+        {
+            double dx = front.X - rear.X, dy = front.Y - rear.Y, dz = front.Z - rear.Z, flat = Math.Sqrt(dx * dx + dz * dz);
+            var heading = flat < 1e-6 ? (byte)0 : (byte)((int)Math.Round(Math.Atan2(dx, dz) * 128 / Math.PI) & 0xFF);
+            var pitch = (int)Math.Round(Math.Atan2(flat, dy) * 128 / Math.PI) & 0xFF;
+            return Rec(model, (int)Math.Round(rear.X / 2), (int)Math.Round(rear.Z / 2), -(int)Math.Round(rear.Y), heading, pitch);
+        }
+        // the head with its mouth at the head's point, then each segment a spacing further back along the path
+        void Body(Sandworm w, System.Collections.Generic.List<(double X, double Y, double Z)> path)
+        {
+            WormRow = GpuWorld.LiveRows + list.Count;
+            list.Add(Piece(r3.Gpu.WormModel, Along(path, DuneModels.WormNeck), path[0]));
+            for (var k = 1; k <= DuneModels.WormSegments; k++)
+            {
+                double front = DuneModels.WormNeck + (k - 1) * DuneModels.WormSpacing, rear = front + DuneModels.WormSpacing;
+                var r = Along(path, rear);
+                if (r.Y < -2 * DuneModels.WormRadius && Along(path, front).Y < -2 * DuneModels.WormRadius) continue;   // deep under: unseen
+                list.Add(Piece(r3.Gpu.WormSegmentModel, r, Along(path, front)));
+            }
+        }
+        // its sign: swells along where its head went, the newest over the head (its dust flying while it moves), older ones lower
+        void Sign(Sandworm w, System.Collections.Generic.List<(double X, double Y, double Z)> path)
+        {
+            var sink = (int)(30.0 * Math.Max(0, w.Depth - Sandworm.ShallowDepth) / (SignDepth - Sandworm.ShallowDepth));
+            for (int k = SignEvery, n = 1; k < path.Count && n < 6; k += SignEvery, n++)
+            {
+                var (p, q) = (path[k], path[k - SignEvery]);
+                list.Add(Rec(r3.Gpu.WormSignModel, (int)Math.Round(p.X / 2), (int)Math.Round(p.Z / 2), sink + SignFade * n,
+                    (byte)((int)Math.Round(Math.Atan2(q.X - p.X, q.Z - p.Z) * 128 / Math.PI) & 0xFF)));
+            }
+            var ahead = path.Count > 1 ? (byte)((int)Math.Round(Math.Atan2(path[0].X - path[1].X, path[0].Z - path[1].Z) * 128 / Math.PI) & 0xFF) : (byte)0;
+            list.Add(Rec(r3.Gpu.WormSignModel, w.X, w.Z, sink, ahead, 0, w.Moved));
+        }
+    }                                                   // PLANET: the face the card's ground is (0 the played world)
 
     /// <summary>Recording only (HUNTER_SHOWCASE, with renderer = 3d): the demo as a showcase that moves on a step
     /// each time the player gets in or out of something (his record's type changes): 0 the original flat
@@ -632,15 +1014,71 @@ public partial class GameView : Node2D
         var t3 = System.Diagnostics.Stopwatch.GetTimestamp();
         var inside = play.DrawnInside;                                                   // what the game's last pass drew (the flag goes up before the fade)
         var shell = inside ? play.State.BuildingSlot : -1;
+        if (play.State.Planet is { } planet && planet.Current != shownFace)   // PLANET step 4: the card draws the face he is on
+        {
+            var f = planet.Faces[shownFace = planet.Current];
+            real3d!.Gpu.SetGround(f.Terrain.Map, f.Ground.Fine, f.Sand?.Kind);
+            real3d.SetShore(f.Terrain.Map);
+            real3d.SandFace = f.Sand is not null;
+            if (shownFace == ScrIsland.Face && scrRoad is null && ScrRoad.Load(data.Directory, Math.Max(ScrTrack, 0)) is { } road)
+            {                                                                            // STUNTIN': the track's road, made the first time the face shows
+                scrRoad = RoadMesh.Make(road, ScrIsland.LandHeight / 2 << 4, new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") });
+                real3d.AddWorldMesh(scrRoad);
+                scrMountains = MountainMesh.Make(data.Directory, new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/mountains.gdshader") });
+                if (scrMountains is not null) real3d.AddWorldMesh(scrMountains);   // and the original's mountain horizon round it
+            }
+            if (scrRoad is not null) scrRoad.Visible = shownFace == ScrIsland.Face;
+            if (scrMountains is not null) scrMountains.Visible = shownFace == ScrIsland.Face;
+            (cardFine, cardMap) = (f.Ground.Fine, f.Terrain.Map);
+            GD.Print($"HUNTER: planet face {shownFace} at frame {Audio.Frame}");
+        }
         real3d!.Gpu.PiecesStay = Settings.CardPieces && Settings.PiecesStay;            // EXPLOSIONS: LASTING
         real3d.Gpu.FireTicks = play.Smooth ? play.LastTicks * (1f - play.AnimFraction) : 0f;   // the star's age runs every frame between passes
         real3d.Gpu.FineAngles = Settings.FineAngles;                                   // FINE ANGLES: the records' fine angles drawn
         real3d.Gpu.RealShadows = Settings.RealShadows && play.OwnShadows;              // SHADOWS: REAL (a play without own shadows, e.g. a replay, never)
         play.WithInBetweenPoses(() =>                                                   // the card reads the records itself: at their in-between places, as the camera
-            real3d!.Gpu.Update(play.State.Entities, play.State.Anim, inside, shell, play.State.Models.Buf, play.State.DebrisPos, real3d.Gpu is { Ready: true } ? play.StoredLooks() : null,
+            real3d!.Gpu.Update(play.State.Entities, play.State.Anim, inside, shell, play.State.Models.Buf, play.State.DebrisPos, real3d.Gpu is { Ready: true } ? WithWorm(play.StoredLooks()) : null,
                 play.State, Settings.SunShading, play.OwnShadows, Settings.ViewDistance, play.PictureCamera ?? play.State.Camera,
                 real3d.Viewport.Size.X / (double)Real3DView.Across(gpuScaleX), Settings.CardPieces, Settings.GroundCuts, TurnedView(play.PictureCamera ?? play.State.Camera), clock,
                 play.AnimFraction, Settings.OwnColours, Settings.SeeThroughGlass));                  // SMOOTH PARTS: the step's fraction, the card slides the moving parts across it
+        if (real3d is not null)                                      // STUNTIN's racers: the rows the original's physics drives (their next upload)
+        {
+            real3d.Gpu.RacerRows.Clear();
+            var parts = real3d.Gpu.RacerParts;
+            Array.Clear(parts);
+            for (var r = 0; r < play.State.Entities.Count; r++)
+            {
+                var e = play.State.Entities.All[r];
+                if (!ScrDrive.Takes(play.State, e, r)) continue;
+                real3d.Gpu.RacerRows.Add(r);
+                var drive = r == 0 && play.State.ScrDrive?.Entity == e ? play.State.ScrDrive
+                    : play.State.ScrAi.TryGetValue(e, out var ai) ? ai.Drive : null;
+                if (drive is null || r >= 16) continue;
+                // the right hand to the boost button while boosting and back, eased (RacingKit's hand part)
+                racerHand[r] += ((drive.Boosting ? 255f : 0f) - racerHand[r]) * RacerHandEase;
+                // the boost flames' frame over it, 256 a frame (KitBuilder.Flames): 1-3 in turn each drawn frame while boosting,
+                // as the original steps flameAnimationFrame each frame it draws them; 0 none
+                racerFlame[r] = drive.Boosting ? racerFlame[r] % 3 + 1 : 0;
+                parts[r * 4] = racerHand[r] + 256 * racerFlame[r];
+                // each wheel's squash against the three's mean as ScrDrive places the car (((front pair) / 2 + rear) / 2: the
+                // car stands where the wheels' mean road height is), so each drawn wheel meets its own road height
+                float fl = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontLeft), SpringRestFront);
+                float fr = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontRight), SpringRestFront);
+                float rr = Squash(drive.Car.W(ScrCar.clampedSuspensionRear), SpringRestRear);
+                var mean = ((fl + fr) / 2 + rr) / 2;
+                parts[r * 4 + 1] = Math.Clamp(fl - mean, -SpringDroop, SpringBump);
+                parts[r * 4 + 2] = Math.Clamp(fr - mean, -SpringDroop, SpringBump);
+                parts[r * 4 + 3] = Math.Clamp(rr - mean, -SpringDroop, SpringBump);
+            }
+            CraneStep();
+        }
+        if (scrCameraDue)                                            // STUNTIN's camera: from the place the card was just given (the
+        {                                                            // in-between picture moves him after the game's pass - read earlier,
+            scrCameraDue = false;                                    // the camera was a frame behind his drawn car: 39-55 units at speed)
+            var me0 = play.State.Entities.All[0];
+            if (inCar && play.State.ScrDrive is { } drive) InCarStep(me0, drive); else ChaseStep(me0);
+            if (liveCam is { } livePick) real3d!.Free = livePick;    // HUNTER_LIVE's cam stays over it (placed after, it lost)
+        }
         real3d!.Frame(play.PictureCamera ?? play.State.Camera, ViewDistanceNow().Distance, ViewDistanceNow().Lift, inside ? shell : 0, inside, play.State.Horizon1518, raw,
             play.SkySteps,                                                                  // SKY: SMOOTH - the stepped full-colour bands
             Settings.Haze, Hunter.Rules.ViewDistance.FarEdge(Hunter.Rules.ViewDistance.TurnedRows(play.State.Ground, Settings.ViewDistance)), Settings.LivingSea, clock / 50f, Settings.GroundPattern, Settings.Clouds, Settings.SeaCycling, Settings.SkyTime);   // SKY's time of day   // HAZE, to the drawn ground's far edge (FAR VIEW's deeper patch at ORIGINAL); SEA
@@ -799,7 +1237,7 @@ public partial class GameView : Node2D
     const int Clear = 300;                                                       // the biggest model box, 280 a side ($334A), + his 12
 
     /// <summary>HUNTER_STATS: where he is and what is up (the fuzzer counts the ground a game covers).</summary>
-    public string Whereabouts => $"at {play.State.Entities.All[0].UW(0x4A)},{play.State.Entities.All[0].UW(0x4E)} {play.Mode}{(play.State.InsideView ? " inside" : "")} heading {play.State.Entities.All[0].B[0x7E]:X2}";
+    public string Whereabouts => $"at {play.State.Entities.All[0].UW(0x4A)},{play.State.Entities.All[0].UW(0x4E)} {play.Mode}{(play.State.InsideView ? " inside" : "")} heading {play.State.Entities.All[0].B[0x7E]:X2} y {play.State.Entities.All[0].W(0x4C)}";
 
     int[]? rawView, rawSky;
     readonly byte[] skyRowsBuf = new byte[View.Height * 3], screenLut = new byte[16 * 3];   // made once, filled each frame
@@ -829,7 +1267,8 @@ public partial class GameView : Node2D
     public override void _ExitTree()
     {
         ExitSplit();
-        if (real3d != null) Objects.Exploded = null;                               // the next view hooks its own card
+        if (real3d != null) { Objects.Exploded = null; Objects.Wrecked = null; }   // the next view hooks its own card
+        ScrDrive.Listener = null;                                                  // STUNTIN: the chase camera goes with this view
     }
 
     /// <summary>Scripted input (headless runs): held until changed.</summary>
@@ -905,6 +1344,9 @@ public partial class GameView : Node2D
     public void ScriptQuick(int i) { quickPick.Show(); quickPick.Pick(i); if (quickPick.Hide() is { } raw) play.KeyDown(raw); }
     /// <summary>Headless: open the quick pick with item i lit and leave it up (-1: nothing lit yet).</summary>
     public void ScriptQuickHold(int i) { quickPick.Show(); quickPick.Pick(i); }
+    /// <summary>The headless script's lean verb: the stick's sideways lean in 16ths (-16..16, + right) from now on.</summary>
+    public void ScriptLean(int n) => scriptLean = Math.Clamp(n, -16, 16);
+    int scriptLean;
     public void ScriptZoom(bool zoomOut, bool zoomIn) => (scriptZoomOut, scriptZoomIn) = (zoomOut, zoomIn);
 
     // Headless only (HUNTER_INPUT): a synthetic wheel / Page Up / Page Down event, delivered
@@ -1142,6 +1584,7 @@ public partial class GameView : Node2D
             if (DaySpeed > 0 && real3d is not null && InPlay) { play.DayTestLight(); Real3DFrame(); }   // the day test: the world stands, the clock, its light and the picture go on
             return;
         }
+        if (ScrTrack >= 0 && ScrLeagueRun.Over(play.State)) { QuitToTitle?.Invoke(AfterGame.Menus); return; }   // STUNTIN': the race done, back to the league
         if (!scripted) { TrackMouse(); Hover(); UpdateReticle(); }   // $C77C: the pointer moves every blank
         play.HasSecondView = false;                            // mp_views: true again only if his pass draws this frame
         var rgb = frame;
@@ -1157,6 +1600,18 @@ public partial class GameView : Node2D
             if (Input.IsKeyPressed(Key.Q)) real3d.Yaw += Mathf.Pi / 100;
             if (Input.IsKeyPressed(Key.E)) real3d.Yaw -= Mathf.Pi / 100;
             if (Input.IsKeyPressed(Key.Z)) real3d.Yaw = 0;
+        }
+        if (real3d is not null && !Demo && play.State.Entities.All[0] is var me0 && ScrDrive.Takes(play.State, me0, 0) && real3d.Gpu.Ready)
+        {
+            var v = Input.IsKeyPressed(Key.V);                       // V: the in-car view / the chase camera
+            if (v && !viewKey) inCar = !inCar;
+            viewKey = v;
+            scrCameraDue = true;                                     // the camera is placed after the card's upload (Real3DFrame)
+        }
+        else if (chasing && real3d is not null)                      // out of the car: the game's own camera again
+        {
+            chasing = false; real3d.Free = null; real3d.Roll = 0;
+            real3d.Gpu.NearCamera = null; real3d.Gpu.HideSelf = false; real3d.Gpu.HideDriver = false; real3d.Gpu.HideOwnGlass = false; real3d.NearScale = 1; ScrDrive.Listener = null;
         }
         if (real3d is not null && Demo && Settings.DemoCamera)       // DEMO CAMERA: MOVING - the attract's camera turns by itself
         {
@@ -1188,7 +1643,7 @@ public partial class GameView : Node2D
             var j = LiveJoy() ?? (scripted ? (Autopilot() ?? scriptJoy) : JoystickInput.Read());
             var j2 = scripted ? default : JoystickInput.Read2();          // mp_two_soldiers: player 2's own keys (the script drives player 1 only)
             var (zoomOut, zoomIn) = scripted ? (scriptZoomOut, scriptZoomIn) : JoystickInput.Zoom();
-            var lean = scripted ? 0 : JoystickInput.Lean();            // STICK STEERING: the pad stick's sideways lean in 16ths (the rules ignore it unless the setting is on)
+            var lean = scripted ? scriptLean : JoystickInput.Lean();   // STICK STEERING: the pad stick's sideways lean in 16ths (the rules ignore it unless the setting is on; a script's lean verb)
             if (quickPick.Open) { j = default; lean = 0; (zoomOut, zoomIn) = (false, false); }   // choosing: the soldier stands still
             try
             {
@@ -1242,6 +1697,7 @@ public partial class GameView : Node2D
                 if (unported.Add(e.Message)) GD.PushWarning("HUNTER: not ported yet: " + e.Message);
             }
             frames++;
+            if (play.Convoy is { Log.Count: > 0 } convoyLog) { foreach (var line in convoyLog.Log) GD.Print("HUNTER_CONVOY: " + line); convoyLog.Log.Clear(); }
             if (Log)
             {
                 var p = play.State.Entities.All[0];
@@ -1861,6 +2317,7 @@ public partial class GameView : Node2D
             case "own_colours": Settings.OwnColours = label == "AGA"; break;                                // read every frame
             case "glass": Settings.SeeThroughGlass = label == "SEE-THROUGH"; break;                         // read every frame
             case "sea_bodies": Settings.SeaBodies = label == "WHOLE"; break;
+            case "planet": Settings.Planet = label == "ON"; break;                                           // at a new game (Play's planet)                                 // the models are baked at launch: the next start
             case "smooth_animation":                                                                         // the next pass (no game yet: a recording's settings)
                 Settings.SmoothAnimation = label == "SMOOTH";
                 if (play is not null) play.SmoothAnimation = Settings.SmoothAnimation;
@@ -1942,6 +2399,7 @@ public partial class GameView : Node2D
         "own_colours" => Settings.OwnColours ? "AGA" : "ORIGINAL",
         "glass" => Settings.SeeThroughGlass ? "SEE-THROUGH" : "ORIGINAL",
         "sea_bodies" => Settings.SeaBodies ? "WHOLE" : "ORIGINAL",
+        "planet" => Settings.Planet ? "ON" : "OFF",
         "smooth_animation" => Settings.SmoothAnimation ? "SMOOTH" : "ORIGINAL",
         "ground_cuts" => Settings.GroundCuts switch { 2 => "2X", 4 => "4X", 8 => "8X", 16 => "16X", 32 => "32X", _ => "ORIGINAL" },
         "haze" => Settings.Haze switch { 1 => "BANDS", 2 => "FINE", _ => "OFF" },
