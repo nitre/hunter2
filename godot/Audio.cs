@@ -77,6 +77,7 @@ public partial class Audio : Node
         for (var i = 0; i < Spares; i++) AddChild(_spare[i] = new AudioStreamPlayer());
         Channels.Changed += OnChannel;
         Channels.Spare += OnSpare;
+        LoadScr(gameData);
         ApplyFilter(Hunter.Settings.A500Filter);
         GD.Print($"HUNTER: audio {_fx.Length} effects, {_songs.Length} songs");
     }
@@ -161,10 +162,165 @@ public partial class Audio : Node
     /// <summary>The high wind (docs/sounds.md 18, the ambient sound when high): muted for now.</summary>
     const int HighWind = 18;
 
+    // ---------------------------------------------------------------- STUNTIN': Stunt Car Racer's own sounds
+    // game_data/scr/audio (exported from the original disk): seven effects and the engine's eight
+    // versions, as OGG. Every car has four players of its own, the original's four channels: at the original's volume
+    // times the car's distance level (ScrDrive.Heard - Hunter's own law); with sound_position on, all four on the car's
+    // own panner bus, panned by where it is on the screen; off, the Amiga's hard sides (0 and 3 left, 1 and 2 right).
+    // The sound log names car k's channels 10 + 4k + the original's, sound 100 + effect / 200 + engine version
+    // (make_video.py reads the same).
+    AudioStream?[] _scrFx = [];
+    AudioStream?[] _scrEngine = [];
+    float[] _scrFxPeriod = [];
+    float _scrEnginePeriod = 256;
+
+    sealed class ScrVoices
+    {
+        public int Index, Version = -1, Seen;
+        public readonly AudioStreamPlayer[] Ch = new AudioStreamPlayer[4];
+        public readonly int[] Volume = new int[4];                          // the original's 0-64 per channel
+        public float Level = 1, Pan;
+        public AudioEffectPanner? Panner;
+    }
+    readonly System.Collections.Generic.Dictionary<Entity, ScrVoices> _scrCars = [];
+    /// <summary>The engine a little under the original's level (about -4.4 dB) for now.</summary>
+    const float EngineTrim = 0.6f;
+
+    void LoadScr(string gameData)
+    {
+        var dir = System.IO.Path.Combine(gameData, "scr", "audio");
+        var manifest = System.IO.Path.Combine(dir, "scr_audio.json");
+        if (!System.IO.File.Exists(manifest)) return;
+        using var doc = JsonDocument.Parse(System.IO.File.ReadAllText(manifest));
+        AudioStreamOggVorbis? Ogg(JsonElement e, bool loop)
+        {
+            var path = System.IO.Path.Combine(dir, e.GetProperty("file").GetString()!);
+            if (!System.IO.File.Exists(path)) return null;
+            var ogg = AudioStreamOggVorbis.LoadFromFile(path);
+            ogg.Loop = loop;                                                  // an engine version runs round for ever (whole cycles)
+            return ogg;
+        }
+        var fx = doc.RootElement.GetProperty("fx").EnumerateArray().ToArray();
+        _scrFx = fx.Select(e => (AudioStream?)Ogg(e, false)).ToArray();
+        _scrFxPeriod = fx.Select(e => (float)e.GetProperty("period").GetInt32()).ToArray();
+        var engine = doc.RootElement.GetProperty("engine");
+        _scrEnginePeriod = engine.GetProperty("period").GetInt32();
+        _scrEngine = engine.GetProperty("versions").EnumerateArray().Select(e => (AudioStream?)Ogg(e, true)).ToArray();
+        ScrDrive.Sound += OnScrSound;
+        ScrDrive.Engine += OnScrEngine;
+        ScrDrive.Heard += OnScrHeard;
+    }
+
+    ScrVoices Voices(Entity car)
+    {
+        if (_scrCars.TryGetValue(car, out var v)) return v;
+        var index = 0;
+        while (_scrCars.Values.Any(o => o.Index == index)) index++;
+        v = new ScrVoices { Index = index, Seen = Frame };
+        string? bus = null;
+        if (Hunter.Settings.SoundPosition)
+        {
+            bus = $"ScrCar{index}";
+            var b = AudioServer.GetBusIndex(bus);
+            if (b < 0)
+            {
+                b = AudioServer.BusCount;
+                AudioServer.AddBus();
+                AudioServer.SetBusName(b, bus);
+                AudioServer.SetBusSend(b, "Master");
+                AudioServer.AddBusEffect(b, new AudioEffectPanner());
+            }
+            v.Panner = (AudioEffectPanner)AudioServer.GetBusEffect(b, 0);
+            v.Panner.Pan = 0;
+        }
+        for (var i = 0; i < 4; i++) AddChild(v.Ch[i] = new AudioStreamPlayer { Bus = bus ?? SideBus(i is 0 or 3 ? -1 : 1) });
+        _scrCars[car] = v;
+        return v;
+    }
+
+    /// <summary>Stunt Car Racer's files are full scale (the original's bytes as they are); Hunter's own effect files are
+    /// half scale (render_sfx GAIN 0.5), which ChannelDb / PanDb are set for - so Stuntin's sounds play at half
+    /// (make_video.py SCR_FILE_GAIN the same).</summary>
+    const float ScrFileGain = 0.5f;
+
+    float ScrGain(ScrVoices v, int ch)
+    {
+        var vol = v.Volume[ch] * v.Level;
+        return vol <= 0.5f ? -80f : Mathf.LinearToDb(vol * ScrFileGain / 64f) + (v.Panner is null ? ChannelDb : PanDb);
+    }
+
+    int ScrLogVolume(ScrVoices v, int ch) => (int)Mathf.Round(v.Volume[ch] * v.Level);
+
+    /// <summary>playSample: the effect from its start on the car's channel (cutting what was there), at the period given.</summary>
+    void OnScrSound(Entity car, int sample, int volume, int period, int ch)
+    {
+        ch &= 3;
+        if (sample >= _scrFx.Length || _scrFx[sample] is not { } stream) return;
+        var v = Voices(car);
+        var p = v.Ch[ch];
+        if (ch == 0) v.Version = -1;                                          // the engine's channel taken (no effect uses it)
+        v.Volume[ch] = volume;
+        p.Stream = stream;
+        p.PitchScale = period > 0 ? _scrFxPeriod[sample] / period : 1f;
+        p.VolumeDb = ScrGain(v, ch);
+        p.Play();
+        SoundLog?.WriteLine(System.FormattableString.Invariant($"{Frame} play {10 + 4 * v.Index + ch} {100 + sample} {ScrLogVolume(v, ch)} {p.PitchScale}"));
+    }
+
+    /// <summary>A car's engine each blank on its channel 0: a new version starts it, otherwise only the period moves.</summary>
+    void OnScrEngine(Entity car, int version, int volume, int period)
+    {
+        if (version >= _scrEngine.Length || _scrEngine[version] is not { } stream) return;
+        var v = Voices(car);
+        var p = v.Ch[0];
+        v.Seen = Frame;
+        v.Volume[0] = (int)Mathf.Round(volume * EngineTrim);
+        var pitch = _scrEnginePeriod / period;
+        if (version != v.Version || !p.Playing)
+        {
+            v.Version = version;
+            p.Stream = stream;
+            p.PitchScale = pitch;
+            p.VolumeDb = ScrGain(v, 0);
+            p.Play();
+            SoundLog?.WriteLine(System.FormattableString.Invariant($"{Frame} play {10 + 4 * v.Index} {200 + version} {ScrLogVolume(v, 0)} {pitch}"));
+            return;
+        }
+        if (Mathf.IsEqualApprox(p.PitchScale, pitch)) return;
+        p.PitchScale = pitch;
+        SoundLog?.WriteLine(System.FormattableString.Invariant($"{Frame} vol {10 + 4 * v.Index} {ScrLogVolume(v, 0)} {pitch}"));
+    }
+
+    /// <summary>A car's distance level and screen pan this pass: every playing channel of it follows.</summary>
+    void OnScrHeard(Entity car, float level, float pan)
+    {
+        var v = Voices(car);
+        v.Seen = Frame;
+        var moved = !Mathf.IsEqualApprox(v.Level, level);
+        v.Level = level;
+        if (v.Panner is { } panner && !Mathf.IsEqualApprox(v.Pan, pan))
+        {
+            v.Pan = pan;
+            panner.Pan = pan;
+            for (var i = 0; i < 4; i++)
+                SoundLog?.WriteLine(System.FormattableString.Invariant($"{Frame} pan {10 + 4 * v.Index + i} {pan}"));
+        }
+        if (!moved) return;
+        for (var i = 0; i < 4; i++)
+        {
+            if (!v.Ch[i].Playing) continue;
+            v.Ch[i].VolumeDb = ScrGain(v, i);
+            SoundLog?.WriteLine(System.FormattableString.Invariant($"{Frame} vol {10 + 4 * v.Index + i} {ScrLogVolume(v, i)} {v.Ch[i].PitchScale}"));
+        }
+    }
+
     public override void _ExitTree()
     {
         Channels.Changed -= OnChannel;
         Channels.Spare -= OnSpare;
+        ScrDrive.Sound -= OnScrSound;
+        ScrDrive.Engine -= OnScrEngine;
+        ScrDrive.Heard -= OnScrHeard;
         if (Instance == this) Instance = null;
     }
 
@@ -367,6 +523,17 @@ public partial class Audio : Node
         for (var i = 0; i < Spares; i++)                                    // SOUND VOICES: an engine that has its channel back
             if (_spareKey[i] >= 0 && Frame - _spareSeen[i] > 3) StopSpare(i);   // (or stopped) leaves its spare voice
             else if (_spareKey[i] == -1 && _spare[i] is { Playing: false }) _spareKey[i] = -2;   // a one-shot that has ended
+        foreach (var (car, v) in _scrCars.ToArray())
+        {                                                                   // STUNTIN': a car no longer driven (left, gone, the game left)
+            if (Frame - v.Seen <= 3) continue;
+            for (var i = 0; i < 4; i++)
+            {
+                v.Ch[i].Stop();
+                v.Ch[i].QueueFree();
+                SoundLog?.WriteLine($"{Frame} stop {10 + 4 * v.Index + i}");
+            }
+            _scrCars.Remove(car);
+        }
         var now = (long)Time.GetTicksMsec();
         for (var i = 0; i < _tail.Length; i++)
         {

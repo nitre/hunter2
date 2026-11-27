@@ -4,7 +4,7 @@ namespace Hunter.Rules;
 public sealed class WorldState
 {
     public required GameMode Mode { get; init; }
-    public required Terrain Terrain { get; set; }
+    public required Terrain Terrain { get; set; }             // set again only by the planet's frame switch (Planet.Enter)
     public required Ground Ground { get; set; }
     public required EntityTable Entities { get; init; }
     /// <summary>$83BA: 2048 world records of 16 bytes (16 x 16 cells x 8 slots); spawning clears them.</summary>
@@ -135,6 +135,19 @@ public sealed class WorldState
     /// With FineN: in the save's extension, so a load rebuilds the same store whatever the settings say then.</summary>
     public ushort FineSeed;
     public int FineDim = FineGround.Dimension, FineHold = FineGround.Gentle;
+    /// <summary>(PLANET): the world layer - the six faces round
+    /// this world, the ground, the spawner and the write-back routed across its folds. Null (the default): nothing.</summary>
+    public Planet? Planet;
+    /// <summary>STUNTIN': the original's car physics for the player's car on the road's face (ScrDrive; null without the
+    /// track data or outside a planet game).</summary>
+    public ScrDrive? ScrDrive;
+    /// <summary>The stick as the last blank read it ($D6: down 1, up 2, right 4, left 8) and the buttons ($D4, bit 0 fire) -
+    /// for ScrDrive, which reads them in the movement (Play.D6 / D4's copy).</summary>
+    public byte StickD6, StickD4;
+    /// <summary>STUNTIN's AI cars: each record with its original-physics car and its driver (ScrRace).</summary>
+    public readonly Dictionary<Entity, (ScrDrive Drive, ScrBrain Brain)> ScrAi = [];
+    /// <summary>STUNTIN': a driver for the player's own car (the demo); null = his stick.</summary>
+    public ScrBrain? ScrAutopilot;
     /// <summary>moving along a heading
     /// rounds the sin/cos products toward 0 - the original's asr.l rounds a tiny negative cos($40) / sin($80) down to -1,
     /// so walking east also went 1 south a frame and south 1 west (docs/original-bugs.md). Off: the original's rounding.</summary>
@@ -158,9 +171,6 @@ public sealed class WorldState
     public bool WeightyHandling, WeightyNow;
     public byte DriveStick;
     public int AnalogLean;
-    /// <summary>(LIMB DAMAGE): a bullet hitting a person hurts the
-    /// limb at the hit's height (Limbs.Classify); a leg or arm hit does not kill (at least 1 energy stays). Off: the original.</summary>
-    public bool LimbDamage;
     /// <summary>(BULLET BOX): bullets ($52, $5B) have no model, so SetCollisionBox
     /// ($334A) gives them model 0's box - 0 wide, 288 long north-south whatever way they fly: two on a north-south line jam
     /// each other, one born by a corner hits it. On: Arms.BulletHalf across both ways, the height kept (no aiming up or down
@@ -387,6 +397,8 @@ public sealed class WorldState
     /// <summary>$22A: the soldier's energy ($87A0: word +6 of the soldier record $85E2, $20 for a
     /// new one); $A3 bit 6 low-energy warning.</summary>
     public short Energy = 0x20;
+    /// <summary>ENHANCEMENT, NOT THE ORIGINAL (Spice): the spice flowers the harvester has taken this game.</summary>
+    public int Spice;
     /// <summary>$20A: the mission's offset in the table at $9072 (16 bytes a mission; $9134 picks the
     /// first of the game, NextMission $915A the next) - MissionNo by another name.</summary>
     public int Mission { get => MissionNo; set => MissionNo = (short)value; }
@@ -480,11 +492,15 @@ public static class StartState
     /// null for a game from a fresh boot, whose machine starts zeroed).</summary>
     public static WorldState For(GameMode mode, GameData d, byte[]? world = null, Soldier? soldier = null, SavedGame? saved = null,
         short? energy = null, MachineLeftovers? leftovers = null, int fullerWorld = 0, int players = 1, bool maths32 = false,
-        int finerGround = 0, bool fixSpikes = false, ushort? groundSeed = null, int relief = 0)
+        int finerGround = 0, bool fixSpikes = false, ushort? groundSeed = null, int relief = 0, bool planet = false, int scrTrack = -1, bool sandIsland = false)
     {
         var w = d.Worlds[mode];
+        if (sandIsland || scrTrack >= 0) (planet, players) = (true, 1);   // SHAI HULUD / STUNTIN': a planet game kept to its face
         var file = world ?? d.WorldFile(mode);
         var terrain = Terrain.Generate(w.Seed, w.SeaLevel);
+        planet |= saved?.Planet is not null;                       // PLANET: a save with the planet in it is a planet game (PlanetSave)
+        fixSpikes |= planet;                                       // PLANET: a wrapped spike on the map's own fold line (Missions' north
+                                                                   // ring has one) would stand against the neighbour's sea - the fix always
         if (fixSpikes) FineGround.Unwrapped(terrain, w.Seed).CopyTo(terrain.Map, 0);   // ENHANCEMENT (the spikes, a bug fix)
         var ground = new Ground(new MapMemory(terrain, d.Objfile, d.Sinfile));
         var s = new WorldState
@@ -619,8 +635,13 @@ public static class StartState
                                                                    // weapon load - his gun comes from HIS pack
                                                                    // (NewPack), and the icon and count go to his
                                                                    // own panel (ENHANCEMENT mp_panel)
-        return s;
-    }
+        if (planet) s.Planet = Planet.Build(s, d, fixSpikes, fullerWorld, Math.Max(scrTrack, 0));
+        if (planet) s.ScrDrive = ScrDrive.Load(d.Directory);              // STUNTIN': runs only on a ground with a road (ScrDrive.Takes)
+        if (sandIsland && saved is null) ShaiHulud.Start(s.Planet!);
+        if (scrTrack >= 0 && saved is null) ScrIsland.Start(s.Planet!);
+        if (s.Planet is { } built && saved?.Planet is { } sp) built.Restore(sp);   // PLANET (saves): every face as it was, then the face it was on   // ENHANCEMENT (PLANET): the five faces round this one,
+        return s;                                                  // the folds stitched, the sampler routed (after the
+    }                                                              // spawn: the start is never at a fold)
 
     /// <summary>The record a game made from the menus: the program's, named "Trigger Happy" ($86E2, what the
     /// name box gives when nothing is typed).</summary>
@@ -730,7 +751,11 @@ public static class StartState
             for (var dx = dx0; dx <= dx1; dx++)
             {
                 int cx = ccx + dx, cz = ccz + dz;
-                if (cx < 0 || cz < 0 || cx > 15 || cz > 15) continue;
+                if (cx < 0 || cz < 0 || cx > 15 || cz > 15)
+                {
+                    if (s.Planet is { } planet) SpawnBeyond(b, s, planet, cx, cz);   // ENHANCEMENT (PLANET): the neighbour's cell
+                    continue;
+                }
                 var cell = (cz * 16 + cx) * 128;            // $81D4
                 for (var slot = 0; slot < 8; slot++) b.Spawn(s.Grid, cell + slot * 16);
                 if (s.RoomyMemory && s.Overflow.Remove(cell, out var extra))     // roomy_memory: a full cell's
@@ -803,6 +828,39 @@ public static class StartState
         list.Add(big);
     }
 
+    /// <summary>(PLANET): a window cell past the face's edge spawns the neighbour face's
+    /// cell: each record copied, its words unfolded into the current frame and its heading turned (Planet.CellBeyond),
+    /// spawned as the grid's own would be; a record that went live is cleared in the neighbour's grid, and its roomy
+    /// extras (the fuel low byte, the overflow list) come from the neighbour's own.</summary>
+    static void SpawnBeyond(Builder b, WorldState s, Planet p, int cx, int cz)
+    {
+        var (face, cell, unfold) = p.CellBeyond(cx, cz);
+        for (var slot = 0; slot < 8; slot++)
+        {
+            var at = cell + slot * 16;
+            if ((face.Grid[at] | face.Grid[at + 1]) == 0) continue;
+            var rec = face.Grid.AsSpan(at, 16).ToArray();
+            unfold(rec);
+            b.Spawn(rec, 0, fuelFrom: face.FuelLow, fuelAt: at);
+            if ((rec[0] | rec[1]) == 0) face.Grid[at] = face.Grid[at + 1] = 0;
+        }
+        if (s.RoomyMemory && face.Overflow.Remove(cell, out var extra))
+        {
+            for (var i = 0; i < extra.Count; i++)
+            {
+                var rec = (byte[])extra[i].Clone();
+                unfold(rec);
+                var e2 = b.Spawn(rec, 0);
+                if ((rec[0] | rec[1]) == 0)
+                {
+                    extra.RemoveAt(i); i--;
+                    if (e2 is not null) e2.B[0x35] = rec[0x10];
+                }
+            }
+            if (extra.Count > 0) face.Overflow[cell] = extra;
+        }
+    }
+
     /// <summary>(renderer = 3d): a stored map record's LOOK in e - the bytes
     /// ConstructEntity ($3196) sets that the model draw reads (models, angles, flags, position, ground height),
     /// none of its side effects (no slot, no plan, no sound). False for an empty or unknown record.</summary>
@@ -868,7 +926,7 @@ public static class StartState
             e.SetW(0x2A, rec[at + 4] << 8 | rec[at + 5]);
             byte low = 0;
             var carried = false;
-            if (fuelFrom is not null) carried = s.RoomyMemory && fuelFrom.Remove(fuelAt, out low);   // another grid's own fuel bytes
+            if (fuelFrom is not null) carried = s.RoomyMemory && fuelFrom.Remove(fuelAt, out low);   // PLANET: a neighbour face's grid
             else if (s.RoomyMemory && ReferenceEquals(rec, s.Grid)) carried = s.FuelLow.Remove(at, out low);
             else if (s.RoomyMemory && ReferenceEquals(rec, s.Buildings)) carried = s.BuildingFuelLow.Remove(at, out low);   // left inside a building (lead's review)   // roomy_memory: the parked thing's fuel low byte ($8246 keeps only the high)
             // m32_graves: a grave record saved before roomy memory holds its whole number in the
@@ -925,7 +983,6 @@ public static class StartState
             Array.Clear(e.B);
             e.HeldFar = false;
             e.HurtBy = LivingWorld.Side.None;
-            e.Limbs = 0; e.PaceCarry = 0;
             e.BlastHit = false;
             e.PaceY = int.MinValue;
             if (s.PaceHurts.Count > 0)                                       // A500 PACE: a new thing here is touched afresh
@@ -968,7 +1025,8 @@ public static class StartState
             var half = c >> 1;
             if (half == 0) e.SetW(0x3A, (c & 1) != 0 ? 0 : 0x10);
             e.SetW(0x78, half + 8);
-            e.SetW(0x3E, e.W(4) >= 0x33 && !ExtraKinds.IsVehicle(e.W(4)) ? a : 0);            for (var k = 0; k < 4; k++) e.SetW(0x90 + k * 2, Word(kt + 0x2C + k * 2));
+            e.SetW(0x3E, e.W(4) >= 0x33 && !ExtraKinds.IsVehicle(e.W(4)) ? a : 0);   // (ExtraKinds: the harvester starts still, as any vehicle)
+            for (var k = 0; k < 4; k++) e.SetW(0x90 + k * 2, Word(kt + 0x2C + k * 2));
             e.SetW(0x9E, Word(kt + 0x2E));
             if ((d7 >> 0x18 & 1) != 0) Ahead(e);
             for (var k = 0; k < 4; k++) e.SetW(0x0E + k * 2, Word(kt + 0x1C + k * 2));

@@ -31,6 +31,7 @@ uniform float piece_break_last = 10.0;   // ...and one the thing's size or more 
 uniform float piece_arms = 0.9;          // BETTER EXPLOSIONS: how far a panel's way out is pulled to the nearest spike of the star that did it (0 = not at all)
 uniform float piece_arm_rise = 0.6;      // ...and how much a spike pointing up lifts its panels' rise
 uniform sampler2D blast_info : filter_nearest;    // GpuWorld.blastInfo, a column a blast: row 0 r = the frame it blew up, g = 1 in use, b = the star model that did it; row 1 where the hit came from (w = 1 + the star's reach); rows 2-7 the star's spikes (x, z along the ground, how steeply up, 1)
+const int CARRY_ROW = 8;                 // blast_info's row of a wreck's carried velocity (GpuWorld.CarryRow: after the star's six spikes)
 uniform float piece_rest = 250.0;       // frames a piece lies on the ground at most
 uniform float piece_shrink = 25.0;       // the last of them it shrinks away in, lying where it is
 uniform bool piece_stay = false;         // EXPLOSIONS: LASTING - no end to lying still
@@ -193,6 +194,8 @@ PieceFlight _piece_flight(sampler2D blast, sampler2D map, int row, vec4 from, in
     vec3 kick = vec3(v.x, 0.0, v.z) * piece_air * part;
     float kt = max(piece_kick_time, 0.01);
     v = vec3(v.x * (1.0 - part), v.y, v.z * (1.0 - part));
+    vec4 carry = texelFetch(blast_info, ivec2(row, CARRY_ROW), 0);    // STUNTIN's wreck: every panel goes on the way the car was going
+    if (carry.w > 0.5) v += carry.xyz;
 
     // stage 1: the panel whole, up and out and back down to halfway between its top and the ground under it, then it
     // breaks into its triangles - the same moment for every triangle of the panel

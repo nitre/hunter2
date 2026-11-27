@@ -49,8 +49,14 @@ public sealed partial class Real3DView : Node
     public float Yaw;
     /// <summary>DEMO CAMERA's car close-up: the eye at this share of the game's distance from him (1 = the game's).</summary>
     public float CloseUp = 1;
+    /// <summary>STUNTIN's in-car view: the lens rolled round its axis, radians (positive: the picture turns anticlockwise -
+    /// the view of a car leaning right); 0 everywhere else.</summary>
+    public float Roll;
     /// <summary>The showcase's camera instead of the game's (null = the game's).</summary>
     public FreeCamera? Free;
+    /// <summary>The near plane as a share of its usual 16 world units: STUNTIN's in-car view draws the steering wheel and the
+    /// driver's hands, 15 and less from the eye.</summary>
+    public float NearScale = 1;
     int scale;                                                          // viewport pixels a game row
     float scaleX;                                                       // ... and a game column: wider in the TV looks (16/15), = scale with square pixels
 
@@ -70,6 +76,17 @@ public sealed partial class Real3DView : Node
     /// palette each frame with the sky's and the sea's.</summary>
     public GpuWorld Gpu { get; }
     ShaderMaterial[]? viewed, painted;   // made once: the camera's materials (the sea + the world's) and the palette's (+ the sky)
+    readonly Node3D world;
+    readonly System.Collections.Generic.List<ShaderMaterial> extras = [];
+
+    /// <summary>A mesh of the shell's own in the card's world (STUNTIN's road): under the height-halving node, its material
+    /// given the camera and palette every frame as the card's own are.</summary>
+    public void AddWorldMesh(MeshInstance3D mesh)
+    {
+        world.AddChild(mesh);
+        if (mesh.MaterialOverride is ShaderMaterial m) extras.Add(m);
+        (viewed, painted) = (null, null);
+    }
 
     public Real3DView(byte[] map, float scaleX, int scale, GpuWorld gpu)
     {
@@ -89,7 +106,7 @@ public sealed partial class Real3DView : Node
         this.scaleX = scaleX;
         GD.Print($"3D VIEW: {Viewport.Size.X} x {Viewport.Size.Y}, {scaleX:F3} x {scale} viewport pixels a game pixel");
 
-        var world = new Node3D { Scale = new Vector3(1, 0.5f, 1) };    // heights halved: the original's 128 vs 256
+        world = new Node3D { Scale = new Vector3(1, 0.5f, 1) };        // heights halved: the original's 128 vs 256
         Viewport.AddChild(world);
         const float span = 65536f;                                       // the map, and far beyond
         world.AddChild(new MeshInstance3D
@@ -150,6 +167,8 @@ public sealed partial class Real3DView : Node
 
     /// <summary>ShoreDistance per cell as a texture, 0..1 of ShoreDistance.Far: from land (the sea's shallows), or fromSea
     /// (GROUND COLOURS: BANDS' shore).</summary>
+    /// <summary>PLANET step 4: another face's shallows (set on every material each frame, as at the start).</summary>
+    public bool SandFace;
     public void SetShore(byte[] map) => shoreTex = ShoreTexture(map);
 
     public static ImageTexture ShoreTexture(byte[] map, bool fromSea = false)
@@ -196,7 +215,7 @@ public sealed partial class Real3DView : Node
     public void Frame(Rules.Camera c, int distance, int lift, int cameraRow, bool interior, int interiorHorizon, RawPalette pal, bool skySteps = false, int haze = 0, float hazeFar = 3200f, bool livingSea = false, float gameSeconds = 0f, bool groundPattern = false, bool clouds = false, bool seaCycling = false, bool skyTime = false)
     {
         Gpu.SetGroundPattern(groundPattern);               // GROUND PATTERN: SPECKS
-        Gpu.SetGroundColours(Settings.GroundColours);   // GROUND COLOURS: BANDS
+        Gpu.SetGroundColours(Settings.GroundColours || SandFace);   // GROUND COLOURS: BANDS; the sand face always: its sand and rock are the bands' own colours, not the palette's
         Sky.SetShaderParameter("cloud_on", clouds && !interior);     // CLOUDS: none indoors
         Sky.SetShaderParameter("cloud_yaw", Free?.Yaw ?? Yaw);
         Sky.SetShaderParameter("cloud_clock", gameSeconds);          // the game's clock: frozen while paused
@@ -214,12 +233,13 @@ public sealed partial class Real3DView : Node
             if (Gpu.SunToward is { } sunT) m.SetShaderParameter("sun_dir", new Vector3(sunT.X, sunT.Y, sunT.Z));
         }
         var zoom = Free?.Zoom ?? 1f;
-        camera.Size = Lens.Size / zoom;
-        camera.FrustumOffset = Lens.Offset / zoom;
+        camera.Near = Near * NearScale;                                  // the lens's size scales with its near plane: the same picture
+        camera.Size = Lens.Size * NearScale / zoom;
+        camera.FrustumOffset = Lens.Offset * NearScale / zoom;
         camera.Position = Vector3.Zero;                                  // the camera is the lens only: the card-built shaders (and the sea) move
-        camera.Rotation = Vector3.Zero;                                  // the world to the eye themselves (view.gdshaderinc)
-        viewed ??= [Sea, LowClouds, ThickClouds, SolidClouds, .. Gpu.Materials];
-        painted ??= [Sky, Sea, LowClouds, ThickClouds, SolidClouds, .. Gpu.Materials];
+        camera.Rotation = new Vector3(0, 0, Roll);                       // the world to the eye themselves (view.gdshaderinc); Roll: the lens turned
+        viewed ??= [Sea, LowClouds, ThickClouds, SolidClouds, .. Gpu.Materials, .. extras];
+        painted ??= [Sky, Sea, LowClouds, ThickClouds, SolidClouds, .. Gpu.Materials, .. extras];
         var vp = new Vector2(Viewport.Size.X, Viewport.Size.Y);
         foreach (var m in viewed)
         {

@@ -32,6 +32,7 @@ varying flat float own_light;                     // ...and the sun's light on i
 varying flat float own_light_shade;               // SHADOWS: REAL - the light it keeps in shadow (sunshadow.gdshaderinc SHADOW_K)
 varying flat float shadow_bias;                   // ...the face's bias (shadow_face_bias); < 0 = not tested (turned away, unlit, fire)
 varying vec3 shadow_p;                            // ...the pixel's world point, as the corners were placed (contact and walls down)
+varying flat float even_;                         // 1: the face painted one even colour, no dither (a thin pipe's edges stay clean)
 
 
 // One corner of a triangle in clip space (the id's own world point moved to the eye, nearer if a detail face, back with
@@ -54,6 +55,11 @@ bool model_clip(int id, mat4 mv, mat4 proj, bool contact, vec4 fit, vec2 fc, out
     return true;                                      // a corner at or behind the eye does not drop its triangle: vertex() leaves it to the card to cut at the eye
 }
 
+uniform int kit_glass_model = -1;                           // the Stuntin' racer (GpuWorld.RacerModel): its panes always glass, their own tints
+#ifdef GLASS_PASS
+uniform bool hide_own_glass = false;                        // GpuWorld.HideOwnGlass
+#endif
+
 void vertex() {
     PROJECTION_MATRIX = wide_projection(PROJECTION_MATRIX);   // the TV looks' wide game pixels (world_colour.gdshaderinc)
     int vid = slot_row(INSTANCE_ID) * tri_slots * 3 + VERTEX_ID;   // the slot's number: one row's corners drawn once a record (GpuWorld.SlotRows, slot_row)
@@ -66,13 +72,17 @@ void vertex() {
     bool own_side;
     vec3 w0, w1, w2;                                           // the corners' world points (SHADOWS: REAL)
     int gbits = glass_bits(first);                             // meta bits 12-15, told before the corners are worked out
-#ifdef GLASS_PASS
-    bool ok = glass && (gbits & 0x1000) != 0 && (gbits & 0x4000) == 0;   // the glass pass: the glass faces and sunk panes, not a face that was sunk; none with ORIGINAL
-#else
-    bool ok = glass ? (gbits & 0x9000) == 0 : (gbits & 0x2000) == 0;     // the opaque pass: no glass faces and no walls to be holed (bit 15) with SEE-THROUGH, no sunk panes, frames or holed walls without
-#endif
     int per = tri_slots * 3, row0 = first / per, b25 = _eb(ent_tex, row0, 0x25);   // a slot past the main model's count (or no model): dropped
+    bool see = glass || b25 == kit_glass_model;                // the racer is drawn as with SEE-THROUGH whatever GLASS says (it has no painted windows)
+#ifdef GLASS_PASS
+    bool ok = see && (gbits & 0x1000) != 0 && (gbits & 0x4000) == 0;     // the glass pass: the glass faces and sunk panes, not a face that was sunk; none with ORIGINAL
+#else
+    bool ok = see ? (gbits & 0x9000) == 0 : (gbits & 0x2000) == 0;       // the opaque pass: no glass faces and no walls to be holed (bit 15) with SEE-THROUGH, no sunk panes, frames or holed walls without
+#endif
     if (ok) ok = b25 != 0 && (first - row0 * per) / 3 < int(texelFetch(model_tex, ivec2(b25, 0), 0).b + 0.5);   // before the fit, as model_clip would
+#ifdef GLASS_PASS
+    if (hide_own_glass && row0 == 0) ok = false;              // STUNTIN's in-car view: his own windows, seen from inside, not drawn
+#endif
     bool contact = ok && contact_fit_row(row0, fit, fc);      // the record: one fit for its whole model, only for a triangle drawn
     if (ok) {
         ok = model_clip(first, MODELVIEW_MATRIX, PROJECTION_MATRIX, contact, fit, fc, c0, col0, r0, own_side, w0);
@@ -104,7 +114,13 @@ void vertex() {
         vec4 own1 = texelFetch(own_tex, ivec2(_eb(ent_tex, row, 0x25), 1), 0);
         glass_dark = military ? own1.g : 1.0;                      // GLASS: a military machine's window tint (GpuWorld.OwnTints)
         glass_see = military ? own1.b : GLASS_SEE;
+        if (_eb(ent_tex, row, 0x25) == kit_glass_model) {          // the racer's panes (RacingKit.GlassOrigin), by their paint: black the
+            glass_dark = col == 0 ? 0.5 : 1.0;                      // side windows, a darker tint; the windscreen barely tinted
+            glass_see = col == 0 ? 0.45 : 0.12;
+        }
         own_light = 1.0;
+        even_ = ((int(tri_row(first).a + 0.5) >> 17) & 3) == 2 ? 1.0 : 0.0;   // bit 18 without 17 (GpuWorld.EvenPaint: the kit's pipes):
+                                                                    // shaded by the sun, but each face painted one even colour (fragment)
         if (!fire && sun_shading && sun_up && !inside_view && row != shell_row) {
             // the sun on this face (rules/SunShade.cs Pick): its direction from its own three corners, outward = away
             // from the model's centre, the light the cosine to the sun
@@ -177,7 +193,9 @@ void vertex() {
 void fragment() {
     float d = cam_interior ? 0.0 : depth_;
     float light = shadow_bias >= 0.0 && in_sun_shadow(shadow_p, shadow_bias) ? own_light_shade : own_light;   // SHADOWS: REAL
-    if (own_tint != vec3(0.0))
+    if (even_ > 0.5)                                                  // its palette colour times the sun's light, even, then hazed
+        ALBEDO = to_linear(floor(mix(min(view_nib(int(round(tag))) * 17.0 * light, vec3(255.0)), sky_nib(5) * 17.0, haze_amount(d)) + 0.5) / 255.0);
+    else if (own_tint != vec3(0.0))
         ALBEDO = to_linear(floor(mix(tinted_rgb8(int(round(tag)), FRAGCOORD, own_tint, light), sky_nib(5) * 17.0, haze_amount(d)) + 0.5) / 255.0);   // lit and hazed as world_lit_hazed
     else if (light != 1.0)
         ALBEDO = world_lit_hazed(int(round(tag)), FRAGCOORD, d, light);   // lighter than its lightest paint (SunShade.Over)

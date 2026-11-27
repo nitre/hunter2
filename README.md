@@ -45,12 +45,12 @@ An unofficial remake of Hunter (Activision, 1991, Amiga), written in C# with God
 ## Controls
 
 - Arrow keys or numeric keypad: move / steer (keypad 0 or right Ctrl fires)
-- Gamepad: d-pad or left stick, A fires
+- Gamepad: d-pad or left stick, A fires, B gets out, X next weapon, Y hover, LB / RB zoom, Start options, Back pause
 - Space: get out of a vehicle (parachute when flying)
 - Return: next weapon
 - Esc: options screen (resume, re-brief, save/load, quit)
 - P: pause
-- C, R, L, M, F, A: clock, radar, log book, map marks, flare, drone (when carried)
+- C, R, L, M, F, A, ` (left of 1): clock, radar, log book, map marks, flare, drone, hover (when carried)
 - Page Up / Page Down: zoom the camera
 - Q / E: turn the 3D view
 - F2: change key bindings
@@ -66,7 +66,7 @@ The settings menu is grouped into pages:
 - Models: model colours, see-through glass, sharks and subs, animation, shadows, explosions
 - World: more objects and a living world, finer ground, ground seed, vehicle exit side, bullet size
 - Sound: Amiga filter, extra sound effects and voices
-- Controls: message log, pause in background, manual and quit buttons, analog steering, mouse aiming
+- Controls: message log, pause in background, manual and quit buttons, vehicle handling, analog steering, mouse aiming
 
 The release build starts with these changes turned on. A build run from source asks on first start whether to
 turn them on.

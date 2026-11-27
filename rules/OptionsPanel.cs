@@ -223,6 +223,7 @@ public sealed class OptionsPanel : IMenuPanel
         ["own_colours"] = "Helicopters, tanks and soldiers in their own shades, apart from the grass.",
         ["glass"] = "Windows of vehicles and buildings drawn as see-through glass, not painted panels.",
         ["sea_bodies"] = "Sharks and submarines with whole bodies under the water. At the next start.",
+        ["planet"] = "The world is one face of a planet: sail or drive past the east edge to the sand zone and its worm. At a new game.",
         ["smooth_animation"] = "Legs, arms and moving parts move a little every frame, not in jumps.",
         ["demo_camera"] = "The title demo's camera turns calmly round to show what happens.",
         ["demo_world"] = "The title demo in a busy world: herds, trees, boats along the way.",

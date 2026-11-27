@@ -227,9 +227,20 @@ public static class Settings
         set => Set("sea_bodies", value);
     }
 
+    /// <summary>ENHANCEMENT, not the original (row PLANET, WORLD page; docs/planet-plan.md): the played world is one face of six; past its east edge lies THE SAND ZONE (face 2), Dune II's sand island
+    /// and its worm (rules/SandZone.cs, Sandworm.cs). At a new game, with the 3D world only (with the flat picture there is no planet). Never in films or the attract demo. Default off.</summary>
+    /// <summary>A build without the planet (the export's custom feature "no_planet" - the Windows test release, 
+    /// "just the Hunter no planet"): PLANET reads off and its row is off the pages.</summary>
+    public static bool NoPlanet => OS.HasFeature("no_planet");
     /// <summary>A build that starts a new machine on the full modern settings without asking (the export's custom feature
     /// "modern_default" - the Windows release GameView.ApplyModernDefault).</summary>
     public static bool ModernDefault => OS.HasFeature("modern_default");
+
+    public static bool Planet
+    {
+        get => !NoPlanet && (bool)Get("planet", false);
+        set => Set("planet", value);
+    }
 
     /// <summary>(row GLASS, the card-drawn 3D view): the windows'
     /// faces (Glass.cs) drawn see-through. The picture only. Default off.</summary>
@@ -405,14 +416,6 @@ public static class Settings
     {
         get => (bool)Get("analog_steering", false);
         set => Set("analog_steering", value);
-    }
-
-    /// <summary>LIMB DAMAGE - a bullet hurts the limb it hits and a leg or arm hit does not kill
-    /// (rules WorldState.LimbDamage); the player's games only, never the attract demo. Default off. Original / On.</summary>
-    public static bool LimbDamage
-    {
-        get => (bool)Get("limb_damage", false);
-        set => Set("limb_damage", value);
     }
 
     /// <summary>BULLET BOX - bullets get a small box (16 across, the height kept) instead of

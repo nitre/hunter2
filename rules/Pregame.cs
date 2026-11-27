@@ -29,17 +29,13 @@ public static class Pregame
     static byte M(byte[] main, int addr) => main[addr - 0x800];
 
     /// <summary>$213A: the credits, a cleared screen with the text at $20B8 formatted and printed
-    /// from the window's top ($60C0 clears the cursor). This build prints its own copy of that text: the same names and
-    /// layout codes (']' a new line, '&lt;' centred), headed "Unofficial Conversion", with "Original by:" before the names
-    /// (17 of the window's 20 lines).</summary>
+    /// from the window's top ($60C0 clears the cursor).</summary>
     public static void Credits(IndexedScreen s, Ui ui, byte[] main)
     {
         s.Clear();
         var t = new Text(s, ui, main);
         t.Window(0, 0, 40, 20, 10, 0);
-        t.Print(System.Text.Encoding.ASCII.GetBytes(
-            "]]<Unofficial Conversion]]<----------]<HUNTER]<----------]]<Original by:]]" +
-            "<Design, programming & objects]<by]<Paul Holmes]]<Music & sound effects]<by]<Martin Walker*"));
+        t.Printf(0x20B8);
     }
 
     /// <summary>$B41A's line: prompt + '-' + name so far + cursor ('/' or ' ', every 3 frames).</summary>

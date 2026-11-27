@@ -38,7 +38,7 @@ public sealed partial class GpuWorld : Node3D
     int drawStored, drawSentCount = -1;
     int storedUsed;
     readonly byte[] sinfile;
-    byte[] map;                                                  // the ground the card draws: the played world's
+    byte[] map;                                                  // the ground the card draws: the played world's, or the planet's current face (SetGround)
     ImageTexture typesTex = null!;
     readonly byte[]? main;              // main.bin for the bake: the type records say which models are vehicles, animals, people
     readonly ImageTexture entTex, animTex;
@@ -61,9 +61,56 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>The records and the height map as textures: the camera (view.gdshaderinc) reads the player and the ground from them.</summary>
     public ImageTexture EntTex => entTex;
     public ImageTexture MapTex { get; }
+    /// <summary>PLANET: the worm's model number (CardShapes worm), -1 without the planet.</summary>
+    public int WormModel { get; }
+    /// <summary>PLANET: the harvester's model (DuneModels.PutHarvester) and the spice flower's (PutSpiceFlower), -1 without the
+    /// planet. A record of the harvester's type or the spice flower's is drawn with them (the rules keep the truck's and the red
+    /// flower's objfile models, for their boxes).</summary>
+    public int HarvesterModel { get; }
+    public int SpiceModel { get; }
+
+    /// <summary>The card's model for a record: the extra types' own (ExtraKinds), else the record's +$25.</summary>
+    void ExtraModel(int at)
+    {
+        if (RacerModel >= 0 && RacerRows.Contains(at / 0xA0))                                                      // STUNTIN's cars and jeeps
+        {
+            if ((int)entFloats[at + 0x25] == CarInside.Car) entFloats[at + 0x25] = RacerModel;
+            else if ((int)entFloats[at + 0x25] == CarInside.Jeep) entFloats[at + 0x25] = JeepRacerModel;
+            entFloats[at + 6] = (int)entFloats[at + 6] & ~0x10;   // someone at the wheel: the driver drawn (an AI car's record is made as a parked one, empty)
+        }
+        if (HarvesterModel < 0) return;
+        var type = (int)entFloats[at + 4] << 8 | (int)entFloats[at + 5];
+        if (type == Hunter.Rules.ExtraKinds.Harvester) entFloats[at + 0x25] = HarvesterModel;
+        else if (type == Hunter.Rules.ExtraKinds.SpiceFlower) entFloats[at + 0x25] = SpiceModel;
+    }
+
+    /// <summary>A stored object's card model (its bytes at at): the extra types' own (ExtraKinds), else its +$25.</summary>
+    void ExtraModel(byte[] b, int at)
+    {
+        if (HarvesterModel < 0) return;
+        var type = b[at + 4] << 8 | b[at + 5];
+        if (type == Hunter.Rules.ExtraKinds.Harvester) b[at + 0x25] = (byte)HarvesterModel;
+        else if (type == Hunter.Rules.ExtraKinds.SpiceFlower) b[at + 0x25] = (byte)SpiceModel;
+    }
+
+    /// <summary>STUNTIN': the racer (RacingKit), -1 without the planet; drawn for the live rows in RacerRows that hold the car.</summary>
+    public int RacerModel { get; }
+    /// <summary>STUNTIN': the jeep racer (JeepKit), -1 without the planet; drawn for the live rows in RacerRows that hold the jeep.</summary>
+    public int JeepRacerModel { get; }
+    /// <summary>STUNTIN': the live rows driven by Stunt Car Racer's physics this frame (GameView): their cars draw as the racer.</summary>
+    public readonly HashSet<int> RacerRows = [];
+    /// <summary>STUNTIN': per live row under 16, four values (place.gdshaderinc racer_parts): the right hand's way to the boost
+    /// button (0 on the wheel, 255 on the button), then the springs' squash front left, front right, rear (the physics' words).</summary>
+    public readonly float[] RacerParts = new float[64];
+    /// <summary>PLANET: a segment of the worm's body (DuneModels.PutWormSegment), -1 without the planet.</summary>
+    public int WormSegmentModel { get; }
+    /// <summary>PLANET: the sand funnel where the worm strikes (DuneModels.PutWormFunnel), -1 without the planet.</summary>
+    public int WormFunnelModel { get; }
+    /// <summary>PLANET: the worm's wormsign model (DuneModels.PutWormSign), -1 without the planet.</summary>
+    public int WormSignModel { get; }
     /// <summary>ENHANCEMENT (FINER GROUND): the fine store's points a cell side (0 = off) and its texture (null off).</summary>
-    public int FineN { get; }
-    public ImageTexture? FineTex { get; }
+    public int FineN { get; private set; }
+    public ImageTexture? FineTex { get; private set; }
     readonly int model0, faces0;                 // model 0 (the debris model) and where its ten faces start ($59FE)
     readonly byte[] model0Seen = new byte[11], model0Now = new byte[11];   // its scale byte and the ten face colours: as last uploaded, and now
     /// <summary>The materials that need the palette uniforms every frame (Real3DView.Frame).</summary>
@@ -156,8 +203,10 @@ public sealed partial class GpuWorld : Node3D
     readonly ImageTexture blastTex = ImageTexture.CreateFromImage(Image.CreateEmpty(0xA0, Blasts, false, Image.Format.Rf));
     // row 0: r = the frame it blew up, g = 1 in use, b = the star model that did it (0 none); row 1 (BETTER EXPLOSIONS): where the shell, missile or blast that did it
     // was, from the thing's own +$4A / +$4C / +$4E (world units, x and z the shorter way round), a = 1 - or all 0: none
-    readonly Image blastInfo = Image.CreateEmpty(Blasts, 2 + Fireball.MostSpikes, false, Image.Format.Rgbaf);   // rows 2 on: the star's spikes (x, z along the ground, how steeply up, 1)
-    readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, 2 + Fireball.MostSpikes, false, Image.Format.Rgbaf));
+    readonly Image blastInfo = Image.CreateEmpty(Blasts, CarryRow + 1, false, Image.Format.Rgbaf);   // rows 2 on: the star's spikes (x, z along the ground, how steeply up, 1); then the carried velocity
+    readonly ImageTexture blastInfoTex = ImageTexture.CreateFromImage(Image.CreateEmpty(Blasts, CarryRow + 1, false, Image.Format.Rgbaf));
+    /// <summary>blastInfo's row of the velocity every piece of a blast carries (STUNTIN's wreck: the picture's units a frame, w = 1; 0 none).</summary>
+    public const int CarryRow = 2 + Fireball.MostSpikes;
     int blastNext, blastHigh;                    // blastHigh: one past the last row whose pieces may still show - only those are drawn (pieceRows)
     readonly float[] blastStart = Enumerable.Repeat(float.NegativeInfinity, Blasts).ToArray();   // each row's blast: the frame it blew up on
     const float BlastLife = 600;                 // gpupieces.gdshader piece_life: past it a blast draws nothing
@@ -234,7 +283,8 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>A thing blew up (rules Objects.Exploded): its record as it was, clock = the game's frame it blew up on
     /// (GameView.GameClock), and from = where the shell, missile or blast that did it was (null: none - the pieces fly from
     /// the thing's middle, as before) - the card does the rest. Sent with the frame's Update (SendBlasts), once however many.</summary>
-    public void AddBlast(byte[] record, float clock, (ushort X, short Y, ushort Z)? from = null, int star = 0)
+    /// carry: a velocity every piece inherits (the picture's units a frame) - a wreck that flies on; null = none.
+    public void AddBlast(byte[] record, float clock, (ushort X, short Y, ushort Z)? from = null, int star = 0, (float X, float Y, float Z)? carry = null)
     {
         // the lowest row whose pieces are gone, so the rows drawn stay as few as the blasts still showing (a slab piece is
         // 24 vertices a triangle slot: every row ever used, drawn every frame, tripled the frame's time by the demo's end);
@@ -268,6 +318,7 @@ public sealed partial class GpuWorld : Node3D
         var spikes = from is not null && star >= Fireball.First && star <= Fireball.Last ? Fireball.Spikes[star - Fireball.First] : null;
         for (var i = 0; i < Fireball.MostSpikes; i++)
             blastInfo.SetPixel(row, 2 + i, spikes is not null && i < spikes.Length ? new Color(spikes[i].X, spikes[i].Z, spikes[i].Up, 1) : new Color(0, 0, 0, 0));
+        blastInfo.SetPixel(row, CarryRow, carry is { } v ? new Color(v.X, v.Y, v.Z, 1) : new Color(0, 0, 0, 0));   // STUNTIN's wreck flies on
         blastsChanged = true;
     }
 
@@ -366,19 +417,30 @@ public sealed partial class GpuWorld : Node3D
     readonly byte[] rawObjfile;                                      // the file as the rules have it: glass face numbers (Glass.cs) count its filled faces
     readonly Dictionary<int, int[]> faceOrigins = [];                // per rebuilt model: each card face's face number in the file (round wheels split treads)
     readonly bool seaBodies;                                         // SHARKS AND SUBS: WHOLE (SeaBodies), set at launch
+    readonly bool dune;                                              // DUNE II's vehicles built as models of their own (DuneModels)
 
     /// <summary>interiors false: a card without the car and jeep interiors (CarInside) - CheckCarInside's reference picture.
     /// edit: a check's own change to the card's models (CheckStore's 300-corner ladder), given the store and the face origins.
     /// viewPalette: the view palette (bank 2, $0RGB words) - a window border's colour, when two body colours touch the window
     /// equally, is the darker of them; without it the first found.</summary>
     public GpuWorld(byte[] objfile, byte[] sinfile, byte[] terrainMap, byte[]? main = null, Hunter.Rules.FineGround? fine = null, bool interiors = true,
-        Action<CardModels, Dictionary<int, int[]>>? edit = null, bool seaBodies = false, IReadOnlyList<ushort>? viewPalette = null)
+        Action<CardModels, Dictionary<int, int[]>>? edit = null, bool seaBodies = false, bool dune = false, bool worm = false,
+        IReadOnlyList<ushort>? viewPalette = null)
     {
         this.viewPalette = viewPalette;
         PaintedLight.Forget();                                   // the last build's models (its counts doubled the startup line's)
         rawObjfile = objfile;
         this.seaBodies = seaBodies;
-        Store = CardShapes(objfile, faceOrigins, interiors, seaBodies);
+        this.dune = dune;
+        Store = CardShapes(objfile, faceOrigins, interiors, seaBodies, dune, worm);
+        WormModel = worm ? Store.Models.Length - 4 : -1;
+        HarvesterModel = worm ? Store.Models.Length - 6 : -1;
+        SpiceModel = worm ? Store.Models.Length - 5 : -1;
+        RacerModel = worm && interiors ? Store.Models.Length - 8 : -1;
+        JeepRacerModel = worm && interiors ? Store.Models.Length - 7 : -1;
+        WormSegmentModel = worm ? Store.Models.Length - 3 : -1;
+        WormFunnelModel = worm ? Store.Models.Length - 2 : -1;
+        WormSignModel = worm ? Store.Models.Length - 1 : -1;
         if (edit is not null) { edit(Store, faceOrigins); Store.Layout(); }
         this.sinfile = sinfile;
         map = terrainMap;
@@ -439,15 +501,33 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("entprev_tex", entprevTex);      // SMOOTH PARTS: record part bytes one step back
             m.SetShaderParameter("rotor_models", new Vector2I(Store.Models[0x17].Offset, Store.Models[0x19].Offset));   // FAST ROTORS: both helicopters
             m.SetShaderParameter("rotor_times", 8);
-            m.SetShaderParameter("steer_models", CarInside.Models.Select(n => Store.Models[n].Offset + 1).ToArray());   // the steering wheels (CarInside), + 1: 0 = none
-            m.SetShaderParameter("steer_turns", CarInside.Models.Select(CarInside.Turn).ToArray());
+            m.SetShaderParameter("steer_models", CarInside.Models.Select(n => Store.Models[n].Offset + 1)   // the steering wheels (CarInside), + 1: 0 = none
+                .Append(RacerModel >= 0 ? Store.Models[RacerModel].Offset + 1 : 0)                          // ...and the Stuntin' racers' (the car's
+                .Append(JeepRacerModel >= 0 ? Store.Models[JeepRacerModel].Offset + 1 : 0).ToArray());      // wheel, the jeep's)
+            m.SetShaderParameter("steer_turns", CarInside.Models.Select(CarInside.Turn).Append(CarInside.Turn(CarInside.Car)).Append(CarInside.Turn(CarInside.Jeep)).ToArray());
+            m.SetShaderParameter("steer_fine_from", CarInside.Models.Length);   // the racers after them: steering in sixteenths (ScrDrive)
+            m.SetShaderParameter("fine_model", RacerModel >= 0 ? Store.Models[RacerModel].Offset + 1 : 0);   // the racers drawn back down (RacingKit.Fine)
+            m.SetShaderParameter("fine_model2", JeepRacerModel >= 0 ? Store.Models[JeepRacerModel].Offset + 1 : 0);
+            m.SetShaderParameter("racer2_at", JeepRacerModel >= 0 ? Store.Models[JeepRacerModel].At : -1);   // its own spring line (JeepKit.WheelSide)
+            m.SetShaderParameter("racer_at", RacerModel >= 0 ? Store.Models[RacerModel].At : -1);           // both racers' lift: their rest's lowest corner
         }
+        foreach (var m in new[] { models, glassFaces }) m.SetShaderParameter("kit_glass_model", RacerModel);   // the racer's panes: always glass, their own tints (gpumodels_body)
         foreach (var m in new[] { models, glassFaces, shadows, lines })   // TANK TRACKS: the live table's materials (a blast's row is not a live row)
         {
             m.SetShaderParameter("track_on", true);
-            m.SetShaderParameter("track_models", TankTracks.Models.Select(n => n < Store.Models.Length ? Store.Models[n].Offset + 1 : 0).ToArray());
+            m.SetShaderParameter("track_models", TankTracks.Models.Select(n => n < Store.Models.Length ? Store.Models[n].Offset + 1 : 0)
+                .Append(WormSignModel >= 0 ? Store.Models[WormSignModel].Offset + 1 : 0)                // and the wormsign and the funnel:
+                .Append(WormFunnelModel >= 0 ? Store.Models[WormFunnelModel].Offset + 1 : 0).ToArray());   // their dust flies while they move
             m.SetShaderParameter("roll_tex", rollTex);
         }
+        if (WormSignModel >= 0)                                            // PLANET: the worm's sign in the sand's own colour (own_colours.gdshaderinc)
+            foreach (var m in new[] { models, glassFaces, pieces })
+            {
+                m.SetShaderParameter("sand_model", WormSignModel);
+                m.SetShaderParameter("sand_model2", WormFunnelModel);
+                m.SetShaderParameter("sand_tint", new Vector3(0xC / 9f, 0x9 / 9f, 0x5 / 9f));   // $C95 over grey $999
+                m.SetShaderParameter("spice_model", SpiceModel);          // the spice flower's petals blue-black
+            }
         var ownTex = OwnTintTable();                                       // MODEL COLOURS: the models and their pieces
         models.SetShaderParameter("own_tex", ownTex);
         glassFaces.SetShaderParameter("own_tex", ownTex);
@@ -578,7 +658,7 @@ public sealed partial class GpuWorld : Node3D
         for (var k = 0; k < on.Length; k++)
         {
             var flag = md.Corners[k].Flag;
-            if (flag != 0) part = ((flag >> 4) & 7) is 1 or 2 or 3 or 4;  // 3, 4: a belt part (TankTracks), card only
+            if (flag != 0) part = ((flag >> 4) & 7) is 1 or 2 or 3 or 4 or 5 or 6;  // 3, 4: a belt part (TankTracks), 5 a fling part (the worm's dust), 6 a steered wheel (RacingKit), card only
             on[k] = part;
         }
         return on;
@@ -604,19 +684,41 @@ public sealed partial class GpuWorld : Node3D
 
     /// <summary>The models the card draws (CardModels): the file's with the straight blades, the rotor masts (RotorMast), the tank tracks
     /// (TankTracks), the round wheels (RoundWheels) and the car and jeep interiors (CarInside) built into them; the rules keep their objfile. origins: each rebuilt model's face numbers in the file.</summary>
-    public static CardModels CardShapes(byte[] objfile, Dictionary<int, int[]>? origins = null, bool interiors = true, bool seaBodies = false)
+    public static CardModels CardShapes(byte[] objfile, Dictionary<int, int[]>? origins = null, bool interiors = true, bool seaBodies = false, bool dune = false, bool worm = false)
     {
         var store = new CardModels(objfile);
         StraightBlades(store);
         RotorMast.Make(store, origins);                                 // ROTOR MASTS: the helicopters' blades joined to the body
-        TankTracks.Make(store, origins);                                // TANK TRACKS: road wheels and moving links
+        TankTracks.Make(store, origins);                                // TANK TRACKS: road wheels and moving links (before DUNE II, which replaces $15)
         RoundWheels.Make(store, null, origins);
         TankTracks.Chains(store, origins);                              // the bicycles' chains: the tank's belt part, after their rims are round
         if (seaBodies) SeaBodies.Make(store, origins);                  // SHARKS AND SUBS: WHOLE - the shark's and the submarine's bodies
         if (interiors) CarInside.Make(store, null, origins);
         if (interiors) Fireball.Make(store, origins);                   // BETTER EXPLOSIONS: the blasts' fireball cores (shown with PIECES)
+        if (worm && interiors && origins is not null) { RacingKit.Make(store, origins); JeepKit.Make(store, origins); }   // STUNTIN': the racers (before the worm's six, which stay last)
+        if (dune) DuneModels.Make(store, null, origins);                // DUNE II's vehicles as models of their own, after the objfile's (nothing draws them yet)
+        if (worm)                                                       // PLANET: the sand zone's worm and its wormsign, models of their own after the objfile's
+        {
+            DuneModels.PutHarvester(store, origins);                     // the sand zone's harvester and spice flower (rules ExtraKinds) - before the
+            DuneModels.PutSpiceFlower(store, origins);                   // worm's four, which stay the store's last (WormModel)
+            DuneModels.PutWorm(store, store.AppendCopy(SeaBodies.Shark));          // its head (with the mouth)
+            DuneModels.PutWormSegment(store, store.AppendCopy(SeaBodies.Shark));   // a segment of its body, drawn as many times as it is long
+            DuneModels.PutWormFunnel(store, store.AppendCopy(SeaBodies.Shark));    // the sand giving way where it strikes
+            DuneModels.PutWormSign(store, store.AppendCopy(SeaBodies.Shark));
+            store.Layout();
+        }
         return store;
     }
+
+    /// <summary>PLANET: draw the live record in this row this much lower (the worm's victim sinking into the sand; row -1 = none).
+    /// The picture only: the record itself is untouched (gpumodels.gdshaderinc sink_row).</summary>
+    public void SinkInto(int row, float depth)
+    {
+        if (row == sinkShown.Row && depth == sinkShown.Depth) return;
+        sinkShown = (row, depth);
+        foreach (var m in new[] { models, glassFaces, shadows }) { m.SetShaderParameter("sink_row", row); m.SetShaderParameter("sink_depth", depth); }
+    }
+    (int Row, float Depth) sinkShown = (-1, 0);
 
     /// <summary>TANK TRACKS: each live tank's rolling (rollFloats, 256ths of its wheel's turn, kept in 0..256) moved on by how far its
     /// record went since the last picture along its heading (+$7E: 0 = +z, $40 = +x; back counts back), in model units (x and z
@@ -749,6 +851,35 @@ public sealed partial class GpuWorld : Node3D
     MeshInstance3D groundMesh;
 
     /// <summary>GROUND PATTERN: SPECKS on or off (the specks are a hash in the ground shader).</summary>
+    /// <summary>ENHANCEMENT (PLANET step 4, docs/planet-plan.md): the card draws another face - its heights (and finer
+    /// ground, same fineness), its cell types and the band and coast tables, written into the same textures so every
+    /// material keeps its binding. sand: THE SAND ZONE's kinds (SandZone.Kind, 128 x 128) - a land cell's colour becomes
+    /// sand (11) or rock (9), the tags the bands read: on the sand face the bands are always on, with their own sand and
+    /// rock colours ($0RGB keys, ground_bands.gdshaderinc sand_face) - the palette's 11 and 9 only if the bands are off.</summary>
+    public void SetGround(byte[] terrainMap, Hunter.Rules.FineGround? fine, byte[]? sand)
+    {
+        map = terrainMap;
+        MapTex.Update(HeightTexture.From(terrainMap).GetImage());
+        // the face's store (finer ground, or TALL GROUND's full heights on a face of its own): the same texture updated
+        // when the size matches, a new one when it does not or there was none, off (fine_n 0) for a face with no store
+        if (fine is not null && FineTex is not null && fine.N == FineN) FineTex.Update(HeightTexture.From(fine).GetImage());
+        else if (fine is not null) { FineN = fine.N; FineTex = HeightTexture.From(fine); }
+        else FineN = 0;
+        foreach (var m in Materials) { m.SetShaderParameter("fine_n", FineN); if (FineTex is not null) m.SetShaderParameter("fine_map", FineTex); }
+        var types = new byte[128 * 128];
+        for (var i = 0; i < types.Length; i++)
+        {
+            var t = terrainMap[i * 2 + 1];
+            if (sand is not null && t != 0) t = (byte)(t & 0xF0 | (sand[i] == Hunter.Rules.SandZone.Rock ? 9 : 11));
+            types[i] = t;
+        }
+        typesTex.Update(Bytes(128, 128, types).GetImage());
+        ground.SetShaderParameter("band_green_h", GroundBands.Heights(terrainMap, false, fine));
+        ground.SetShaderParameter("band_brown_h", GroundBands.Heights(terrainMap, true, fine));
+        ground.SetShaderParameter("band_shore", Real3DView.CoastTexture(terrainMap));
+        ground.SetShaderParameter("sand_face", sand is not null);   // the bands' sand and rock keys (ground_bands.gdshaderinc)
+    }
+
     public void SetGroundPattern(bool on) => ground.SetShaderParameter("ground_pattern", on);
     public void SetGroundColours(bool on) => ground.SetShaderParameter("ground_bands", on);
 
@@ -888,7 +1019,7 @@ public sealed partial class GpuWorld : Node3D
             var ordinal = 0;
             var filled = 0;                                               // the card's filled faces so far (CheckGlass)
             var number = model < rawModels.Offsets.Count ? FilledNumbers(rawObjfile, rawModels, model)   // each file face's number among the filled ones (docs/data/windows.md)
-                : [.. Enumerable.Range(0, md.Faces.Length)];              // a model past the objfile's (CardModels.AppendCopy) - no glass to number
+                : [.. Enumerable.Range(0, md.Faces.Length)];              // PLANET: a model past the objfile's (the worm, CardModels.AppendCopy) - no glass to number
             faceOrigins.TryGetValue(model, out var origin);
             foreach (var face in md.Faces)
             {
@@ -900,14 +1031,17 @@ public sealed partial class GpuWorld : Node3D
                     // bit 12: a glass face (Glass.cs)
                     filled++;
                     var from = origin?[ordinal] ?? ordinal;                   // its face in the file; -1: one the card added (CarInside), no glass, seen only with SEE-THROUGH
-                    var glass = from >= 0 && Glass.Is(model, number[from]);
+                    var glass = from >= 0 ? Glass.Is(model, number[from]) : from == RacingKit.GlassOrigin;
                     var core = from == Fireball.Origin;                       // BETTER EXPLOSIONS: a fireball core's face (Fireball), drawn only with PIECES
-                    var mast = from == RotorMast.Origin || from == TankTracks.Origin;   // ROTOR MASTS, TANK TRACKS: plain faces of the body, no glass, always drawn
+                    var kit = from == RacingKit.Origin || from == RacingKit.SolidOrigin || from == RacingKit.GlassOrigin;
+                    var mast = from == RotorMast.Origin || from == TankTracks.Origin || kit;   // ROTOR MASTS, TANK TRACKS: plain faces of the body, always drawn
                     faces.Add((model, md.Offset, n, (face.Colour & 15) | ((flags & 0x80) != 0 ? 16 : 0) | (glass ? Glass.Bit : 0) | (core ? Fireball.Bit : 0)
                         | (from < 0 && !core && !mast ? Glass.Sunk | CarInside.Bit : 0)
-                        | (from <= -2 && !core && !mast ? CarInside.Driver | (-from - 2) << 18 : 0), ordinal));   // -(2 + red): a driver's face (CarInside.Driver)
+                        | (from <= -2 && !core && !mast ? CarInside.Driver | (-from - 2) << 18 : 0)   // -(2 + red): a driver's face (CarInside.Driver)
+                        | (kit ? 0x80 : 0)                                    // the racing kit: its own side (wound outward), not widened
+                        | (from == RacingKit.SolidOrigin ? EvenPaint : 0), ordinal));   // ...and its pipes one solid colour (EvenPaint)
                     FilledFaces[model] = filled;
-                    if (glass) { GlassFaces[model]++; glassNumber[(model, ordinal)] = number[from]; }
+                    if (glass && from >= 0) { GlassFaces[model]++; glassNumber[(model, ordinal)] = number[from]; }   // the file's windows (the kit's panes are not sunk)
                 }
                 else if (kind != 0 && kind != 0x40)
                     foreach (var e in face.Edges) lineFaces.Add((model, md.Edges[e].A, md.Edges[e].B, face.Colour & 15));
@@ -936,7 +1070,7 @@ public sealed partial class GpuWorld : Node3D
         var careful = ModelCaps.Careful(main, nModels);
         var backs = new ModelCaps.Back?[nModels];
         var bare = CardShapes(rawObjfile, interiors: false, seaBodies: seaBodies);   // the back walls close the model's own shell: not an interior's open boxes
-        for (var m = 0; m < nModels; m++) backs[m] = m >= bare.Models.Length || (seaBodies && SeaBodies.Closed(m)) ? null : ModelCaps.For(bare.Models[m], careful[m], m);   // the sea bodies are closed already; any added model comes after the bare file's
+        for (var m = 0; m < nModels; m++) backs[m] = m >= bare.Models.Length || (seaBodies && SeaBodies.Closed(m)) ? null : ModelCaps.For(bare.Models[m], careful[m], m);   // the sea bodies are closed already; the Dune II models come after the bare file's
         var extra = Image.CreateEmpty(Math.Max(1, backs.Max(bk => bk is null ? 0 : bk.Points.Length / 3)), nModels, false, Image.Format.Rgbaf);   // as wide as the most extra points a model has
         for (var m = 0; m < nModels; m++)
             if (backs[m] is { } bk)
@@ -951,7 +1085,7 @@ public sealed partial class GpuWorld : Node3D
         var recolour = new int[faces.Count];
         Array.Fill(twin, -1);
         Array.Fill(recolour, -1);
-        var found = FindSheets(Store, faces, slab, slabOff, twin, recolour);
+        var found = FindSheets(Store, faces, slab, slabOff, twin, recolour, RacerModel, JeepRacerModel);
         var sticker = new bool[faces.Count];                 // STICKERS: drawn only as a copy moved onto the face under them
         var stickers = FindStickers(Store, faces, sticker, slab, slabOff);
         // BACK TO BACK: OFF. The original has no front-only faces: its filler ($7800) swaps a span's ends when they come out
@@ -1417,7 +1551,7 @@ public sealed partial class GpuWorld : Node3D
     // Rotors keep both colours instead, the lighter face moved up.
     static (int Pairs, int Sheets, int Decals) FindSheets(CardModels store,
         List<(int Model, int Base, int N, int Meta, int Ordinal)> faces, bool[] slab, Color[] off,
-        int[] twin, int[] recolour)
+        int[] twin, int[] recolour, int fineModel, int fineModel2)
     {
         int pairs = 0, sheets = 0, decals = 0;
         for (var i = 0; i < faces.Count; )
@@ -1426,6 +1560,7 @@ public sealed partial class GpuWorld : Node3D
             while (end < faces.Count && faces[end].Model == faces[i].Model) end++;
             var md = store.Models[faces[i].Model];
             int corners = md.Corners.Length, ne = md.Edges.Length, shift = md.Shift;
+            var unit = faces[i].Model == fineModel || faces[i].Model == fineModel2 ? RacingKit.Fine : 1;   // a model unit in stored units
             (int, int) Edge(int e)
             {
                 var u = md.Edges[e].A;
@@ -1490,9 +1625,9 @@ public sealed partial class GpuWorld : Node3D
                     if (o == r || pts[o - i].Count < 3 || Plane(pts[o - i]) is not { } onrm) continue;
                     var ln = Math.Sqrt((double)onrm.Item1 * onrm.Item1 + (double)onrm.Item2 * onrm.Item2 + (double)onrm.Item3 * onrm.Item3);
                     var o0 = pts[o - i][0];
-                    var flat = true;                                 // every corner within 1 unit of that plane
+                    var flat = true;                                 // every corner within 1 unit of that plane (the racer's units: it is stored Fine times its size)
                     foreach (var q in pts[r - i])
-                        if (Math.Abs((double)(onrm.Item1 * (q.Item1 - o0.Item1) + onrm.Item2 * (q.Item2 - o0.Item2) + onrm.Item3 * (q.Item3 - o0.Item3))) / ln >= 1.01)
+                        if (Math.Abs((double)(onrm.Item1 * (q.Item1 - o0.Item1) + onrm.Item2 * (q.Item2 - o0.Item2) + onrm.Item3 * (q.Item3 - o0.Item3))) / ln >= 1.01 * unit)
                             flat = false;
                     if (flat && InsidePoly(cen, pts[o - i], onrm))
                         on = true;
@@ -1545,6 +1680,8 @@ public sealed partial class GpuWorld : Node3D
             {
                 under[r - i] = -1;
                 if ((faces[r].Meta & CarInside.Bit) != 0) continue;           // an interior's part is shape, not a mark painted on a wall
+                if ((faces[r].Meta & 0x80) != 0) continue;                    // nor the racing kit's (its mark, Bake): its pipes, tyres and
+                                                                              // stacks moved as stickers by up to 5 units stuck out ragged
                 if (pts[r - i].Count < 3 || Plane(pts[r - i]) is not { } nr) continue;
                 var cen = Centre(pts[r - i]);
                 double best = 0, depth = 0;
@@ -1552,7 +1689,7 @@ public sealed partial class GpuWorld : Node3D
                 var sign = 1;
                 for (var o = i; o < r; o++)
                 {
-                    if ((faces[o].Meta & CarInside.Bit) != 0 || pts[o - i].Count < 3 || Plane(pts[o - i]) is not { } on || Area(on) <= Area(nr)) continue;
+                    if ((faces[o].Meta & (CarInside.Bit | 0x80)) != 0 || pts[o - i].Count < 3 || Plane(pts[o - i]) is not { } on || Area(on) <= Area(nr)) continue;
                     var ln = Area(on);
                     var o0 = pts[o - i][0];
                     var ou = Centre(pts[o - i]);                                   // that face's out side: away from the model's middle
@@ -1745,6 +1882,9 @@ public sealed partial class GpuWorld : Node3D
 
     /// <summary>Meta bit 23: a face drawn only when seen from its front (gpumodels.gdshaderinc front_only).</summary>
     internal const int FrontOnly = 0x800000;
+    /// <summary>Triangle meta bit 18 without bit 17 (bits 18-21 are a driver's colour only with bit 17): a face painted one even
+    /// colour, no dither - the racing kit's pipes (RacingKit.SolidOrigin; gpumodels_body even_).</summary>
+    internal const int EvenPaint = 0x40000;
 
     // BACK TO BACK: the original draws a face from its front only, so a model can hold two faces in one place looking
     // opposite ways - a panel's outside and inside in two colours, a body's side and the back of the part behind it - and
@@ -1882,6 +2022,18 @@ public sealed partial class GpuWorld : Node3D
     /// <summary>ENHANCEMENT (FINE ANGLES, setting fine_angles): the records' fine angles drawn (Entity.PitchFine etc.).
     /// Off: every thing turns by the bytes' whole steps, number for number the game's own rotation.</summary>
     public bool FineAngles;
+
+    /// <summary>STUNTIN's chase camera (GameView.ChaseStep): live things other than him within R world units of (X, Z) - the
+    /// camera's spot - are not drawn; null = nothing hidden.</summary>
+    public (double X, double Z, double R)? NearCamera;
+    /// <summary>STUNTIN's in-car view: him too (the eye is inside his car).</summary>
+    public bool HideSelf;
+    /// <summary>STUNTIN's in-car view: his car's seated driver not drawn (the copy sent to the card marked empty, d7 bit 28 -
+    /// the game's own record untouched).</summary>
+    public bool HideDriver;
+    /// <summary>STUNTIN's in-car view: his own car's glass not drawn (the glass pass skips record 0) - from inside, the tinted
+    /// windscreen washed the whole view pale.</summary>
+    public bool HideOwnGlass { set => glassFaces.SetShaderParameter("hide_own_glass", value); }
 
     /// <summary>FINE ANGLES: the angle words' low-byte slots (+$7D, +$7F, +$81 - read by nothing else on the card) carry
     /// each angle's part of a step past its byte (Entity.Frac), 0 for a stored record, off, or a fine value that no longer fits.</summary>
@@ -2127,6 +2279,7 @@ public sealed partial class GpuWorld : Node3D
                 var at = r * 0xA0;
                 Array.Copy(b, 0, storedBytes, at, 0xA0);
                 storedBytes[at + 0x7D] = storedBytes[at + 0x7F] = storedBytes[at + 0x81] = 0;   // Fine with no record: no fine angle parts
+                ExtraModel(storedBytes, at);
                 Lift(storedBytes, at);
                 storedBytes[at + 0x1C] = 0xFF;                       // in view: the card places every one (the shaders read the mark from seenBytes)
             }
@@ -2139,6 +2292,7 @@ public sealed partial class GpuWorld : Node3D
             TrackStar(r, entities.All[r], cardPieces, clock);            // step 7: a star gone since the last frame leaves smoke
             for (var o = 0; o < 0xA0; o++) entFloats[r * 0xA0 + o] = b[o];
             Fine(entFloats, r * 0xA0, FineAngles ? entities.All[r] : null);
+            ExtraModel(r * 0xA0);
             if (!insideView) Lift(entFloats, r * 0xA0);
             if (b[0] == 0 || b[0x20] != 0 || (sbyte)b[0x24] < 0 || insideView || viewRows == 7 && turn == null) continue;   // at ORIGINAL: the game's own in-view mark
             if (viewRows == 0)                                       // ALL: beside or behind the old camera too (the free camera may see it),
@@ -2148,13 +2302,29 @@ public sealed partial class GpuWorld : Node3D
             }
             else entFloats[r * 0xA0 + 0x1C] = Seen(entities.All[r].UW(0x4A), entities.All[r].UW(0x4E), entities.All[r].W(0x72)) ? 0xFF : 0;
         }
+        if (HideDriver && entities.Count > 0) entFloats[6] = (int)entFloats[6] | 0x10;
+        if (RacerModel >= 0) foreach (var m in Materials) m.SetShaderParameter("racer_parts", RacerParts);
+        if (NearCamera is { } near)                                  // STUNTIN's chase camera: a thing round the camera is not drawn
+            for (var r = HideSelf ? 0 : 1; r < entities.Count && r < LiveRows; r++)   // (a car right behind his would fill the picture from inside)
+            {
+                var e = entities.All[r];
+                double dx = e.UW(0x4A) - near.X, dz = e.UW(0x4E) - near.Z;
+                if (e.B[0] != 0 && dx * dx + dz * dz < near.R * near.R) entFloats[r * 0xA0 + 0x1C] = 0;
+            }
         Array.Clear(seenBytes);
         for (var r = 0; r < storedUsed; r++)                          // the map's stored objects: none at ORIGINAL, all at ALL, else in the grown box
         {
             var at = r * 0xA0;
             int U(int o) => storedBytes[at + o] << 8 | storedBytes[at + o + 1];
-            seenBytes[r] = (byte)(viewRows == 0 ? (viewCamera != null && ViewDistance.AroundCamera(viewCamera, U(0x4A), U(0x4E), (short)U(0x6E), (short)U(0x72)) ? 0 : 0xFF)
-                : viewRows != 7 && !insideView && Seen(U(0x4A), U(0x4E), (short)U(0x72)) ? 0xFF : 0);
+            var model = (int)storedBytes[at + 0x25];
+            var worm = WormModel >= 0 && (model == WormModel || model == WormSegmentModel || model == WormFunnelModel || model == WormSignModel);
+            // PLANET: the worm (GameView.WithWorm) is no stored thing - drawn at ORIGINAL too, and seen while ANY of its reach (+$72)
+            // is in front of the camera: Place's box takes the near edge as the middle less +$72, which for the worm's reach (1024)
+            // hid it whenever it came within 1024 of the camera - always under the player, the camera 704 behind him; at ALL never
+            // hidden as a thing the camera stands inside (the camera is nearly always inside that reach)
+            var near72 = worm ? -(short)U(0x72) : (short)U(0x72);
+            seenBytes[r] = (byte)(viewRows == 0 ? (!worm && viewCamera != null && ViewDistance.AroundCamera(viewCamera, U(0x4A), U(0x4E), (short)U(0x6E), (short)U(0x72)) ? 0 : 0xFF)
+                : (viewRows != 7 || worm) && !insideView && Seen(U(0x4A), U(0x4E), (short)near72) ? 0xFF : 0);
         }
         // Q / E turned: inside the turned view (a cell's margin round each thing); else Place's box grown to this distance
         bool Seen(int x, int z, short near72) => turn is { } t

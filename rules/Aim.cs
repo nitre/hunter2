@@ -1,7 +1,7 @@
 namespace Hunter.Rules;
 
 /// <summary>
-/// (AIMING: RETICLE; play input, never the demo or a film; jobs/limb_damage). On foot the player's soldier turns to the point under a free reticle and his shots go there.
+/// (AIMING: RETICLE; play input, never the demo or a film). On foot the player's soldier turns to the point under a free reticle and his shots go there.
 /// The reticle is a game pixel (ReticleX, ReticleY) over the view. The camera is the original's: it looks north only, so the
 /// picture's projection is Objects.Persp ($52A2: screen x = cx * 256 / (cz + $100) + CentreX, screen y = (Height0E - y) * 256 /
 /// (cz + $100) + $2E, with cx = 2x - G1548 and cz = 2z - G1544, Objects.Place $41FC). The ray from the eye (cz = -$100, y = Height0E)
@@ -59,7 +59,7 @@ public static class Aim
         for (var i = 1; i < s.Entities.Count; i++)
         {
             var e = s.Entities.All[i];
-            if (!Limbs.Person(e) || e.B[0x1C] == 0) continue;               // people in view (the cart / the box of a vehicle: not yet)
+            if (!(e.Alive && e.W(4) is >= 0x1E and <= 0x2F) || e.B[0x1C] == 0) continue;               // people in view (the cart / the box of a vehicle: not yet)
             var dx = (short)((ushort)(int)Math.Round(wx) - e.UW(0x4A)); var dz = (short)((ushort)(int)Math.Round(wz) - e.UW(0x4E));
             if (Math.Abs(dx) > e.W(0x6E) || Math.Abs(dz) > e.W(0x72)) continue;
             if (wy >= e.W(0x4C) && wy <= e.W(0x4C) + 2 * e.W(0x70)) return e;

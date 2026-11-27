@@ -152,6 +152,15 @@ public sealed class Channels(byte[] main, byte[] soundfile)
         Changed?.Invoke(ch, -1, v, Period(ch) - 4 * e.W(0x3E));               // $2DFA: PER := base - 4 x speed
     }
 
+    /// <summary>A held engine kept silent (volume 0, the game's own silence) - a car whose sound is not Hunter's.</summary>
+    public void Hush(Entity e, int d7)
+    {
+        if ((d7 >> 2 & 1) == 0) return;                                       // no channel held
+        var ch = e.W(0x98) & 3;
+        SetVolume(ch, 0);
+        Changed?.Invoke(ch, -1, 0, Period(ch));
+    }
+
     /// <summary>StopEntitySound ($2D24): bits 2 and 19 off, the channel silent.</summary>
     public void StopEntity(Entity e, ref int d7)
     {

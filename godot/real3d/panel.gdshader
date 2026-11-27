@@ -47,6 +47,8 @@ uniform int death_step;
 uniform ivec2 pointer_at = ivec2(-100, -100);   // screen x, y of the pointer (the panel's row within it: y - 140)
 uniform int pointer_colour;
 uniform bool pointer_on = true;
+uniform bool raw_on = false;          // STUNTIN's racing console (ScrPanel): the panel drawn by the processor, shown whole
+uniform sampler2D raw_tex : filter_nearest;   // ...its indices, 320 x 60 Rf (PanelGpu, when Panel.Racing)
 
 const int LIP = 6;                 // rows above the panel (134-139): the pointer's tip pokes up over the view (PanelGpu.Lip)
 
@@ -63,7 +65,7 @@ void fragment() {
     s.radar_count = radar_count; s.radar_players = radar_players; s.radar_wide = radar_wide; s.grave_count = grave_count;
     s.lamp_state = lamp_state; s.lamp_drawn = lamp_drawn; s.lamp_lit = lamp_lit;
     int msg_bit = int(texelFetch(msg, p, 0).r + 0.5);
-    int idx = panel_index(base, font, sheet, ent, 0, graves_tex, s, msg_bit, p.x, p.y);
+    int idx = raw_on ? int(texelFetch(raw_tex, p, 0).r + 0.5) : panel_index(base, font, sheet, ent, 0, graves_tex, s, msg_bit, p.x, p.y);
     if (idx == 0) c = smooth_level >= 0 ? faded60(view0_raw, smooth_level) : faded(view0_raw, fade_level);
     else c = faded(pan_raw[idx], panel_level);
     if (death_step > 0) c = death_faded(c, death_step);

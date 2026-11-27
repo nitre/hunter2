@@ -88,16 +88,43 @@ public sealed class Menus
 
     /// <summary>$2310: AVAILABLE GAMES, then each game whose bit in $85E4 (completed games, soldier
     /// record +2) is clear, then CANCEL ($2346).</summary>
-    public List<Button> GameMenu(IndexedScreen s, int completedBits)
+    public List<Button> GameMenu(IndexedScreen s, int completedBits, bool scrTracks = false)
     {
         var title = _json.GetProperty("game_menu");
         var games = _json.GetProperty("game_items").EnumerateArray().ToList();
         var items = new List<JsonElement> { title.GetProperty("items")[0] };
         for (var g = 0; g < 3; g++)
             if ((completedBits >> g & 1) == 0) items.Add(games[g]);
-        items.Add(games[3]);
-        return Draw(s, title.GetProperty("y").GetInt32(), items);
+        if (!scrTracks)
+        {
+            items.Add(games[3]);
+            return Draw(s, title.GetProperty("y").GetInt32(), items);
+        }
+        // the zones' islands under the games, the text in the shell's cyan (plane ScrTextPlane), then CANCEL below them
+        var buttons = Draw(s, title.GetProperty("y").GetInt32(), items);
+        var f = _ui.Frames[0x17];
+        foreach (var (text, handler) in Zones)
+        {
+            var y = buttons[^1].Y1;
+            var x0 = (s.Width >> 1) - (f.Width >> 1);
+            var h = _ui.DrawMenuItem(s, new Ui.MenuItem(0, 0, text), y, ScrTextPlane);
+            buttons.Add(new Button(x0, x0 + f.Width, y, y + h, handler, text));
+        }
+        var cancelY = buttons[^1].Y1;
+        var cancel = Item(games[3]);
+        var ch = _ui.DrawMenuItem(s, cancel, cancelY);
+        var cf = _ui.Frames[cancel.Style + 0x17];
+        var cx0 = (s.Width >> 1) + cancel.Dx * 2 - (cf.Width >> 1);
+        buttons.Add(new Button(cx0, cx0 + cf.Width, cancelY, cancelY + ch, games[3].GetProperty("handler").GetInt32(), cancel.Text));
+        return buttons;
     }
+
+    /// <summary>The zones' buttons (no original address): Shai Hulud, the sand island (ShaiHulud), and Stuntin', the
+    /// Stunt Car Racer island (ScrIsland).</summary>
+    public const int ScrHandler = 0x5C00, SandHandler = 0x5C10;
+    public static readonly (string Text, int Handler)[] Zones = [("Shai Hulud", SandHandler), ("Stuntin'", ScrHandler)];
+    /// <summary>The plane the zones' text is drawn in: above the menu's 4, shown cyan by the start screen.</summary>
+    public const int ScrTextPlane = 7;
 
     List<Button> Draw(IndexedScreen s, int y, List<JsonElement> items) =>
         Draw(s, y, items.Select(i => (Item(i), i.GetProperty("handler").GetInt32())).ToList());

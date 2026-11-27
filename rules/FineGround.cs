@@ -70,14 +70,22 @@ public sealed class FineGround
     /// <summary>A store of N points a side holding the original's ground: every point the original's
     /// bilinear ($36AA, 32-bit lerp) of the map bytes &lt;&lt; 4 as its memory reads them (the walk past col 127 into
     /// the next row, rows 128-129 zero). On the original's points it is the byte &lt;&lt; 4 itself.</summary>
-    public static FineGround FromMap(byte[] map, int n)
-    {
-        var f = new FineGround(n);
-        int P(int col, int row)                           // the map byte &lt;&lt; 4 as the memory walk reads it
+    public static FineGround FromMap(byte[] map, int n) =>
+        FromPoints((col, row) =>                          // the map byte &lt;&lt; 4 as the memory walk reads it
         {
             var o = row * 0x100 + col * 2;                // col 128 = next row's col 0, as +2 / +$102 at col 127
             return o < map.Length ? map[o] << 4 : 0;      // rows 128-129 (and past): zero
-        }
+        }, n);
+
+    /// <summary>TALL GROUND (the height limit lifted, 2026-11-24): a store of N points a side from heights given on the
+    /// map's lattice (129 x 129, [row * 129 + col], world units up to Top) instead of the map's bytes - a face whose
+    /// land the byte (at most 4080) cannot hold. The points between are the same bilinear as FromMap's.</summary>
+    public static FineGround FromHeights(int[] heights, int n) =>
+        FromPoints((col, row) => Math.Clamp(heights[Math.Min(row, 128) * 129 + Math.Min(col, 128)], 0, Top), n);
+
+    static FineGround FromPoints(Func<int, int, int> P, int n)
+    {
+        var f = new FineGround(n);
         var step = 4096 / n;                              // a fine step's fraction in 4096ths
         for (var j = 0; j < f.Side; j++)
             for (var i = 0; i < f.Side; i++)

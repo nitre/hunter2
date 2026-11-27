@@ -72,6 +72,7 @@ public static class Collisions
     {
         int d7 = a4.Flags, d6 = a3.Flags, d4 = d6 ^ d7, d5 = d6 | d7;
         if (Bit(d5, 21) || Bit(d4, 5)) return;
+        if (_s is { } sp && Spice.Touch(sp, a4, a3)) return;                // ENHANCEMENT (Spice): a spice flower - the harvester takes it, the rest go through
         if (Bit(d4, 20))                                                      // $454E: hurt by a shot or blast
         {
             if (!Paced(slot4, slot3)) return;                                 // A500 PACE: a pair's hurt once an A500 pass
@@ -89,22 +90,17 @@ public static class Collisions
                     var (hurter, hs, victim) = Bit(d7, 20) ? (a4, slot4, a3) : (a3, slot3, a4);
                     victim.HurtBy = LivingWorld.Hurter(_s, hurter, hs);
                 }
-                if (_s is { LimbDamage: true })                                // ENHANCEMENT (LIMB DAMAGE): a bullet's hit on a person's leg or arm does not kill
-                {
-                    var (shot, victim) = Bit(d7, 20) ? (a4, a3) : (a3, a4);
-                    var limb = Limbs.Hit(shot, victim);
-                    var before = victim.W(0x2A);
-                    Damage(a4, a3);
-                    if (limb != 0) Limbs.Keep(victim, limb, before);
-                    return;
-                }
                 Damage(a4, a3);
             }
             return;
         }
         if (Bit(d5, 15))
         {
-            if (Bit(d5, 28)) { Vehicles.Touch(a4, slot4, a3, slot3); return; } // $45D4 TouchVehicle
+            if (Bit(d5, 28))
+            {
+                if (_s is { } sc && (sc.ScrAi.ContainsKey(a4) || sc.ScrAi.ContainsKey(a3))) return;   // STUNTIN': an AI car is not boarded
+                Vehicles.Touch(a4, slot4, a3, slot3); return;                // $45D4 TouchVehicle
+            }
             if (Bit(d5, 31))
             {
                 if (Bit(d5, 16))                                              // $4572: put back, then TouchItem

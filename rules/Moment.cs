@@ -9,7 +9,7 @@ namespace Hunter.Rules;
 /// run instead of playing up to it. The game data (GameData: read only) is shared, not copied. Diff lists where two moments
 /// differ, byte by byte, by path - the proof that a copy runs on as the original does, and where two runs part.
 /// Statics are not copied: the ones that change (Collisions' pair, Ground's scratch, the Navigate / Trip caches) are a
-/// pass's scratch or rebuilt from the map (.scratch/probes/GraphProbe.cs listed them).</summary>
+/// pass's scratch or rebuilt from the map (a probe listed them).</summary>
 public static class Moment
 {
     const BindingFlags Fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;

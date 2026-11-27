@@ -26,6 +26,8 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
     bool level = _ew(ent_tex, row, 4) >= 0x30;                                          // stands level: sinks only
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
     if (y > ground + 2) return false;                                                   // in the air: not standing
+    if (abs(ground_height(cam_map, x, z) - ground) > 16) return false;                 // STUNTIN': on a road above the land (+$74 is the road's,
+                                                                                        // Movement.Settle) - as the game has it, the road's own lean
     int at = _at(base);
     ivec4 head = _head(at);
     int shift = head.y, count = head.z;
@@ -51,7 +53,7 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
     if (!level && !plain)
         for (int k = 0; k < count; k++) {
             int f = _corner(at, k).w;
-            if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
+            if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0) || ((f >> 4) & 7) == 6;   // 6: a steered wheel (RacingKit)
             int oy = _walk_step(w, trig_tex, at, k, artic).y;
             if (!wheeled || rides) bottom = min(bottom, oy);
         }
@@ -62,7 +64,7 @@ bool contact_fit(int row, int base, out vec4 fit, out vec2 c) {
         if (plain) v = vec3(_corner(at, k).xyz);
         else {
             int f = _corner(at, k).w;
-            if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0);
+            if (f != 0) rides = ((f >> 4) & 7) == 0 || (((f >> 4) & 7) == 1 && ((f >> 2) & 3) == 0) || ((f >> 4) & 7) == 6;   // 6: a steered wheel (RacingKit)
             ivec3 own = _walk_step(w, trig_tex, at, k, artic);
             v = corner_fine(own, ang, frac, trig_tex);
             if (!level && (own.y > bottom + 3 || (wheeled && !rides))) continue;
@@ -240,5 +242,7 @@ bool contact_fit_row(int row, out vec4 fit, out vec2 c) {
 #else
     if (_eb(ent_tex, row, 0) == 0 || _eb(ent_tex, row, 0x1C) == 0 || model == 0 || _sb(_eb(ent_tex, row, 0x24)) < 0) return false;
 #endif
-    return contact_fit(row, int(texelFetch(model_tex, ivec2(model, 0), 0).r + 0.5), fit, c);
+    int fbase = int(texelFetch(model_tex, ivec2(model, 0), 0).r + 0.5);
+    if (fine_of(fbase) > 1.0) return false;                                              // STUNTIN's racer: its lean is the physics' own
+    return contact_fit(row, fbase, fit, c);
 }

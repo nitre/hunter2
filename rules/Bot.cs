@@ -21,7 +21,7 @@ public readonly record struct Wish(bool Go, byte Heading, bool Fire, bool Hold =
     public static readonly Wish Stand = new(false, 0, false);
 
     /// <summary>The heading byte from (x, z) toward (tx, tz) (0 = +z, $40 = +x). Straight, never round: the map does not wrap -
-    /// its edge ring of squares is blocked (Settle $2B14, .scratch/probes/EdgeBlockProbe.cs).</summary>
+    /// its edge ring of squares is blocked (Settle $2B14; a probe confirmed it).</summary>
     public static byte Toward(int x, int z, int tx, int tz)
     {
         int dx = (ushort)tx - (ushort)x, dz = (ushort)tz - (ushort)z;

@@ -171,6 +171,14 @@ vec3 entity_extra_rot(sampler2D ent, sampler2D pent, int arow, int prow, int row
     return corner_fine(pt, ang, entity_frac(ent, row), trig_tex);
 }
 
+// PLANET (the worm's victim sinks into the sand): the record on sink_row is drawn sink_depth lower, the sand
+// hiding what has gone under (GpuWorld.SinkInto, from GameView.WithWorm while the sand gives way under it).
+uniform int sink_row = -1;
+uniform float sink_depth = 0.0;
+
+float sink_below(int row, int ground, int low) {
+    return row == sink_row ? sink_depth : 0.0;
+}
 
 // VERTEX_ID -> a world point (x, y, z in world units, z north) and the face's colour / pull flag (gpu_model_vertex),
 // and the corner as turned but not yet placed (x and z doubled, y whole: the picture's own units, alike every way) -
@@ -306,11 +314,16 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
     else
         rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
-    if (layer == 0) {
+    float fine = fine_of(base);                                                           // STUNTIN's racer: its quarter units back down,
+    vec3 frot = vec3(rot) / fine;                                                         // its place kept to them; its lowest corner and
+    if (fine > 1.0) { low = y + int(round(float(low - y) / fine)); rot = frot; }   // what else reads rot in model units
+    if (layer == 0 && fine > 1.0) {
+        pos = vec3((float(2 * x) + frot.x) * 0.5, float(y + lift_to_ground(ground, low)) + frot.y - sink_below(row, ground, low), (float(2 * z) + frot.z) * 0.5);
+    } else if (layer == 0) {
         if (better_fire && fire) fire_look(row, type, core, slot, rot, colour);
         pos = entity_place(ent_tex, row, rot, low);                                                               // a boat floats as the original's (no sink)
     } else if (!sun) {
-        pos = vec3((float(2 * x) + rot.x) * 0.5, float(ground), (float(2 * z) + rot.z) * 0.5);                  // entity_shadow_vertex2
+        pos = vec3((float(2 * x) + frot.x) * 0.5, float(ground), (float(2 * z) + frot.z) * 0.5);                // entity_shadow_vertex2
     } else {
         // thrown from where the thing is drawn: its height above the real ground under the corner, with the fit and walls down
         float rise = 0.0;

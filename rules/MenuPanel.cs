@@ -35,7 +35,7 @@ public sealed class StartChoicePanel : IMenuPanel
     public const string Title = "How would you like it?";
     public static readonly IReadOnlyList<string> Answers = ["As it (kind of) was", "New"];   // was "As it could be": the game as we play it
     public const string StartBar = "Start";
-    public const int ListStep = 10;                                  // the question's list, closer than B's pages so all fit (8-high letters; 13 held 21 rows, 12 held 23, GLASS and LEAVING made 25, 11 held 25, LIMB DAMAGE made 26)
+    public const int ListStep = 10;                                  // the question's list, closer than B's pages so all fit (8-high letters; 13 held 21 rows, 12 held 23, GLASS and LEAVING made 25, 11 held 25)
 
     /// <summary>The question answered AS IT COULD BE: the tune screen opens.</summary>
     public sealed record Tune;
