@@ -24,7 +24,10 @@ uniform int fine_model = 0;
 uniform int fine_model2 = 0;     // the jeep racer (JeepKit), the same way
 const float FINE = 4.0;
 bool is_racer(int base) { return (fine_model != 0 && base + 1 == fine_model) || (fine_model2 != 0 && base + 1 == fine_model2); }
-float fine_of(int base) { return is_racer(base) ? FINE : 1.0; }
+// the jeep racer drawn at JEEP_SIZE of its stored size (JeepKit.Size: the physics car's width)
+const float JEEP_SIZE = 0.62;
+float fine_of(int base) { return is_racer(base) ? (fine_model2 != 0 && base + 1 == fine_model2 ? FINE / JEEP_SIZE : FINE) : 1.0; }
+const float RACER_SIZE = 2.0;   // the racers drawn twice their model units: the physics car's size (RacingKit.Size)
 
 ivec4 _corner(int at, int k) { int a = at + 2 + k; return ivec4(texelFetch(mdl_tex, ivec2(a & 1023, a >> 10), 0)); }   // (x, y, z, flag)
 ivec2 _edge(int at, int e) { int a = at + 2 + _head(at).z + e; return ivec2(texelFetch(mdl_tex, ivec2(a & 1023, a >> 10), 0).xy); }   // (a, b)
@@ -83,14 +86,29 @@ const int STEER_FULL = 85, WHEEL_LOCK = 20;
 // and above it each wheel's squash, model units + 64, 7 bits each - front left (8-14), front right (15-21), rear (22-28); 0 above
 // the hand on every other model. A corner of the racer out past the body's sides at rest (x beyond RACER_WHEEL_X: the tyres, the
 // discs, the struts' lower ends) rides up by its wheel's squash (by its side and end at rest), stored Fine times its size.
-const int RACER_WHEEL_X = 267;   // 66.75 units x 4: the rear brackets and springs reach 66.4, the tyres start at 67
+const int RACER_WHEEL_X = 132;   // 33 units x 4: the body (+-30), the coil-overs' mounts and middles inside it, the tyres from 36
 const int RACER2_WHEEL_X = 357;  // the jeep racer's (JeepKit.WheelSide 89.25 x 4): its body 80, brackets and springs to 88.9, tyres from 90
 uniform int racer2_at = -1;      // the jeep racer's model (its data's place, as _walk_step's at)
 uniform int racer_at = -1;       // the car racer's (RacingKit), the same way
-ivec3 _racer_spring(ivec3 raw, ivec3 v, int springs, int at) {
-    if (springs == 0 || abs(raw.x) <= (at == racer2_at ? RACER2_WHEEL_X : RACER_WHEEL_X)) return v;
-    int sh = raw.z < 0 ? 14 : (raw.x > 0 ? 7 : 0);
-    return ivec3(v.x, v.y + (((springs >> sh) & 127) - 64) * 4, v.z);
+// ...and the car racer's corners racer_ride_from to racer_ride_to (RacingKit.RideFrom / RideTo: its struts' damper rods, upright
+// beside the body inside the line) ride with their wheel too
+uniform int racer_ride_from = 0;
+uniform int racer_ride_to = 0;
+// The squashes are each wheel's against the BODY (GameView): the whole racer is drawn down by their mean (((front pair) / 2 +
+// rear) / 2, as ScrDrive stands the car on the wheels' mean road height) - so the wheels meet the road and the body rises
+// between them in the air, comes down between them on a landing - and each riding corner up by its own wheel's squash (the
+// rear pair's from the one rear spring, tilted as the front pair).
+ivec3 _racer_spring(ivec3 raw, ivec3 v, int springs, int tilt, int at, int k) {
+    if (springs == 0) return v;
+    int fl = ((springs >> 0) & 127) - 64, fr = ((springs >> 7) & 127) - 64, rr = ((springs >> 14) & 127) - 64;
+    int body = ((fl + fr) * 2 + rr * 4 + 4) / 8;                         // ((fl + fr) / 2 + rr) / 2, rounded
+    bool ride = abs(raw.x) > (at == racer2_at ? RACER2_WHEEL_X : RACER_WHEEL_X) || (at == racer_at && k >= racer_ride_from && k < racer_ride_to);
+    // the rear pair: a beam pivoted at the physics' one rear point (its middle) - each rear wheel the rear's squash and the axle's
+    // tilt (ScrDrive.RearAcross: the road under each wheel against the body's tilt across) its own side's way, their mean the
+    // rear's; so into a banking both meet the road, none hanging in the air
+    int across = (tilt & 127) - 64;
+    int own = !ride ? 0 : raw.z < 0 ? (raw.x > 0 ? rr + across : rr - across) : (raw.x > 0 ? fr : fl);
+    return ivec3(v.x, v.y + (own - body) * 4, v.z);
 }
 
 ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic_in) {
@@ -102,6 +120,7 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic_in) {
         int kind = (flag >> 4) & 7, axis = (flag >> 2) & 3, which = flag & 3;
         if (kind == 1) {
             int d = artic[which];
+            if ((at == racer_at || at == racer2_at) && axis == 0) d = (artic_in.y >> 8) & 255;   // a racer's wheel: its rolled spin (GameView)
             w.art = ivec3(axis == 0 ? d : 0, axis == 1 ? d : 0, axis >= 2 ? d : 0);
             w.piv = v;
             w.mode = 1;
@@ -111,7 +130,7 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic_in) {
             w.off = ivec3(_wrap16(w.off.x - v.x), _wrap16(w.off.y - v.y), _wrap16(w.off.z - v.z));
             w.mode = 2;
         } else if (kind == 6) {                                          // ENHANCEMENT, card only (RacingKit): a STEERED WHEEL - turns about
-            int d = artic[which];                                        // this pivot as kind 1 (its spin, axis x: pitch), then about y by the
+            int d = at == racer_at || at == racer2_at ? (artic_in.y >> 8) & 255 : artic[which];   // this pivot as kind 1 (its spin - a racer's rolled spin -, axis x: pitch), then about y by the
             int s = artic[2] >= 128 ? artic[2] - 256 : artic[2];         // steering (channel 2: the steering wheel's angle, +-STEER_FULL at full
             w.art = ivec3(d, (s * WHEEL_LOCK / STEER_FULL) & 255, 0);    // lock) - _subrotate spins first, so the spin stays in the wheel's
             w.piv = v;                                                   // plane; + turns it the way + steering turns the heading (corner_fine's
@@ -174,7 +193,7 @@ ivec3 _walk_step(inout _Walk w, sampler2D trig, int at, int k, ivec4 artic_in) {
         float t = dot(s, run) / max(dot(run, run), 1.0);
         v = w.piv + ivec3(round(s - (t - clamp(t, 0.0, 1.0)) * run));
     }
-    return _racer_spring(c.xyz, v, artic_in.w >> 8, at);
+    return _racer_spring(c.xyz, v, artic_in.w >> 8, artic_in.x >> 8, at, k);
 }
 
 ivec3 model_local(sampler2D trig, int at, int idx, ivec4 artic) {

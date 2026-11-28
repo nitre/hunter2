@@ -186,6 +186,9 @@ public sealed class Ground
         return HeightLocal(x, z);
     }
 
+    /// <summary>The land's height on this face alone, no road (STUNTIN': the road's side panels reach down to it).</summary>
+    public short LandOnFace(ushort x, ushort z) => HeightLocal(x, z);
+
     /// <summary>$36AA on this ground alone (PLANET: the face's own words).</summary>
     short HeightLocal(ushort x, ushort z)
     {

@@ -17,8 +17,21 @@ public static class JeepKit
     static readonly int[] Off = [6, 18, 19, 20, 22, 1];
     /// <summary>How far the body rides up over its wheels (units).</summary>
     public const int Lift = 16;
+    /// <summary>The stacks' open tops (units, as drawn) and their way out - where the boost flames come from (GameView.FlameStep).</summary>
+    public static readonly ((double X, double Y, double Z) Tip, (double X, double Y, double Z) Axis)[] Stacks =
+        [.. from s in new[] { -1, 1 } from z in new[] { 70, 84, 98, 112 } select ((s * 62.0, 96.0, (double)z), (s * 6.0, 16.0, 0.0))];
     /// <summary>The tyres: the tread from +-TyreIn to +-WheelOut, the disc at +-DiscX, the outer sidewall's ring from SidewallIn.</summary>
-    const int TyreIn = 90, WheelOut = 106, SidewallIn = 21, DiscX = 102;
+    const int TyreIn = 90, WheelOut = 122, SidewallIn = 30, DiscX = 118;
+    /// <summary>MONSTER WHEELS, more so than the car racer's (RacingKit.WheelGrow 1.6): the jeep's (radius 32) this much bigger -
+    /// about 56, the tyres 32 wide out from the body's side; the card stands it on its tyres, so it rides that much higher.</summary>
+    const double WheelGrow = 1.75;
+    /// <summary>The wheels' radius (units): the jeep's 32 grown by WheelGrow.</summary>
+    public const double WheelR = 32 * WheelGrow;
+    /// <summary>THE PHYSICS' FOOTPRINT: the jeep drawn this much smaller (model.gdshaderinc JEEP_SIZE) - Hunter's jeep is twice
+    /// the physics car's width; at 0.62 it is the car racer's width - and its wheels moved out along it to the physics car's
+    /// axles (the car racer's +-96 drawn: AxleZ here), at its corners past the shortened body's ends, as a monster truck's.</summary>
+    public const double Size = 0.62;
+    public const int AxleZ = 155;
     /// <summary>The corners riding on the wheels' springs: out past this (units; model.gdshaderinc RACER2_WHEEL_X = this x Fine) -
     /// the tyres, discs and the dampers' lower ends; the body (80), the cage, the brackets and the springs (to 88.9) stay inside it.</summary>
     public const double WheelSide = 89.25;
@@ -51,7 +64,8 @@ public static class JeepKit
             }
         }
         var kb = new KitBuilder(corners, edges, faces, origin);
-        var rims = kb.WidenWheels(80 + RoundWheels.Proud, DiscX);                 // the jeep's rims stand out by Proud (RoundWheels.ProudModels)
+        kb.MoveWheels(80 + RoundWheels.Proud, AxleZ);
+        var rims = kb.ScaleWheels(kb.WidenWheels(80 + RoundWheels.Proud, DiscX), DiscX, WheelGrow);   // the jeep's rims stand out by Proud (RoundWheels.ProudModels)
         kb.FineScale();
         var tyreCorners = kb.Tyres(rims, TyreIn, WheelOut, SidewallIn);
         // THE ROLL CAGE, square tube 6 across in the body's green, its feet on the body's top edge (x +-77: the tube inside the
@@ -89,19 +103,22 @@ public static class JeepKit
         // stands 3.6 off the side (its middle at 86, radius 2.4) and 1.1 inside the tyre's inner wall. The rod's lower end lies out
         // past WheelSide, so it rides up and down with its wheel on the card (model.gdshaderinc _racer_spring); the spring stays
         // on the body: the rod slides in and out as the wheel squashes
+        // the wheels past the body's ends (AxleZ): each bracket on the body's end corner (z +-ShockZ), the coil-over leaning out
+        // along the car from it down to its hub
+        const int ShockZ = 126;
         foreach (var s in new[] { -1, 1 })
-            foreach (var z in new[] { 90, -80 })
+            foreach (var e in new[] { 1, -1 })
             {
-                kb.Box(Metal, Metal, s < 0 ? -88 : 80, 74, z - 4, s < 0 ? -80 : 88, 79, z + 4, bottom: true);
-                (double X, double Y, double Z) top = (s * 86, 74, z), mid = (s * 86.5, 44, z), low = (s * 91, 6, z);
+                double zt = e * ShockZ, zl = e * AxleZ;
+                kb.Box(Metal, Metal, s < 0 ? -88 : 80, 74, (int)zt - 4, s < 0 ? -80 : 88, 79, (int)zt + 4, bottom: true);
+                (double X, double Y, double Z) top = (s * 86, 74, zt), low = (s * 91, 6, zl);
+                var mid = (X: top.X + (low.X - top.X) * 0.44, Y: top.Y + (low.Y - top.Y) * 0.44, Z: top.Z + (low.Z - top.Z) * 0.44);
                 kb.Tube(Spring, top, mid, 2.4, capA: Spring, capB: Spring, round: true);
                 kb.Tube(Metal, mid, low, 1, round: true);
             }
         kb.FaceOrigin = RacingKit.Origin;
         // THE FRONT WHEELS STEER (KitBuilder.SteerFront); CarInside's steering wheel stays the jeep's own part
         kb.SteerFront(md.Corners.Length, TyreIn, WheelOut, tyreCorners, []);
-        // BOOST FLAMES out of the stacks' tops (KitBuilder.Flames: the last parts of the model)
-        kb.Flames(from s in new[] { -1, 1 } from z in new[] { 70, 84, 98, 112 } select ((s * 62.0, 96.0, (double)z), (s * 6.0, 16.0, 0.0)), 1.2);
         md.Replace([.. kb.Corners], [.. kb.Edges], [.. faces]);
         origins[racer] = [.. origin];
         store.Layout();

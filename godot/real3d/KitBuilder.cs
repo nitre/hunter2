@@ -205,6 +205,26 @@ public sealed class KitBuilder
     public static (double X, double Y, double Z) BendMiddle((double X, double Y, double Z) before, (double X, double Y, double Z) c, (double X, double Y, double Z) after)
         => Rounded([before, c, after])[2];
 
+    /// <summary>THE WHEELS ALONG THE CAR, in the model's own units (before WidenWheels): each spin-about-x part (its pivot and the
+    /// discs' corners at x +-wheelX after it) moved along so its axle is at +-axleZ (the front ones forward, the rear back).</summary>
+    public void MoveWheels(int wheelX, int axleZ)
+    {
+        var spin = false; int dz = 0;
+        for (var k = 0; k < Corners.Count; k++)
+        {
+            var c = Corners[k];
+            if (c.Flag != 0)
+            {
+                spin = ((c.Flag >> 4) & 7) == 1 && ((c.Flag >> 2) & 3) == 0;
+                if (!spin) continue;
+                dz = System.Math.Sign(c.Z) * axleZ - c.Z;
+                Corners[k] = c with { Z = c.Z + dz };
+                continue;
+            }
+            if (spin && System.Math.Abs(c.X) == wheelX) Corners[k] = c with { Z = c.Z + dz };
+        }
+    }
+
     /// <summary>THE WHEELS OUT WIDE, in the model's own units (before FineScale): each spin-about-x part's corners at x +-wheelX
     /// (rim and pivot) move out to +-discX, the disc shrunk to 4/5 of its rim - set into the tyre, the hub's sectors (drawn pulled
     /// toward the eye, 0.4% of the distance - a face on a face, gpumodels_body) beat neither the tyre's outer edge nor its tread.
@@ -228,6 +248,21 @@ public sealed class KitBuilder
         }
         foreach (var ((s, y0, z0, _), l) in low) rims.Add((s, y0, z0, y0 - l));
         return rims;
+    }
+
+    /// <summary>BIGGER WHEELS (whole units, after WidenWheels): each spin-about-x part's disc at +-discX scaled by k about its
+    /// pivot; the rims' radii with it (for Tyres).</summary>
+    public List<(int Sign, int Py, int Pz, int R)> ScaleWheels(List<(int Sign, int Py, int Pz, int R)> rims, int discX, double k)
+    {
+        var spin = false; int py = 0, pz = 0;
+        for (var i = 0; i < Corners.Count; i++)
+        {
+            var c = Corners[i];
+            if (c.Flag != 0) { spin = ((c.Flag >> 4) & 7) == 1 && ((c.Flag >> 2) & 3) == 0; py = c.Y; pz = c.Z; continue; }
+            if (!spin || System.Math.Abs(c.X) != discX) continue;
+            Corners[i] = c with { Y = py + (int)System.Math.Round((c.Y - py) * k), Z = pz + (int)System.Math.Round((c.Z - pz) * k) };
+        }
+        return [.. rims.Select(r => (r.Sign, r.Py, r.Pz, (int)System.Math.Round(r.R * k)))];
     }
 
     /// <summary>THE FINE GRID: the model's own corners (whole units) scaled up to the kit's (Fine to a unit).</summary>
@@ -306,53 +341,6 @@ public sealed class KitBuilder
         for (var i = 0; i < order.Count; i++) map[order[i]] = i;
         Corners = order.Select(k => Corners[k]).ToList();
         Edges = Edges.Select(e => new CardModels.Edge(map[e.A], map[e.B])).ToList();
-    }
-
-    /// <summary>The flag that starts a BOOST FLAME part (frame 1-3 in its low bits; kind 0, axis 2 - the original's models use only
-    /// 0x0F of kind 0): model.gdshaderinc draws the corners after it only while that frame shows, else folds them onto it.</summary>
-    public const int FlameFlag = 0x08;
-    /// <summary>The flames' lengths per frame (units, times size) and their two paints (the fire's: 4 pale, 7 yellow, 6 red).</summary>
-    static readonly double[] FlameLength = [9, 13, 7];
-    static readonly (int A, int B)[] FlamePaint = [(7, 6), (4, 7), (6, 7)];
-
-    /// <summary>BOOST FLAMES (the original draws them at its exhausts while boosting, three frames in turn): at each stack's open
-    /// top a cone of four faces blown back along the stack, one per frame, each its own part (FlameFlag + frame) at the end of
-    /// the model. tip: the top's middle; axis: the stack's way out of it; size scales the cone.</summary>
-    public void Flames(IEnumerable<((double X, double Y, double Z) Tip, (double X, double Y, double Z) Axis)> stacks, double size)
-    {
-        Shared = null;
-        FaceOrigin = RacingKit.SolidOrigin;
-        var list = stacks.ToList();
-        for (var f = 1; f <= 3; f++)
-            foreach (var (tip, axis) in list)
-            {
-                double dx = axis.X, dy = axis.Y, dz = axis.Z - 0.6 * System.Math.Sqrt(axis.X * axis.X + axis.Y * axis.Y + axis.Z * axis.Z);
-                var dl = System.Math.Sqrt(dx * dx + dy * dy + dz * dz); dx /= dl; dy /= dl; dz /= dl;   // out of the top, blown back (-z)
-                double ux = dy, uy = -dx, uz = 0, ul = System.Math.Sqrt(ux * ux + uy * uy);   // across: dir x z
-                if (ul < 1e-6) { ux = 1; uy = 0; ul = 1; }
-                ux /= ul; uy /= ul;
-                double vx = dy * uz - dz * uy, vy = dz * ux - dx * uz, vz = dx * uy - dy * ux;   // dir x across
-                Corners.Add(new(FlameFlag | f, (int)System.Math.Round(tip.X * Fine), (int)System.Math.Round(tip.Y * Fine), (int)System.Math.Round(tip.Z * Fine)));
-                var r = 3.4 * size; var len = FlameLength[f - 1] * size;
-                var ring = new int[4];
-                for (var k = 0; k < 4; k++)
-                {
-                    var a = (k * 90 + f * 30) * System.Math.PI / 180;
-                    double cx = System.Math.Cos(a) * r, cy = System.Math.Sin(a) * r;
-                    ring[k] = NewCorner(tip.X + ux * cx + vx * cy, tip.Y + uy * cx + vy * cy, tip.Z + uz * cx + vz * cy);
-                }
-                var apex = NewCorner(tip.X + dx * len, tip.Y + dy * len, tip.Z + dz * len);
-                (double X, double Y, double Z) inside = (tip.X + dx * len / 4, tip.Y + dy * len / 4, tip.Z + dz * len / 4);
-                var (pa, pb) = FlamePaint[f - 1];
-                for (var k = 0; k < 4; k++) Face(k % 2 == 0 ? pa : pb, inside, ring[k], ring[(k + 1) % 4], apex);
-                Face(4, inside, ring[0], ring[1], ring[2], ring[3]);
-            }
-    }
-
-    int NewCorner(double x, double y, double z)
-    {
-        Corners.Add(new(0, (int)System.Math.Round(x * Fine), (int)System.Math.Round(y * Fine), (int)System.Math.Round(z * Fine)));
-        return Corners.Count - 1;
     }
 
     /// <summary>A box (its four sides and top; its bottom only when it does not stand in the body).</summary>

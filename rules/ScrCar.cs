@@ -7,15 +7,14 @@ namespace Hunter.Rules;
 /// own address in Ram, so its byte/word aliasing is exact (the engine push word $1BD2A is two named bytes; a byte clear
 /// of a word variable leaves its low byte). Proven equal to the original in the emulator, word for word, on a ramp and
 /// drop (ScrCarTests).
-/// Not ported, inputs instead: updateWheelHeightsFromTrack (the road's height under each contact point, wheel units =
-/// height value x 256, the callback in Physics) and calculateSteeringResponse's track lookup (loadTrackSegmentConfiguration:
-/// segmentTargetAngle, segmentSteeringFlags, segmentBaseSteeringOffset, reverseDirectionFlag, trackDirectionInversionFlag
-/// - set them before a pass). Left out: the race start / crane (raceStartTimer must be 0), the opponent's collision push
-/// (collisionActiveFlag 0), sounds (only their counters run), the boost fuel display (FuelTick is raised where it ran).
+/// The road's height under each contact point is the heights callback (ScrCarRoad's WheelHeights, the original's
+/// updateWheelHeightsFromTrack); the track lookup, restart and crane are ScrCarRoad / ScrCarStart. Left out: the opponent's
+/// collision push (collisionActiveFlag 0), sounds (only their counters run), the boost fuel display (FuelTick is raised
+/// where it ran).
 /// The copy protection in the steering ($611E8) is taken as passed, as in the running game.</summary>
-public sealed class ScrCar
+public sealed partial class ScrCar
 {
-    public readonly byte[] Ram = new byte[0x64000];
+    public readonly byte[] Ram = new byte[0x66400];
 
     // ---------------------------------------------------------------- the original's addresses (its own names)
     public const int
@@ -283,9 +282,9 @@ public sealed class ScrCar
                 if (d < 0 && (!Neg(rx) || rx == 0xFF)) W(targetPitchRate, d);
             }
         }
-        // handleRaceStartCountdown: raceStartTimer 0 - nothing
+        RaceStartCountdown();                                                                // handleRaceStartCountdown (ScrCarStart)
         W(lbW00D646, W(yawSpringAngle));
-        if (B(collisionSoundCooldown) != 0) B(collisionSoundCooldown, B(collisionSoundCooldown) - 1);   // applyOpponentCollisionForces, no collision
+        ApplyCollision();                                                                    // applyOpponentCollisionForces (ScrCarCollide)
         if (B(impactSoundCooldownTimer) != 0) B(impactSoundCooldownTimer, B(impactSoundCooldownTimer) - 1);
         if (B(hardImpactCount) != 0)
         {
@@ -398,6 +397,8 @@ public sealed class ScrCar
 
     void Steering()                                                                          // calculateSteeringResponse ($61012), the track given
     {
+        SB(ref d1, B(playerSegmentIndex)); B(currentSegmentIndex, (byte)d1);              // the car's own piece
+        LoadSegment();
         var d4 = (short)((W(segmentTargetAngle) - W(cameraAngleY)) ^ W(reverseDirectionFlag));
         var d2 = 0;
         if (Neg(B(segmentSteeringFlags))) { d2 = 1; if ((short)(W(trackDirectionInversionFlag) ^ W(reverseDirectionFlag)) < 0) d2 = 2; }
@@ -406,7 +407,7 @@ public sealed class ScrCar
         W(segmentProgressDistance, dist);
         W(tempWord1, d4);
         W(steeringScaleFactor, (ushort)dist >= 0x800 ? 0x7FFF : dist << 4);
-        // (the next piece's lookup when near its end: the track's, given)
+        if ((byte)(B(trackModeParameter) - B(trackProgressionByte)) < 2) { Advance(); LoadSegment(); }   // near its end: the next piece's
         B(trackDirectionMultiplier, B(trackDirectionInversionFlag) ^ B(reverseDirectionFlag));
         int d0;
         if (B(steeringInputDirection) != 0)

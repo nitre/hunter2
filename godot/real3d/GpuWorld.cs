@@ -510,6 +510,8 @@ public sealed partial class GpuWorld : Node3D
             m.SetShaderParameter("fine_model2", JeepRacerModel >= 0 ? Store.Models[JeepRacerModel].Offset + 1 : 0);
             m.SetShaderParameter("racer2_at", JeepRacerModel >= 0 ? Store.Models[JeepRacerModel].At : -1);   // its own spring line (JeepKit.WheelSide)
             m.SetShaderParameter("racer_at", RacerModel >= 0 ? Store.Models[RacerModel].At : -1);           // both racers' lift: their rest's lowest corner
+            m.SetShaderParameter("racer_ride_from", RacingKit.RideFrom);                                    // the racer's struts' rods ride with their wheels
+            m.SetShaderParameter("racer_ride_to", RacingKit.RideTo);
         }
         foreach (var m in new[] { models, glassFaces }) m.SetShaderParameter("kit_glass_model", RacerModel);   // the racer's panes: always glass, their own tints (gpumodels_body)
         foreach (var m in new[] { models, glassFaces, shadows, lines })   // TANK TRACKS: the live table's materials (a blast's row is not a live row)
@@ -856,7 +858,7 @@ public sealed partial class GpuWorld : Node3D
     /// material keeps its binding. sand: THE SAND ZONE's kinds (SandZone.Kind, 128 x 128) - a land cell's colour becomes
     /// sand (11) or rock (9), the tags the bands read: on the sand face the bands are always on, with their own sand and
     /// rock colours ($0RGB keys, ground_bands.gdshaderinc sand_face) - the palette's 11 and 9 only if the bands are off.</summary>
-    public void SetGround(byte[] terrainMap, Hunter.Rules.FineGround? fine, byte[]? sand)
+    public void SetGround(byte[] terrainMap, Hunter.Rules.FineGround? fine, byte[]? sand, bool dust = false)
     {
         map = terrainMap;
         MapTex.Update(HeightTexture.From(terrainMap).GetImage());
@@ -878,6 +880,7 @@ public sealed partial class GpuWorld : Node3D
         ground.SetShaderParameter("band_brown_h", GroundBands.Heights(terrainMap, true, fine));
         ground.SetShaderParameter("band_shore", Real3DView.CoastTexture(terrainMap));
         ground.SetShaderParameter("sand_face", sand is not null);   // the bands' sand and rock keys (ground_bands.gdshaderinc)
+        ground.SetShaderParameter("dust_face", dust);               // STUNTIN's dusty, varied sand (ground_bands.gdshaderinc dust_word)
     }
 
     public void SetGroundPattern(bool on) => ground.SetShaderParameter("ground_pattern", on);
@@ -2331,7 +2334,8 @@ public sealed partial class GpuWorld : Node3D
             ? t.Sees(x, z, ViewDistance.TurnedRows(world!.Ground, viewRows), viewWide, 512)
             : ViewDistance.InView(viewCamera!, x, z, near72, viewRows, viewWide);
         // the ground: only the cells this distance draws (ViewDistance.Cells), sent again only when they change
-        var some = viewRows != 0 && !insideView && ViewDistance.Cells(world!.Ground, viewCamera!, viewRows, viewWide, viewMask, turn);
+        // (STUNTIN': the whole face's land - the track is drawn whole, so the land under its far side must be too, not the sea)
+        var some = viewRows != 0 && !insideView && world!.Ground.Road is null && ViewDistance.Cells(world!.Ground, viewCamera!, viewRows, viewWide, viewMask, turn);
         ground.SetShaderParameter("win_all", !some);
         Fit(some);                                                   // GROUND SHAPE: the mesh over the drawn cells only
         if (some && (viewMaskTex == null || !viewMask.AsSpan().SequenceEqual(viewMaskShown)))

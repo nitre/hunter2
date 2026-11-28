@@ -90,12 +90,12 @@ public static class ScrRace
         foreach (var (e, ai) in s.ScrAi) if (e.B[0] != 0 && !ai.Drive.Wrecked && !ai.Drive.Hanging) cars.Add(ai.Drive);
         for (var i = 0; i < cars.Count; i++)
             for (var j = i + 1; j < cars.Count; j++)
-                Touch(cars[i], cars[j], kick);
+                Touch(s, cars[i], cars[j], kick);
     }
 
     static double Ground(int world) => (world - ScrRoad.Offset) / ScrRoad.Scale;
 
-    static void Touch(ScrDrive da, ScrDrive db, bool kick)
+    static void Touch(WorldState s, ScrDrive da, ScrDrive db, bool kick)
     {
         if (da.Entity is not { } ea || db.Entity is not { } eb) return;
         ScrCar a = da.Car, b = db.Car;
@@ -119,37 +119,8 @@ public static class ScrRace
             a.W(ScrCar.worldXSpeed, Clamp(vax - jn * nx)); a.W(ScrCar.worldZSpeed, Clamp(vaz - jn * nz));
             b.W(ScrCar.worldXSpeed, Clamp(vbx + jn * nx)); b.W(ScrCar.worldZSpeed, Clamp(vbz + jn * nz));
         }
-        // the original's touch: the springs and the damage
-        int side = Side(a, nx, nz);
-        Kick(a, side * 8, a.W(ScrCar.carLocalVelocityZ) - b.W(ScrCar.carLocalVelocityZ));
-        Kick(b, -side * 8, b.W(ScrCar.carLocalVelocityZ) - a.W(ScrCar.carLocalVelocityZ));
-        // the crunch (playSample 2, cooldown 5): one touch, one sound - from the first car, neither again for 5 passes
-        // (both cars' own crunch at once is the one sample twice in step: double the level, not a louder crash)
-        if (a.B(ScrCar.collisionSoundCooldown) == 0 && b.B(ScrCar.collisionSoundCooldown) == 0)
-        {
-            a.PlaySample(2);
-            a.B(ScrCar.collisionSoundCooldown, 5); b.B(ScrCar.collisionSoundCooldown, 5);
-        }
-    }
-
-    /// <summary>Which side of car c the other is on (+1 its right, -1 its left), the line to it being (nx, nz).</summary>
-    static int Side(ScrCar c, double nx, double nz)
-    {
-        var yaw = (ushort)c.W(ScrCar.cameraAngleY) / 65536.0 * 2 * Math.PI;
-        return nx * Math.Cos(yaw) - nz * Math.Sin(yaw) >= 0 ? 1 : -1;         // the car's right: (cos, -sin)
-    }
-
-    /// <summary>The original's kicks on one car: lateral (away from the other) to its roll spring, forward (half the speed
-    /// difference, +-3) to its yaw spring, and (0x200 + |both|) >> 8 to each corner's damage.</summary>
-    static void Kick(ScrCar c, int lateral, int speedDiff)
-    {
-        var forward = (speedDiff >> 1) + (speedDiff < 0 ? -3 : 3);
-        c.W(ScrCar.rollSpringAngle, c.W(ScrCar.rollSpringAngle) - lateral);
-        c.W(ScrCar.yawSpringAngle, c.W(ScrCar.yawSpringAngle) + Math.Clamp(forward, -0x7FFF, 0x7FFF));
-        var dmg = (0x200 + Math.Abs(lateral) + Math.Abs(forward)) >> 8;
-        foreach (var at in new[] { ScrCar.accumulatedForceFrontLeft, ScrCar.accumulatedForceFrontRight, ScrCar.accumulatedForceRear })
-            c.B(at, Math.Min(0xFF, c.B(at) + dmg));
-        c.B(ScrCar.damageAccumulationActive, 0x80);
+        Console.WriteLine($"SCRTRACE {s.BlankCount} touch segs {a.B(ScrCar.playerSegmentIndex)}/{b.B(ScrCar.playerSegmentIndex)} apart {d:0.0} closing {-closing:0} vz {a.W(ScrCar.carLocalVelocityZ)}/{b.W(ScrCar.carLocalVelocityZ)}");
+        // the springs, the damage and the crunch: each car's own original touch (ScrCarCollide)
     }
 
     static short Clamp(double v) => (short)Math.Clamp((int)Math.Round(v), -0x7FFF, 0x7FFF);

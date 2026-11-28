@@ -17,6 +17,23 @@ uniform bool sand_face = false;
 const int SAND_KEYS[3] = int[](0xB84, 0xC95, 0xDB7);
 const int ROCK_KEYS[3] = int[](0x532, 0x643, 0x865);
 int band_key(bool brown, int k) { return sand_face ? (brown ? ROCK_KEYS[k] : SAND_KEYS[k]) : (brown ? BAND_BROWN[k] : BAND_GREEN[k]); }
+// Stuntin's flat island: DUST - the original's ground is sand (its renderHorizon's colour 13, $332 on its
+// 0-7 scale, about $664): dusty keys, the colour varied over the flat land by soft patches (DUST_PATCH, DUST_FINE world
+// units) and fine wind ripples (DUST_RIPPLE apart, bent by the patches), no checker; wet sand at the water
+uniform bool dust_face = false;
+const int DUST_KEYS[4] = int[](0x653, 0x764, 0x875, 0x986);
+const float DUST_PATCH = 2600.0, DUST_FINE = 700.0, DUST_RIPPLE = 70.0;
+float dust_hash(ivec2 p) {
+    uint h = uint(p.x) * 374761393u + uint(p.y) * 668265263u;
+    h = (h ^ (h >> 13u)) * 1274126177u;
+    return float((h ^ (h >> 16u)) & 0xFFFFu) / 65535.0;
+}
+float dust_noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    ivec2 c = ivec2(i);
+    return mix(mix(dust_hash(c), dust_hash(c + ivec2(1, 0)), f.x), mix(dust_hash(c + ivec2(0, 1)), dust_hash(c + ivec2(1, 1)), f.x), f.y);
+}
 uniform sampler2D band_shore : filter_linear, repeat_disable;   // ShoreDistance.BuildFromCoast: the distance from the sea as drawn, 8 samples a cell, 0..1 of shore_far
 
 int band_mix(int a, int b, int step, int steps) {
@@ -26,6 +43,18 @@ int band_mix(int a, int b, int step, int steps) {
         w |= ((ca * steps + (cb - ca) * step + steps / 2) / steps) << sh;
     }
     return w;
+}
+
+// the dust's $0RGB at a ground point: patches and ripples to a share 0..1 along the keys, stepped (12 steps) as the bands are
+int dust_word(ivec2 at, int shore, int h) {
+    vec2 p = vec2(at);
+    float blot = dust_noise(p / DUST_PATCH) * 0.65 + dust_noise(p / DUST_FINE + 17.0) * 0.35;
+    float ripple = sin((p.x * 0.8 + p.y * 0.6) / DUST_RIPPLE + blot * 9.0);
+    float s = clamp(blot * 1.1 - 0.05 + ripple * 0.06, 0.0, 0.999);
+    int st = int(s * 12.0), k = st / 4;
+    int land = band_mix(DUST_KEYS[k], DUST_KEYS[k + 1], st % 4, 4);
+    int t = clamp(max(shore * 4 / 256, h * 4 / 24), 0, 4);
+    return t == 0 ? 0x542 : band_mix(0x653, land, t - 1, 3);
 }
 
 // GroundBands.Ramp: four steps between a ramp's keys
@@ -89,11 +118,12 @@ int ground_point_word(sampler2D hmap, sampler2D types, ivec2 mid, int h) {
     }
     int slope = band_slope(hmap, mid.x, mid.y);
     int shore = int(texture(band_shore, vec2(mid) / 65536.0).r * shore_far);
+    if (dust_face) return dust_word(mid, shore, h);
     return ground_band_word(h, bend, slope, shore, band_brown64(types, mid.x, mid.y));
 }
 
 // The checker (GroundBands.Checker): every second square times 60 / 64
-float ground_band_checker(int col, int row) { return ((col + row) & 1) == 0 ? 60.0 / 64.0 : 1.0; }
+float ground_band_checker(int col, int row) { return dust_face || ((col + row) & 1) != 0 ? 1.0 : 60.0 / 64.0; }
 
 // The piece's colour, faded as the palette, times its light and the checker, then the haze (world_lit_hazed's steps)
 vec3 ground_band_albedo(int word, float depth, float lit_light) {

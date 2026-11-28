@@ -84,7 +84,7 @@ public static class ScrPanel
 
         // TIME this lap (from the lap line; the lap just done held on it a moment, as the original's lapTimeDisplayDuration),
         // BEST the best lap so far (Hunter's passes, 50 a second; shown in tenths)
-        static string Clock(int passes) { var t = passes / 5; return $"{t / 600 % 10}:{t / 10 % 60:D2}.{t % 10}".PadLeft(7); }
+        static string Clock(int hundredths) { var t = hundredths / 10; return $"{t / 600 % 10}:{t / 10 % 60:D2}.{t % 10}".PadLeft(7); }   // the original's clock
         Text(TimeX, TimeY, me.ShowLast > 0 || me.FinishedAt >= 0 ? Clock(me.LastLap) : Clock(me.LapPasses), White, Blue);   // the race done: its last lap
         Text(TimeX, BestY, me.BestLap >= 0 ? Clock(me.BestLap) : " -:--.-", White, Blue);
 

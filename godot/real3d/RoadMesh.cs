@@ -24,6 +24,8 @@ public static class RoadMesh
     public const int EdgeYellow = 0x770, EdgeRed = 0x200;
     /// <summary>The start line (ScrRoad.StartLineSection): colour 15, $777, across the road between the edge lines.</summary>
     public const int StartLine = 0x777;
+    /// <summary>The finish line's chequered strip: its squares across the road and along it, and their two colours.</summary>
+    public const int CheckCols = 8, CheckRows = 2, CheckWhite = 0xEEE, CheckBlack = 0x111;
     /// <summary>Its depth along the road, world units: the original's line is a pixel at any distance; 48 (about a real
     /// start line on a road this wide) keeps it in sight from the grid, 8 cross-sections back.</summary>
     public const double StartDepth = 48;
@@ -31,8 +33,16 @@ public static class RoadMesh
     public const double GapStep = 0x280;
     /// <summary>The lines' width, world units: the original's are a pixel; here a 48th of the road's usual width (576).</summary>
     public const double Line = 12;
+    /// <summary>How far the side panels go on into the ground under them (world units): no seam where the land's drawn surface
+    /// rounds differently between its points.</summary>
+    const double Sink = 32;
+    /// <summary>Each strip's top drawn as Grid x Grid small quads on its smooth surface.</summary>
+    const int Grid = 4;
 
-    public static MeshInstance3D Make(ScrRoad road, double ground, ShaderMaterial material)
+    /// <summary>ground: the land's height under a point (x, z; world units) - the side panels reach down to it and Sink into
+    /// it, to the sea's floor where the track runs out past the shore; only: the strips to build (null all) - the draw
+    /// bridge's moving strips are a mesh of their own.</summary>
+    public static MeshInstance3D Make(ScrRoad road, System.Func<double, double, double> ground, ShaderMaterial material, System.Func<int, bool>? only = null)
     {
         var v = new List<Vector3>();
         var uv = new List<Vector2>();
@@ -45,8 +55,19 @@ public static class RoadMesh
         static Vector3 P(double x, double y, double z) => new((float)x, (float)y, (float)-z);
 
         var s = road.Sections;
+        // the finish line's strip: each cross-section's way along from the line (its middle), for the squares over the sections it spans
+        var fromLine = new double[s.Count];
+        for (int k = 1, i0 = road.StartLineSection; k < s.Count; k++)
+        {
+            var p = s[(i0 + k - 1) % s.Count]; var q = s[(i0 + k) % s.Count];
+            double dx = (q.LX + q.RX - p.LX - p.RX) / 2, dz = (q.LZ + q.RZ - p.LZ - p.RZ) / 2;
+            fromLine[(i0 + k) % s.Count] = fromLine[(i0 + k - 1) % s.Count] + System.Math.Sqrt(dx * dx + dz * dz);
+        }
+        var lineSec = s[road.StartLineSection];
+        var square = System.Math.Sqrt((lineSec.RX - lineSec.LX) * (lineSec.RX - lineSec.LX) + (lineSec.RZ - lineSec.LZ) * (lineSec.RZ - lineSec.LZ)) / CheckCols;
         for (var i = 0; i < s.Count; i++)
         {
+            if (only is not null && !only(i)) continue;
             var a = s[i];
             var b = s[(i + 1) % s.Count];
             Vector3 al = P(a.LX, a.LY, a.LZ), ar = P(a.RX, a.RY, a.RZ), bl = P(b.LX, b.LY, b.LZ), br = P(b.RX, b.RY, b.RZ);
@@ -58,23 +79,58 @@ public static class RoadMesh
             // the top: the two edge lines set into it (not laid over it - no fight for the same depth) and the road between;
             // a step of $280 (640 ground units) or more up or down to the next cross-section - a jump's face - is colour 0
             // (setupTrackGeometryForFrame2 sets bit 5, renderTrackSurface draws it black)
-            Vector3 In(Vector3 edge, Vector3 other) => edge + (other - edge) * (float)System.Math.Min(0.25, Line / System.Math.Max(1e-3, (other - edge).Length()));
-            Vector3 ali = In(al, ar), ari = In(ar, al), bli = In(bl, br), bri = In(br, bl);
+            // THE STRIP'S SURFACE: smooth through its four corners (bilinear, u across from the left edge, v along) - the surface the
+            // game's road lookup reads (ScrRoadSurface.OnStrip) - drawn as a Grid x Grid of small quads; two flat triangles creased
+            // wherever a strip twists, and a car's wheels dropped into each crease
+            Vector3 Bi(double u, double v) => al * (float)((1 - u) * (1 - v)) + ar * (float)(u * (1 - v)) + br * (float)(u * v) + bl * (float)((1 - u) * v);
+            double inA = System.Math.Min(0.25, Line / System.Math.Max(1e-3, (ar - al).Length())), inB = System.Math.Min(0.25, Line / System.Math.Max(1e-3, (br - bl).Length()));
+            double U0(double v) => inA + (inB - inA) * v;                     // the edge line's inner side
             var edgeWord = oddSection ? EdgeYellow : EdgeRed;
-            var face = System.Math.Abs(b.LY - a.LY) / ScrRoad.Scale >= GapStep || System.Math.Abs(b.RY - a.RY) / ScrRoad.Scale >= GapStep;
+            var face = System.Math.Abs(b.LY - a.LY) / ScrRoad.Rise >= GapStep || System.Math.Abs(b.RY - a.RY) / ScrRoad.Rise >= GapStep;
             var top = face ? 0x000 : oddPiece ? RoadB : RoadA;
-            if (i == road.StartLineSection)
-            {                                                                    // the start line across the top at this cross-section
-                Vector3 Ahead(Vector3 from, Vector3 to) => from + (to - from) * (float)System.Math.Min(0.5, StartDepth / System.Math.Max(1e-3, (to - from).Length()));
-                Vector3 alw = Ahead(ali, bli), arw = Ahead(ari, bri);
-                Quad(ali, ari, arw, alw, StartLine, 1f);
-                Quad(alw, arw, bri, bli, top, 1f);
+            void Rows(double v0, double v1, int rows, int word)
+            {                                                                    // the top between the edge lines, v0 to v1
+                for (var r = 0; r < rows; r++)
+                {
+                    double va = v0 + (v1 - v0) * r / rows, vb = v0 + (v1 - v0) * (r + 1) / rows;
+                    for (var c = 0; c < Grid; c++)
+                    {
+                        Vector3 G2(double s, double v) => Bi(U0(v) + (1 - 2 * U0(v)) * s, v);
+                        Quad(G2((double)c / Grid, va), G2((double)(c + 1) / Grid, va), G2((double)(c + 1) / Grid, vb), G2((double)c / Grid, vb), word, 1f);
+                    }
+                }
             }
-            else Quad(ali, ari, bri, bli, top, 1f);
-            Quad(al, ali, bli, bl, edgeWord, 1f);
-            Quad(ari, ar, br, bri, edgeWord, 1f);
+            var stripLeft = CheckRows * square - fromLine[i];
+            if (stripLeft > 0 && (i == road.StartLineSection || fromLine[i] > 0))
+            {                                                                    // the finish line: a chequered strip across the top, CheckRows of
+                double len = System.Math.Max(1e-3, fromLine[(i + 1) % s.Count] - fromLine[i]);   // squares CheckCols across, over the sections it spans
+                if (fromLine[(i + 1) % s.Count] <= fromLine[i]) len = System.Math.Max(1e-3, ((bl + br) - (al + ar)).Length() / 2);
+                var covered = System.Math.Min(len, stripLeft);
+                for (var p0 = 0.0; p0 < covered - 1e-6;)
+                {
+                    var row = (int)System.Math.Floor((fromLine[i] + p0) / square + 1e-9);
+                    var p1 = System.Math.Min(covered, (row + 1) * square - fromLine[i]);
+                    double va = p0 / len, vb = p1 / len;
+                    for (var c = 0; c < CheckCols; c++)
+                    {
+                        Vector3 G2(double u, double vv) => Bi(U0(vv) + (1 - 2 * U0(vv)) * u, vv);
+                        Quad(G2((double)c / CheckCols, va), G2((double)(c + 1) / CheckCols, va), G2((double)(c + 1) / CheckCols, vb), G2((double)c / CheckCols, vb),
+                            (row + c & 1) == 0 ? CheckWhite : CheckBlack, 1f);
+                    }
+                    p0 = p1;
+                }
+                if (covered < len) Rows(covered / len, 1, Grid, top);
+            }
+            else Rows(0, 1, Grid, top);
+            for (var r = 0; r < Grid; r++)
+            {                                                                    // the edge lines
+                double va = (double)r / Grid, vb = (double)(r + 1) / Grid;
+                Quad(Bi(0, va), Bi(U0(va), va), Bi(U0(vb), vb), Bi(0, vb), edgeWord, 1f);
+                Quad(Bi(1 - U0(va), va), Bi(1, va), Bi(1, vb), Bi(1 - U0(vb), vb), edgeWord, 1f);
+            }
             // the side panels, from the edge down to the land
-            Vector3 alg = P(a.LX, ground, a.LZ), blg = P(b.LX, ground, b.LZ), arg = P(a.RX, ground, a.RZ), brg = P(b.RX, ground, b.RZ);
+            Vector3 G(double x, double z) => P(x, ground(x, z) - Sink, z);
+            Vector3 alg = G(a.LX, a.LZ), blg = G(b.LX, b.LZ), arg = G(a.RX, a.RZ), brg = G(b.RX, b.RZ);
             var panel = oddPiece ? PanelB : PanelA;
             if (oddSection)
             {

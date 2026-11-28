@@ -380,15 +380,25 @@ public partial class GameView : Node2D
 
     bool wide3d;
     int shownFace;
-    MeshInstance3D? scrMountains;                                                        // STUNTIN': the mountain horizon (MountainMesh)
+    /// <summary>A sand zone's kinds all sand (SandZone.Sand): STUNTIN's face drawn as desert.</summary>
+    static readonly byte[] AllSand = [.. Enumerable.Repeat(SandZone.Sand, Terrain.Size * Terrain.Size)];
+    MeshInstance3D? scrMountains;                                                       // STUNTIN': the mountain horizon (MountainMesh)
     MeshInstance3D? scrRoad;                                                             // STUNTIN': the road on its face (RoadMesh)
+    MeshInstance3D? scrBridge;                                                           // Draw Bridge's moving strips (rebuilt as they move)
+    int scrBridgeVersion = -1;
+    ShaderMaterial? scrRoadMaterial;
     /// <summary>STUNTIN's chase camera: the share of the gap to the car's heading it turns each frame.</summary>
     const float FollowEase = 0.12f;
     /// <summary>STUNTIN's chase camera (ChaseStep): how far behind the car (world units - the car is about 180 long), how
     /// high above it (height units, drawn half size), and the point it looks at: this far ahead, this much above the car.</summary>
-    const double ChaseBack = 300, ChaseLift = 240, ChaseAhead = 600, ChaseAim = 40;
+    const double ChaseBack = 300 * RacingKit.Size, ChaseLift = 240 * RacingKit.Size, ChaseAhead = 600 * RacingKit.Size, ChaseAim = 40 * RacingKit.Size;
+    /// <summary>Recording (HUNTER_SCR_VIEW=corner): the chase camera closer, lower and out over the car's right rear corner -
+    /// back, lift, to the right, and the point ahead it looks at (world units).</summary>
+    static readonly bool cornerCam = System.Environment.GetEnvironmentVariable("HUNTER_SCR_VIEW") is "corner" or "behind";
+    static readonly bool behindCam = System.Environment.GetEnvironmentVariable("HUNTER_SCR_VIEW") == "behind";   // checks: straight behind, low
+    const double CornerBack = 150 * RacingKit.Size, CornerLift = 170 * RacingKit.Size, CornerSide = 90 * RacingKit.Size, CornerAhead = 120 * RacingKit.Size;
     /// <summary>Another car this near the chase camera (world units) is not drawn: the camera would be inside it.</summary>
-    const double ChaseClear = 200;
+    const double ChaseClear = 200 * RacingKit.Size;
     bool chasing, scrCameraDue;
     float chaseTurn;
     /// <summary>STUNTIN's in-car view (V; HUNTER_SCR_VIEW=car starts in it): the original's only view.</summary>
@@ -401,6 +411,7 @@ public partial class GameView : Node2D
     {
         chasing = true;
         var (x, y, z) = real3d!.Gpu.PlaceOf(0);                      // as the card was just given it (Real3DFrame, after the upload)
+        y = (short)(y + racerLift[0]);                               // lifted with the drawn car (WheelCheck)
         var turn = -me.UW(0x7E) / 65536f * Mathf.Tau;
         // the camera turned exactly as the card turns his car's model (+$7C pitch, nose down positive - the free camera's tilt is
         // down too; +$80 roll; with FINE ANGLES the fine words ScrDrive writes, else the bytes), so the inside stays put round the eye
@@ -411,7 +422,7 @@ public partial class GameView : Node2D
         // in HUNTER'S OWN CAR: the eye where the seated driver's head is (CarInside's figure: the driver's seat, x DriverSide)
         // turned as the card turns the car's corners (corner.gdshaderinc corner_fine: roll +$80, pitch +$7C, then the heading),
         // a model's x and z in doubled world units, y whole (place.gdshaderinc entity_vertex2), lifted as its lowest corner sits
-        double px = HeadX, py = HeadY, pz = HeadZ, c, sn, t;
+        double px = HeadX * RacingKit.Size, py = HeadY * RacingKit.Size, pz = HeadZ * RacingKit.Size, c, sn, t;
         c = Math.Cos(rollA * Math.Tau / 256); sn = Math.Sin(rollA * Math.Tau / 256); t = c * px + sn * py; py = c * py - sn * px; px = t;
         c = Math.Cos(pitchA * Math.Tau / 256); sn = Math.Sin(pitchA * Math.Tau / 256); t = c * pz + sn * py; py = c * py - sn * pz; pz = t;
         var h = me.UW(0x7E) / 65536.0 * Math.Tau;
@@ -432,7 +443,11 @@ public partial class GameView : Node2D
                 var ry = cr * qy0 - sr * qx;
                 lowest = Math.Min(lowest, cp * ry - sp * qz);
             }
-        real3d.Free = new FreeCamera((ex, y - lowest + py, ez), turn, tilt);
+        // the eye rides with the body as the shader draws it down by the squashes' mean (_racer_spring) - as the original's camera
+        // rides its car's body
+        var drop = real3d.Gpu.RacerModel >= 0 ? racerBodyDrawn[0] * RacingKit.Size : 0;   // the body as the shader draws it this frame (WheelCheck)
+        real3d.Free = new FreeCamera((ex, y - lowest + py - drop, ez), turn, tilt, InCarZoom);
+        if (wheelCheck) GD.Print($"EYECHECK {play.State.BlankCount} {y - lowest + py - drop:0.00} old {y - lowest + py - BodyDrop(0):0.00}");
         real3d.Roll = -(float)(rollA / 256 * Math.Tau);
         real3d.NearScale = 0.25f;                                    // the steering wheel and the hands on it, 15 world units and less from the eye
         real3d.Gpu.NearCamera = (ex, ez, 120);
@@ -448,18 +463,190 @@ public partial class GameView : Node2D
     readonly int[] racerFlame = new int[16];
     /// <summary>The share of the way left the hand moves each frame (about a fifth of a second there).</summary>
     const float RacerHandEase = 0.3f;
+    /// <summary>THE WHEELS ON THE ROAD, always logged (SCRTRACE): each drawn wheel's lowest tyre point, placed as the shader
+    /// places the racer (gpumodels: x + rot.x / 2, y + lift + rot.y; lift = the lowest corner at rest onto +$74; _racer_spring;
+    /// corner_fine's roll, pitch, yaw), less the road under it (height units). A line when a wheel leaves the road (over
+    /// WheelOff) or sinks into it (under -WheelOff) while two others are on it, and when it is back; a line when the car
+    /// bottoms out (the springs' mean squash past BodyClear: a scrape) and when it stops. HUNTER_WHEELCHECK: every frame's gaps.</summary>
+    static readonly bool wheelCheck = System.Environment.GetEnvironmentVariable("HUNTER_WHEELCHECK") is not null;
+    const double WheelOff = 6, WheelOn = 3;
+    const int WheelBlip = 5;
+    /// <summary>Each racer model's wheels (WheelCheck): its tyres' lowest points (drawn: model units x its size), its lowest
+    /// corner, its wheels' radius (model units), its size (model units to drawn: RacingKit.Size, the jeep's x JeepKit.Size).</summary>
+    readonly System.Collections.Generic.Dictionary<int, ((double X, double Y, double Z)[] Tyres, double MinY, double Radius, double Size)> wheelModels = [];
+    /// <summary>Each car's log (its row): wheels off or in the road since when and how far, its scrape, its smoothness (ScrMetrics) -
+    /// the player's P, a computer car's A (as ScrDrive's lines).</summary>
+    sealed class CarLog(string who, double jump)
+    {
+        public readonly string Who = who;
+        public readonly int[] Since = [-1, -1, -1, -1];
+        public readonly double[] Most = new double[4];
+        public int ScrapeSince = -1;
+        public float ScrapeMost;
+        public readonly ScrMetrics Metrics = new(who, jump);
+    }
+    readonly System.Collections.Generic.Dictionary<int, CarLog> carLogs = [];
+    /// <returns>The lift (model height units, -64 to 63) that puts the lowest wheel WheelClear over the road (the physics places the car
+    /// 8 times a second and the drawn one slides in a line between, while the road under it curves; a resting tyre's flat foot in
+    /// the road's own plane flickered) - none in the air.</returns>
+    int WheelCheck(Entity e, int racer, int r, float[] parts)
+    {
+        if (!wheelModels.TryGetValue(racer, out var wm))
+        {
+            // the tyres: each corner's lowest point out past the body (the car racer: x beyond 33, by its axles at z +-96; the
+            // jeep: beyond JeepKit.WheelSide)
+            var jeep = racer == real3d!.Gpu.JeepRacerModel;
+            var cs = real3d!.Gpu.Store.Models[racer].Corners.Select(q => (X: q.X / (double)RacingKit.Fine, Y: q.Y / (double)RacingKit.Fine, Z: q.Z / (double)RacingKit.Fine)).ToArray();
+            var drawn = jeep ? RacingKit.Size * JeepKit.Size : RacingKit.Size;   // model units to drawn (the jeep smaller: JeepKit.Size)
+            (double X, double Y, double Z) Up((double X, double Y, double Z) q) => (q.X * drawn, q.Y * drawn, q.Z * drawn);
+            bool Tyre((double X, double Y, double Z) q) => jeep ? Math.Abs(q.X) > JeepKit.WheelSide : Math.Abs(q.X) > 33 && Math.Abs(Math.Abs(q.Z) - 96) < 24;
+            var tyres = new[] { (-1, 1), (1, 1), (-1, -1), (1, -1) }.Select(w => cs.Where(q => Tyre(q) && Math.Sign(q.X) == w.Item1 && Math.Sign(q.Z) == w.Item2).OrderBy(q => q.Y).First()).ToArray();
+            wheelModels[racer] = wm = ([.. tyres.Select(Up)], cs.Min(q => q.Y) * drawn, jeep ? JeepKit.WheelR : RacingKit.WheelR, drawn);
+        }
+        var (tyreAt, minY, wheelR, size) = wm;
+        if (!carLogs.TryGetValue(r, out var log)) carLogs[r] = log = new CarLog(r == 0 ? "P" : "A", ScrMetrics.Jump * RacingKit.Size / size);   // the jump as far on screen as the car racer's
+        int Sq(int w) => Math.Clamp((int)Math.Round(racerSquash[r, w]), -63, 63);
+        int fl = Sq(0), fr = Sq(1), rr = Sq(2), tilt = Sq(3);
+        static int BodyOf(int fl, int fr, int rr) => ((fl + fr) * 2 + rr * 4 + 4) / 8;   // as _racer_spring
+        var body = BodyOf(fl, fr, rr);
+        double Ang(int word) => (ushort)word / 65536.0 * Math.Tau;
+        double ra = Ang(e.RollFine), pa = Ang(e.PitchFine), ya = Ang(e.HeadingFine);
+        string[] names = ["FL", "FR", "RL", "RR"];
+        // each tyre's lowest point over the road, the car drawn with these springs and this lift
+        double[] Gaps(int fl, int fr, int rr, int tilt, int lift)
+        {
+            var g = new double[4];
+            var body = BodyOf(fl, fr, rr);
+            for (var w = 0; w < 4; w++)
+            {
+                var tyre = tyreAt[w];
+                var own = w == 0 ? fl : w == 1 ? fr : w == 2 ? rr - tilt : rr + tilt;
+                double x = tyre.X, y = tyre.Y + (own - body) * size, z = tyre.Z, c, s, t;
+                c = Math.Cos(ra); s = Math.Sin(ra); t = c * x + s * y; y = c * y - s * x; x = t;
+                c = Math.Cos(pa); s = Math.Sin(pa); t = c * z + s * y; y = c * y - s * z; z = t;
+                c = Math.Cos(ya); s = Math.Sin(ya); t = c * x + s * z; z = c * z - s * x; x = t;
+                double wx = e.UW(0x4A) + x / 2, wz = e.UW(0x4E) + z / 2, wy = e.W(0x74) - minY + y + lift;
+                g[w] = wy - play.State.Ground.SurfaceOnFace((ushort)Math.Clamp((int)Math.Round(wx), 0, 65535), (ushort)Math.Clamp((int)Math.Round(wz), 0, 65535), (int)wy, ScrDrive.Reach);
+                if (w == 1) lastFR = (wx, wz, wy - g[w]);
+            }
+            return g;
+        }
+        var gap = Gaps(fl, fr, rr, tilt, 0);
+        var gap0 = gap;
+        // THE LIFT from the car's own tilt (smooth as the tilt): the card turns the racer about its axles' height (WheelR over the
+        // road), so a tilt swings the tyres' contact down (R cos) and sideways onto the road's slope (R sin tan, across and along)
+        // - lifted by that, the contact stays on the road. (Measured from the road under the wheels each frame instead, the lift
+        // jumped with every strip and pass: the car twitched)
+        double pr = (short)e.PitchFine / 65536.0 * Math.Tau, rr2 = (short)e.RollFine / 65536.0 * Math.Tau, R = wheelR * size;
+        double cp = Math.Max(Math.Cos(pr), 0.2), cr = Math.Max(Math.Cos(rr2), 0.2);
+        var geo = R * cr * cp + R * Math.Sin(rr2) * Math.Sin(rr2) / cr + R * cr * Math.Sin(pr) * Math.Sin(pr) / cp - R;
+        // THE WHEELS ON THE ROAD, THE BODY SMOOTH: each wheel moved on its spring to the road under it (within its car's Suspension.Bump up,
+        // Droop down: off the road it hangs), the body kept where the tilt's lift puts it - the shader moves the body by the
+        // springs' mean, so the lift takes that change back
+        var baseLift = geo + WheelClear;
+        double k = Math.Max(cr * cp, 0.3);                                   // a wheel's move on its spring, upright in the world
+        var d = new int[4];
+        var sus = SuspensionOf(racer);
+        for (var w = 0; w < 4; w++) d[w] = (int)Math.Round(Math.Clamp(-(gap[w] + geo) / (k * size), -sus.Droop, sus.Bump));   // (a spring unit moves the drawn wheel Size height units)
+        int fl2 = fl + d[0], fr2 = fr + d[1], rl = rr - tilt + d[2], rrw = rr + tilt + d[3];
+        if (wheelCheck && r == 0) GD.Print($"WHEELPARTS {play.State.BlankCount} fr_spring {fr} fr_fix {d[1]} gapFR {gap[1]:0.0} y74 {e.W(0x74)} x {e.UW(0x4A)} z {e.UW(0x4E)} roadFR {lastFR.Road:0} at {lastFR.X:0},{lastFR.Z:0} geo {geo:0.0} body {body} lift0 {baseLift:0.0}");
+        var rear2 = (int)Math.Round((rl + rrw) / 2.0);
+        var tilt2 = rrw - rear2;
+        // THE SPRINGS BOTTOMED: a wheel the road wants higher than its spring takes it (past its Bump - a hard landing, a deep
+        // compression) lifts the car by the rest, so it sits on the road on bottomed springs (scraping, the sparks) instead of its
+        // tyres sinking in; up quickly, down gently (the physics steps 8 times a second), at most RideUpMost (a car against a
+        // ramp's face wants hundreds)
+        double up = 0;
+        for (var w = 0; w < 4; w++) up = Math.Max(up, (-(gap[w] + geo) / (k * size) - sus.Bump) * k * size);
+        up = Math.Min(up, RideUpMost);
+        racerRideUp[r] += (up - racerRideUp[r]) * (up > racerRideUp[r] ? RideUpRise : RideUpFall);
+        var liftWanted = baseLift + (BodyOf(fl2, fr2, rear2) - body) * size + racerRideUp[r];
+        var lift = Math.Clamp((int)Math.Round(liftWanted), -64, 63);
+        racerLift[r] = lift;
+        racerBodyDrawn[r] = BodyOf(fl2, fr2, rear2);
+        // the wheels' spin: the distance rolled along the heading this frame over the wheel's round (radius WheelR, drawn at Size),
+        // in 256ths of a turn (Hunter's animation table turned them at its own pace, whatever the speed)
+        int x = e.UW(0x4A), z = e.UW(0x4E);
+        if (racerSpinWas[r] is var (sx, sz) && (sx != 0 || sz != 0))
+        {
+            var hd = (ushort)e.HeadingFine / 65536.0 * Math.Tau;
+            var rolled = (short)(x - sx) * Math.Sin(hd) + (short)(z - sz) * Math.Cos(hd);
+            racerSpin[r] = (racerSpin[r] + rolled / (Math.Tau * wheelR * size / 2) * 256) % 256;
+            if (racerSpin[r] < 0) racerSpin[r] += 256;
+        }
+        if (wheelCheck && r == 0) GD.Print($"SPINCHECK {play.State.BlankCount} spin {racerSpin[r]:0.0} speed {e.W(0x3E)}");
+        racerSpinWas[r] = (x, z);
+        parts[r * 4 + 1] = fl2 + 128 + 256 * ((int)racerSpin[r] & 255); parts[r * 4 + 2] = fr2; parts[r * 4 + 3] = rear2;   // the spin over the front left spring's + 128
+        parts[r * 4] = racerHand[r] + 256 * racerFlame[r] + 1024 * (Math.Clamp(tilt2, -63, 63) + 64) + 131072 * (lift + 64);   // the lift + 64 over the hand's 17 bits
+        gap = Gaps(fl2, fr2, rear2, tilt2, lift);                           // the log: every car's
+        (fl, fr, rr, tilt, body) = (fl2, fr2, rear2, tilt2, BodyOf(fl2, fr2, rear2));
+        var blank = play.State.BlankCount;
+        log.Metrics.Car(blank, e.W(0x4C) + lift - body * size, [fl - body, fr - body, rr - tilt - body, rr + tilt - body], gap, lift);
+        if (wheelCheck && r == 0) GD.Print($"WHEELCHECK {blank} y {e.W(0x4C) + lift - body * size:0} p {(short)e.PitchFine} r {(short)e.RollFine} lift {lift} wants {liftWanted:0} move {string.Join('/', Enumerable.Range(0, 4).Select(w => (-(gap0[w] + geo) / (k * size)).ToString("0")))} sq {fl}/{fr}/{rr}/{tilt} body {body} | FL {gap[0]:0} FR {gap[1]:0} RL {gap[2]:0} RR {gap[3]:0}");
+        for (var w = 0; w < 4; w++)
+        {
+            var othersOn = Enumerable.Range(0, 4).Count(k => k != w && Math.Abs(gap[k]) <= WheelOn);
+            var wrong = Math.Abs(gap[w]) > WheelOff && othersOn >= 2;
+            if (wrong && log.Since[w] < 0) { log.Since[w] = blank; log.Most[w] = gap[w]; }
+            else if (wrong && Math.Abs(gap[w]) > Math.Abs(log.Most[w])) log.Most[w] = gap[w];
+            else if (!wrong && log.Since[w] >= 0)                               // (a blip under WheelBlip blanks: the physics' 8 passes a second against the in-between place)
+            {
+                if (blank - log.Since[w] >= WheelBlip) GD.Print($"SCRTRACE {log.Since[w]} {log.Who} wheel {names[w]} {(log.Most[w] > 0 ? "off the road" : "in the road")} for {blank - log.Since[w]} blanks, most {log.Most[w]:+0;-0}");
+                log.Since[w] = -1;
+            }
+        }
+        var scrape = racerScrape[r];
+        if (scrape > 0.5f && log.ScrapeSince < 0) { log.ScrapeSince = blank; log.ScrapeMost = scrape; GD.Print($"SCRTRACE {blank} {log.Who} scrape {scrape:0}"); }
+        else if (scrape > 0.5f && scrape > log.ScrapeMost) log.ScrapeMost = scrape;
+        else if (scrape <= 0.5f && log.ScrapeSince >= 0) { GD.Print($"SCRTRACE {blank} {log.Who} scrape ends after {blank - log.ScrapeSince} blanks, deepest {log.ScrapeMost:0}"); log.ScrapeSince = -1; }
+        return lift;
+    }
+    /// <summary>The lowest drawn wheel's clearance over the road (model height units).</summary>
+    const double WheelClear = 1;
+    /// <summary>Each racer's drawn lift this frame (WheelCheck).</summary>
+    readonly int[] racerLift = new int[16];
+    /// <summary>Each racer's ride-up on bottomed springs (height units, eased; WheelCheck), its most, and the share of the way it
+    /// moves a frame rising and falling.</summary>
+    readonly double[] racerRideUp = new double[16];
+    const double RideUpMost = 40, RideUpRise = 0.6, RideUpFall = 0.2;
+    /// <summary>Each racer's wheels' rolled spin (256ths of a turn) and where it was last frame (WheelCheck).</summary>
+    readonly double[] racerSpin = new double[16];
+    readonly (int X, int Z)[] racerSpinWas = new (int, int)[16];
+    (double X, double Z, double Road) lastFR;   // checks
+    /// <summary>Each racer's body drop as the shader draws it this frame (the springs' mean, _racer_spring; WheelCheck).</summary>
+    readonly int[] racerBodyDrawn = new int[16];
+    /// <summary>STUNTIN's racers: each wheel's drawn squash against the body (front left, front right, rear) and the rear axle's tilt, eased, per live row.</summary>
+    readonly float[,] racerSquash = new float[16, 4];
+    /// <summary>The share of the way left a drawn squash moves each frame: the physics' 8 passes a second smoothed over a few frames.</summary>
+    const float SquashEase = 0.35f;
+    /// <summary>How far the shader draws a racer's body down (row's squashes' mean, model height units; ((fl + fr) / 2 + rr) / 2).</summary>
+    float BodyDrop(int r) => ((racerSquash[r, 0] + racerSquash[r, 1]) / 2 + racerSquash[r, 2]) / 2;
     /// <summary>STUNTIN's racers' springs: the physics' squash words at rest on the flat (front, rear - read back over the demo
     /// race), and the most a wheel is drawn riding up into the body or hanging below it (model units; a banked corner squashes
     /// the physics' springs by up to 60).</summary>
     const int SpringRestFront = 296, SpringRestRear = 343;
-    const float SpringBump = 12, SpringDroop = 8;
-    /// <summary>A spring's squash as the drawn wheel's rise against the body, model units: the physics' wheel units over its
-    /// rest, a wheel unit ScrRoad.Scale / 32 height units (a model's y is whole height units).</summary>
+    /// <summary>Each racer's suspension as drawn (model units): how far its body can sink onto its wheels before it bottoms out
+    /// (a deeper squash scrapes: racerScrape), and how far a wheel rides up into it or hangs below it. The car racer: its floor
+    /// (RacingKit FloorY -18, jacked up RacingKit.Lift) over its tyres' bottoms (-20 - the 12 they grew); the jeep: its body's
+    /// bottom (-2, jacked up JeepKit.Lift) over its monster tyres' (JeepKit.WheelR under the axles), its travel grown with its
+    /// wheels (x 1.75).</summary>
+    readonly record struct Suspension(float BodyClear, float Bump, float Droop);
+    static readonly Suspension CarSuspension = new(2 + RacingKit.Lift + (RacingKit.WheelR - 20), 12, 8),
+        JeepSuspension = new(-2 + JeepKit.Lift + (float)JeepKit.WheelR, 21, 14);
+    Suspension SuspensionOf(int model) => model == real3d?.Gpu.JeepRacerModel ? JeepSuspension : CarSuspension;
+    /// <summary>Each racer's squash past BodyClear this frame (model units; 0 clear of the road).</summary>
+    readonly float[] racerScrape = new float[16];
+    /// <summary>A spring's squash as the drawn wheel's rise against the body, model units: the physics' clamped spring word over
+    /// its rest; a wheel unit is ScrRoad.Rise / 32 height units, and the drawn racer is half the physics' car (its wheels 46 model
+    /// units out to the contact points' 96), so its travel is half: Scale / 32.</summary>
     static float Squash(int word, int rest) => ((short)word - rest) * (float)ScrRoad.Scale / 32;
-    /// <summary>The eye in the racer, model units: the seated driver's head (CarInside's figure, the driver's side x
-    /// negative, z forward), raised with the racer's seat (RacingKit.SeatRaise) - at 52 the bonnet pointed at the eye and
+    /// <summary>The eye in the racer, model units: the seated driver's head (CarInside's figure moved to the middle seat,
+    /// RacingKit.Centre; z forward), raised with the racer's seat (RacingKit.SeatRaise) - at 52 the bonnet pointed at the eye and
     /// showed as a line.</summary>
-    const double HeadX = -30, HeadY = 52 + RacingKit.SeatRaise, HeadZ = -16;
+    /// <summary>The in-car lens: Stunt Car Racer's 45 degrees across (its projection: an angle / 32 a pixel, 256 pixels wide -
+    /// calculateDivision, projectVertexToScreen) where the view's own is 2 x atan(160 / 256), 64.</summary>
+    static readonly float InCarZoom = (float)(160 / 256.0 / Math.Tan(22.5 * Math.PI / 180));
+    const double HeadX = -30 + RacingKit.Centre, HeadY = 52 + RacingKit.SeatRaise + RacingKit.Lift, HeadZ = -16;
     (double X, double Y, double Z)[]? carCorners;
 
     /// <summary>STUNTIN's crane (ScrDrive.Chains): four chains from the corners of the cage's top straight up ScrDrive.ChainLength,
@@ -469,6 +656,288 @@ public partial class GameView : Node2D
     (double X, double Y, double Z)[]? racerCorners, jeepCorners;
     const int ChainDark = 0x444, ChainLight = 0x777;
     const double ChainLink = 12, ChainWide = 3, ChainThick = 1;
+
+    /// <summary>STUNTIN's SPARKS: while a racer scrapes (racerScrape), sparks thrown from under its floor - anywhere along its
+    /// underside (SparkAlong of its half length, SparkAcross of its half width), more the deeper the scrape - at a share of the
+    /// car's own speed (they drag behind it), scattered and kicked up; falling (SparkGravity), bouncing once off the road
+    /// (SparkBounce of their fall), white-hot cooling to yellow, orange and red over their life; each a thin streak along its
+    /// flight, longer the faster it flies. Drawn as the road is (road.gdshader colour words, world units x, height, -z).
+    /// The picture only.</summary>
+    MeshInstance3D? scrSparks;
+    readonly System.Collections.Generic.List<(double X, double Y, double Z, double Vx, double Vy, double Vz, int Life, int Full, bool Bounced)> sparks = [];
+    readonly (int X, int Z)[] sparkWas = new (int, int)[16];
+    readonly Random sparkDice = new(7);
+    const int SparkLife = 18, SparksMost = 10, SparksAlive = 600;
+    const double SparkGravity = 0.9, SparkBounce = 0.35, SparkWide = 4, SparkStreak = 0.8, SparkShortest = 6, SparkLongest = 36,
+        SparkAlong = 0.8, SparkAcross = 0.6, SparkDrag = 0.55;
+    /// <summary>The sparks' colours from white-hot to dying red (road.gdshader words), by the share of life left.</summary>
+    static readonly int[] SparkWords = [0xC21, 0xE52, 0xF92, 0xFD5, 0xFFB, 0xFFF];
+
+    /// <summary>A racer's sparks this frame, from what the original throws its particles on (ScrDrive.Grinding): the edge grind
+    /// from the tyres over the road's edge, flying out past them - more the faster (its level); the ground grind from under the
+    /// car; and from under the floor when the drawn car bottoms out (racerScrape), more the deeper.</summary>
+    void SparkEmit(Entity e, int r, ScrDrive drive)
+    {
+        int x = e.UW(0x4A), z = e.UW(0x4E);
+        var (px, pz) = sparkWas[r];
+        sparkWas[r] = (x, z);
+        if (px == 0 && pz == 0 || shownFace != ScrIsland.Face) return;
+        double vx = (short)(x - px), vz = (short)(z - pz);                   // the car's way a frame
+        var h = (ushort)e.HeadingFine / 65536.0 * Math.Tau;
+        double fx = Math.Sin(h), fz = Math.Cos(h);                         // ahead (Hunter's heading: 0 toward +z, a quarter toward +x); the model's +x across: (fz, -fx)
+        double Spread(double s) => (sparkDice.NextDouble() - 0.5) * s;
+        int Life() => SparkLife / 2 + sparkDice.Next(SparkLife / 2 + 1);
+        var ground = play.State.Ground;
+        double RoadAt(double wx, double wz) => ground.SurfaceOnFace((ushort)Math.Clamp((int)wx, 0, 65535), (ushort)Math.Clamp((int)wz, 0, 65535), e.W(0x74) + 40, ScrDrive.Reach);
+        void Add(double along, double across, double y, double outX, double outZ, double up)
+        {
+            if (sparks.Count >= SparksAlive) return;
+            if (carLogs.TryGetValue(r, out var sparkLog)) sparkLog.Metrics.Sparks++;
+            var life = Life();
+            sparks.Add((x + fx * along + fz * across, y, z + fz * along - fx * across,
+                vx * SparkDrag + outX + Spread(8), up, vz * SparkDrag + outZ + Spread(8), life, life, false));
+        }
+        // world units: the drawn model at half (GpuWorld: (2x + turn) / 2) - the axles at +-WheelZ, the tyres' middle across
+        double axle = RacingKit.WheelZ * RacingKit.Size / 2, tyre = (RacingKit.TyreIn + RacingKit.WheelOut) / 2.0 * RacingKit.Size / 2,
+            half = axle, wide = 30 * RacingKit.Size / 2;
+        if (drive.Grinding == 1)
+        {
+            // the edge grind runs with the car's middle at or past the road's edge (checkRoadBoundaries: 192 from the middle):
+            // the car rides the lip on its road side - the sparks from that half of its underside, front and back, at the road's
+            // height under the car (beyond the lip there is none), thrown out over the drop
+            var off = (short)drive.Car.W(ScrCar.offsetFromRoadCenter);       // < 0: left of the middle (the original's way round)
+            int toRoad = off < 0 ? 1 : -1, over = -toRoad;
+            var each = 2 + drive.GrindLevel / 4;                             // per axle: 2 at a crawl, 8 at top speed
+            foreach (var end in new[] { -1, 1 })
+                for (var k = 0; k < each; k++)
+                {
+                    double along = end * axle + Spread(axle * 0.5), across = toRoad * sparkDice.NextDouble() * tyre;
+                    double kick = 2 + sparkDice.NextDouble() * 5;
+                    Add(along, across, e.W(0x74) + 1, fz * over * kick, -fx * over * kick, 2 + sparkDice.NextDouble() * 5);
+                }
+        }
+        var under = drive.Grinding == 2 ? 3 + drive.GrindLevel / 4 : 0;      // the ground grind: under the car
+        if (racerScrape[r] > 0.5f) under = Math.Max(under, Math.Clamp((int)Math.Round(racerScrape[r] / 3), 4, SparksMost));   // bottomed out
+        for (var k = 0; k < under; k++)
+        {
+            double along = (sparkDice.NextDouble() * 2 - 1) * half * SparkAlong, across = (sparkDice.NextDouble() * 2 - 1) * wide * SparkAcross;
+            Add(along, across, RoadAt(x + fx * along + fz * across, z + fz * along - fx * across) + 1, 0, 0, 1.5 + sparkDice.NextDouble() * 3);
+        }
+    }
+
+    void SparkStep()
+    {
+        var ground = play.State.Ground;
+        for (var i = sparks.Count - 1; i >= 0; i--)
+        {
+            var s = sparks[i];
+            if (--s.Life <= 0) { sparks.RemoveAt(i); continue; }
+            s = s with { X = s.X + s.Vx, Y = s.Y + s.Vy, Z = s.Z + s.Vz, Vy = s.Vy - SparkGravity };
+            var road = ground.SurfaceOnFace((ushort)Math.Clamp((int)s.X, 0, 65535), (ushort)Math.Clamp((int)s.Z, 0, 65535), (int)s.Y + 40, ScrDrive.Reach);
+            if (s.Y < road)                                                  // the road: one bounce, then it skids along it
+                s = s with { Y = road, Vy = s.Bounced ? 0 : -s.Vy * SparkBounce, Vx = s.Vx * 0.8, Vz = s.Vz * 0.8, Bounced = true };
+            sparks[i] = s;
+        }
+        if (sparks.Count == 0) { if (scrSparks is not null) scrSparks.Visible = false; return; }
+        if (scrSparks is null)
+        {
+            scrSparks = new MeshInstance3D { MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") }, CustomAabb = GpuWorld.Huge };
+            real3d!.AddWorldMesh(scrSparks);
+        }
+        var v = new System.Collections.Generic.List<Vector3>();
+        var uv = new System.Collections.Generic.List<Vector2>();
+        foreach (var s in sparks)
+        {
+            // a thin streak back along its flight from where it is, its length its speed's (a frame's travel), two crossed
+            // triangles so it shows from any side
+            double speed = Math.Sqrt(s.Vx * s.Vx + s.Vz * s.Vz + s.Vy * s.Vy / 4);
+            double ux = speed > 1e-6 ? s.Vx / speed : 1, uy = speed > 1e-6 ? s.Vy / 2 / speed : 0, uz = speed > 1e-6 ? s.Vz / speed : 0;
+            var len = Math.Clamp(speed * SparkStreak, SparkShortest, SparkLongest);
+            Vector3 P(double px, double py, double pz) => new((float)px, (float)py, (float)-pz);
+            var head = P(s.X, s.Y, s.Z);
+            var tail = (X: s.X - ux * len, Y: s.Y - uy * len * 2, Z: s.Z - uz * len);
+            v.Add(head); v.Add(P(tail.X - uz * SparkWide / 2, tail.Y, tail.Z + ux * SparkWide / 2)); v.Add(P(tail.X + uz * SparkWide / 2, tail.Y, tail.Z - ux * SparkWide / 2));
+            v.Add(head); v.Add(P(tail.X, tail.Y + SparkWide, tail.Z)); v.Add(P(tail.X, tail.Y - SparkWide, tail.Z));
+            var word = SparkWords[Math.Clamp(s.Life * SparkWords.Length / Math.Max(1, s.Full), 0, SparkWords.Length - 1)];
+            for (var k = 0; k < 6; k++) uv.Add(new Vector2(word, 1f));
+        }
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+        arrays[(int)Mesh.ArrayType.TexUV] = uv.ToArray();
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        scrSparks.Mesh = mesh;
+        scrSparks.Visible = shownFace == ScrIsland.Face;
+    }
+
+    /// <summary>STUNTIN's BOOST FLAMES: while a racer boosts, a flame out of each stack's open top (RacingKit.Stacks, JeepKit.Stacks),
+    /// blown back along the stack - a cone of FlameSides, banded from white-hot at the stack through yellow and orange to a red
+    /// tip (FlameBands), its length (FlameLength x FlameFlicker) and lean new each frame; on the body as drawn (WheelCheck's
+    /// lift and body drop, the record's turn). Drawn as the road is (road.gdshader colour words, full light).</summary>
+    MeshInstance3D? scrFlames;
+    readonly System.Collections.Generic.List<(Entity E, int R)> flaming = [];
+    readonly int[] boostSince = [.. Enumerable.Repeat(-1, 16)];
+    readonly Random flameDice = new(11);
+    readonly System.Collections.Generic.Dictionary<int, double> modelLow = [];
+    const int FlameSides = 6;
+    const double FlameLength = 30, FlameFlicker = 0.35, FlameLean = 2.5, FlameRadius = 3.4;
+    /// <summary>The flame's rings along it (share of its length, share of its base radius) and each band's colour word after them.</summary>
+    static readonly (double At, double R)[] FlameRings = [(0, 1), (0.18, 1.15), (0.45, 0.9), (0.72, 0.55), (1, 0)];
+    static readonly int[] FlameBands = [0xFFE, 0xFD4, 0xF82, 0xD31];
+
+    /// <summary>A racer model's units to drawn ones (RacingKit.Size; the jeep smaller, JeepKit.Size).</summary>
+    double SizeOf(int model) => model == real3d?.Gpu.JeepRacerModel ? RacingKit.Size * JeepKit.Size : RacingKit.Size;
+
+    void FlameStep()
+    {
+        if (flaming.Count == 0 || shownFace != ScrIsland.Face || real3d is null) { if (scrFlames is not null) scrFlames.Visible = false; return; }
+        var store = real3d.Gpu.Store;
+        double Low(int model) => modelLow.TryGetValue(model, out var l) ? l
+            : modelLow[model] = store.Models[model].Corners.Min(q => q.Y) / (double)RacingKit.Fine * SizeOf(model);
+        var v = new System.Collections.Generic.List<Vector3>();
+        var uv = new System.Collections.Generic.List<Vector2>();
+        foreach (var (e, r) in flaming)
+        {
+            var jeep = e.W(4) == ScrRace.Jeep;
+            var model = jeep ? real3d.Gpu.JeepRacerModel : real3d.Gpu.RacerModel;
+            if (model < 0) continue;
+            var stacks = jeep ? JeepKit.Stacks : RacingKit.Stacks;
+            var k = jeep ? 1.2 : 1.0;                                         // the jeep's stacks are wider
+            var sz = SizeOf(model);
+            double Ang(int word) => (ushort)word / 65536.0 * Math.Tau;
+            double ra = Ang(e.RollFine), pa = Ang(e.PitchFine), ya = Ang(e.HeadingFine);
+            (double X, double Y, double Z) Turn((double X, double Y, double Z) p)   // a model vector (units) turned as the card turns the car, x Size
+            {
+                double x = p.X * sz, y = p.Y * sz, z = p.Z * sz, c, s, t;
+                c = Math.Cos(ra); s = Math.Sin(ra); t = c * x + s * y; y = c * y - s * x; x = t;
+                c = Math.Cos(pa); s = Math.Sin(pa); t = c * z + s * y; y = c * y - s * z; z = t;
+                c = Math.Cos(ya); s = Math.Sin(ya); t = c * x + s * z; z = c * z - s * x; x = t;
+                return (x, y, z);
+            }
+            double baseY = e.W(0x74) - Low(model) + racerLift[r] - racerBodyDrawn[r] * sz;
+            Vector3 World((double X, double Y, double Z) p) { var q = Turn(p); return new((float)(e.UW(0x4A) + q.X / 2), (float)(baseY + q.Y), (float)-(e.UW(0x4E) + q.Z / 2)); }
+            foreach (var (tip, axis) in stacks)
+            {
+                // out of the top, blown back (-z); across it u, and v = d x u
+                var al = Math.Sqrt(axis.X * axis.X + axis.Y * axis.Y + axis.Z * axis.Z);
+                double dx = axis.X, dy = axis.Y, dz = axis.Z - 0.6 * al, dl = Math.Sqrt(dx * dx + dy * dy + dz * dz);
+                dx /= dl; dy /= dl; dz /= dl;
+                double ux = dy, uy = -dx, ul = Math.Sqrt(ux * ux + uy * uy);
+                if (ul < 1e-6) { ux = 1; uy = 0; ul = 1; }
+                ux /= ul; uy /= ul;
+                double vx = -dz * uy, vy = dz * ux, vz = dx * uy - dy * ux;
+                var len = FlameLength * k * (1 - FlameFlicker / 2 + flameDice.NextDouble() * FlameFlicker);
+                double lx = (flameDice.NextDouble() * 2 - 1) * FlameLean * k, ly = (flameDice.NextDouble() * 2 - 1) * FlameLean * k;
+                var twist = flameDice.NextDouble() * Math.Tau;
+                var rings = new Vector3[FlameRings.Length][];
+                for (var i = 0; i < FlameRings.Length; i++)
+                {
+                    var (at, rr) = FlameRings[i];
+                    double r0 = FlameRadius * k * rr, bend = at * at;                // the lean grows toward the tip
+                    double cx0 = tip.X + dx * len * at + (ux * lx + vx * ly) * bend, cy0 = tip.Y + dy * len * at + (uy * lx + vy * ly) * bend, cz0 = tip.Z + dz * len * at + vz * ly * bend;
+                    rings[i] = new Vector3[FlameSides];
+                    for (var j = 0; j < FlameSides; j++)
+                    {
+                        var a = twist + j * Math.Tau / FlameSides;
+                        double ca = Math.Cos(a) * r0, sa = Math.Sin(a) * r0;
+                        rings[i][j] = World((cx0 + ux * ca + vx * sa, cy0 + uy * ca + vy * sa, cz0 + vz * sa));
+                    }
+                }
+                for (var i = 0; i + 1 < FlameRings.Length; i++)
+                    for (var j = 0; j < FlameSides; j++)
+                    {
+                        Vector3 a = rings[i][j], b = rings[i][(j + 1) % FlameSides], c = rings[i + 1][(j + 1) % FlameSides], d = rings[i + 1][j];
+                        foreach (var p in new[] { a, b, c, a, c, d, a, c, b, a, d, c }) { v.Add(p); uv.Add(new Vector2(FlameBands[i], 1f)); }   // both ways round: seen from any side
+                    }
+            }
+        }
+        if (scrFlames is null)
+        {
+            scrFlames = new MeshInstance3D { MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") }, CustomAabb = GpuWorld.Huge };
+            real3d.AddWorldMesh(scrFlames);
+        }
+        if (v.Count == 0) { scrFlames.Visible = false; return; }
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+        arrays[(int)Mesh.ArrayType.TexUV] = uv.ToArray();
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        scrFlames.Mesh = mesh;
+        scrFlames.Visible = true;
+    }
+
+    /// <summary>STUNTIN's FINISH FLAGS: from the player's last lap on, a pole just outside each edge of the road at the finish
+    /// line (ScrRoad.StartLineSection) rises out of the ground (FlagRise frames) and a chequered flag at its top waves out away
+    /// from the road, rippling more toward its free end. Drawn as the road is (road.gdshader colour words). The picture only.</summary>
+    MeshInstance3D? scrFlags;
+    int flagsSince = -1;
+    const int FlagRise = 50, FlagCols = 6, FlagRows = 4;
+    const double FlagPole = 260, FlagCell = 26, FlagOut = 20, FlagThick = 3;
+
+    void FinishFlags()
+    {
+        var drive = play.State.ScrDrive;
+        var road = play.State.Ground.Road?.Road;
+        var up = drive is not null && road is not null && shownFace == ScrIsland.Face && !drive.Out
+            && (drive.Lap >= ScrRoad.Laps || System.Environment.GetEnvironmentVariable("HUNTER_SCR_FLAGS") == "1");   // (HUNTER_SCR_FLAGS=1: up from the start, checks)
+        if (!up) { flagsSince = -1; if (scrFlags is not null) scrFlags.Visible = false; return; }
+        if (flagsSince < 0) flagsSince = play.State.BlankCount;
+        var t = Math.Clamp((play.State.BlankCount - flagsSince) / (double)FlagRise, 0, 1);
+        var rise = 1 - (1 - t) * (1 - t);                                      // fast, then easing in
+        var s = road!.Sections; var i = road.StartLineSection;
+        var a = s[i]; var b = s[(i + 1) % s.Count];
+        double ax = a.RX - a.LX, az = a.RZ - a.LZ, al = Math.Sqrt(ax * ax + az * az); ax /= al; az /= al;   // across, left to right
+        double fx = (b.LX + b.RX - a.LX - a.RX) / 2, fz = (b.LZ + b.RZ - a.LZ - a.RZ) / 2, fl = Math.Sqrt(fx * fx + fz * fz); fx /= fl; fz /= fl;   // along
+        var v = new System.Collections.Generic.List<Vector3>();
+        var uv = new System.Collections.Generic.List<Vector2>();
+        static Vector3 P(double x, double y, double z) => new((float)x, (float)y, (float)-z);
+        void Quad(Vector3 p, Vector3 q, Vector3 r, Vector3 w, int word)
+        {
+            foreach (var c in new[] { p, q, r, p, r, w, p, r, q, p, w, r }) { v.Add(c); uv.Add(new Vector2(word, 1f)); }   // both ways round
+        }
+        var n = play.State.BlankCount;
+        foreach (var side in new[] { -1, 1 })
+        {
+            double bx = side < 0 ? a.LX - ax * FlagOut : a.RX + ax * FlagOut, bz = side < 0 ? a.LZ - az * FlagOut : a.RZ + az * FlagOut;
+            var by = side < 0 ? a.LY : a.RY;
+            var top = by + FlagPole * rise;
+            // the pole: four sides
+            (double X, double Z)[] ring = [(bx - FlagThick, bz - FlagThick), (bx + FlagThick, bz - FlagThick), (bx + FlagThick, bz + FlagThick), (bx - FlagThick, bz + FlagThick)];
+            for (var k = 0; k < 4; k++)
+            {
+                var (x0, z0) = ring[k]; var (x1, z1) = ring[(k + 1) % 4];
+                Quad(P(x0, by, z0), P(x1, by, z1), P(x1, top, z1), P(x0, top, z0), 0xAAA);
+            }
+            if (rise < 0.6) continue;                                          // the flag once the pole is most of the way up
+            // the flag: out from the pole away from the road, rippling along the road
+            (double X, double Y, double Z) At(int col, int row)
+            {
+                var ripple = Math.Sin(col * 0.9 - n * 0.2 + side) * col * 2.2;
+                return (bx + side * ax * col * FlagCell + fx * ripple, top - row * FlagCell, bz + side * az * col * FlagCell + fz * ripple);
+            }
+            for (var c = 0; c < FlagCols; c++)
+                for (var r = 0; r < FlagRows; r++)
+                {
+                    var p0 = At(c, r); var p1 = At(c + 1, r); var p2 = At(c + 1, r + 1); var p3 = At(c, r + 1);
+                    Quad(P(p0.X, p0.Y, p0.Z), P(p1.X, p1.Y, p1.Z), P(p2.X, p2.Y, p2.Z), P(p3.X, p3.Y, p3.Z), (c + r & 1) == 0 ? 0xEEE : 0x111);
+                }
+        }
+        if (scrFlags is null)
+        {
+            scrFlags = new MeshInstance3D { MaterialOverride = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") }, CustomAabb = GpuWorld.Huge };
+            real3d!.AddWorldMesh(scrFlags);
+        }
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)Mesh.ArrayType.Max);
+        arrays[(int)Mesh.ArrayType.Vertex] = v.ToArray();
+        arrays[(int)Mesh.ArrayType.TexUV] = uv.ToArray();
+        var mesh = new ArrayMesh();
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+        scrFlags.Mesh = mesh;
+        scrFlags.Visible = true;
+    }
 
     void CraneStep()
     {
@@ -555,7 +1024,7 @@ public partial class GameView : Node2D
     (double X, double Y, double Z)[] CarCorners()
     {
         if (real3d?.Gpu.RacerModel is int racer && racer >= 0)
-            return [.. real3d.Gpu.Store.Models[racer].Corners.Select(q => (q.X / (double)RacingKit.Fine, q.Y / (double)RacingKit.Fine, q.Z / (double)RacingKit.Fine))];
+            return [.. real3d.Gpu.Store.Models[racer].Corners.Select(q => (q.X / (double)RacingKit.Fine * RacingKit.Size, q.Y / (double)RacingKit.Fine * RacingKit.Size, q.Z / (double)RacingKit.Fine * RacingKit.Size))];
         var m = data.Models;
         var o = m.Offsets[CarInside.Car];
         var shift = m.Buf[o + 0x11];
@@ -576,10 +1045,12 @@ public partial class GameView : Node2D
         chasing = true;
         chaseTurn = Mathf.Wrap(chaseTurn + Mathf.Wrap(want - chaseTurn, -Mathf.Pi, Mathf.Pi) * FollowEase, -Mathf.Pi, Mathf.Pi);
         var (x, y, z) = real3d!.Gpu.PlaceOf(0);                      // as the card was just given it (Real3DFrame, after the upload)
-        double ex = x + Math.Sin(chaseTurn) * ChaseBack, ez = z - Math.Cos(chaseTurn) * ChaseBack;
+        var (back, lift, side) = behindCam ? (260.0, 30.0, 0.0) : cornerCam ? (CornerBack, CornerLift, CornerSide) : (ChaseBack, ChaseLift, 0.0);
+        double ex = x + Math.Sin(chaseTurn) * back + Math.Cos(chaseTurn) * side, ez = z - Math.Cos(chaseTurn) * back + Math.Sin(chaseTurn) * side;
         var under = play.State.Ground.Surface((ushort)Math.Clamp((int)ex, 0, 65535), (ushort)Math.Clamp((int)ez, 0, 65535), short.MaxValue);
-        var ey = Math.Max(y + ChaseLift, under + 60);
-        double ax = x - Math.Sin(chaseTurn) * ChaseAhead, az = z + Math.Cos(chaseTurn) * ChaseAhead, ay = y + ChaseAim;
+        var ey = Math.Max(y + lift, under + 60);
+        var ahead = cornerCam ? CornerAhead : ChaseAhead;
+        double ax = x - Math.Sin(chaseTurn) * ahead, az = z + Math.Cos(chaseTurn) * ahead, ay = y + ChaseAim;
         double dx = ax - ex, dz = az - ez;
         real3d.Free = new FreeCamera((ex, ey, ez), (float)Math.Atan2(-dx, dz), (float)Math.Atan((ey - ay) / 2 / Math.Max(Math.Sqrt(dx * dx + dz * dz), 1)));
         real3d.Gpu.NearCamera = (ex, ez, ChaseClear);
@@ -1017,20 +1488,35 @@ public partial class GameView : Node2D
         if (play.State.Planet is { } planet && planet.Current != shownFace)   // PLANET step 4: the card draws the face he is on
         {
             var f = planet.Faces[shownFace = planet.Current];
-            real3d!.Gpu.SetGround(f.Terrain.Map, f.Ground.Fine, f.Sand?.Kind);
+            // STUNTIN's face is desert as the original's ground (sand, its renderHorizon's colour 13): drawn as all sand, in
+            // dusty colours varied over the flat land (ground_bands dust_word) - the picture only; the rules' face has no sand zone, so no worm, spice or harvester
+            var sandLook = f.Sand?.Kind ?? (shownFace == ScrIsland.Face ? AllSand : null);
+            real3d!.Gpu.SetGround(f.Terrain.Map, f.Ground.Fine, sandLook, dust: shownFace == ScrIsland.Face);
             real3d.SetShore(f.Terrain.Map);
-            real3d.SandFace = f.Sand is not null;
-            if (shownFace == ScrIsland.Face && scrRoad is null && ScrRoad.Load(data.Directory, Math.Max(ScrTrack, 0)) is { } road)
+            real3d.SandFace = sandLook is not null;
+            if (shownFace == ScrIsland.Face && scrRoad is null && (f.Ground.Road?.Road ?? ScrRoad.Load(data.Directory, Math.Max(ScrTrack, 0))) is { } road)
             {                                                                            // STUNTIN': the track's road, made the first time the face shows
-                scrRoad = RoadMesh.Make(road, ScrIsland.LandHeight / 2 << 4, new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") });
+                scrRoadMaterial = new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/road.gdshader") };
+                var bridge = f.Ground.Road?.Bridge;                                      // Draw Bridge's leaves: a mesh of their own (below)
+                scrRoad = RoadMesh.Make(road, (x, z) => f.Ground.LandOnFace((ushort)Math.Clamp((int)x, 0, 65535), (ushort)Math.Clamp((int)z, 0, 65535)), scrRoadMaterial, bridge is null ? null : i => !bridge.Moves(i));
                 real3d.AddWorldMesh(scrRoad);
                 scrMountains = MountainMesh.Make(data.Directory, new ShaderMaterial { Shader = GD.Load<Shader>("res://real3d/mountains.gdshader") });
                 if (scrMountains is not null) real3d.AddWorldMesh(scrMountains);   // and the original's mountain horizon round it
             }
             if (scrRoad is not null) scrRoad.Visible = shownFace == ScrIsland.Face;
+            if (scrBridge is not null) scrBridge.Visible = shownFace == ScrIsland.Face;
             if (scrMountains is not null) scrMountains.Visible = shownFace == ScrIsland.Face;
             (cardFine, cardMap) = (f.Ground.Fine, f.Terrain.Map);
             GD.Print($"HUNTER: planet face {shownFace} at frame {Audio.Frame}");
+        }
+        if (scrRoad is not null && shownFace == ScrIsland.Face && play.State.Planet?.Faces[ScrIsland.Face].Ground.Road is { Bridge: { } moving } surface
+            && surface.Road.Version != scrBridgeVersion)
+        {                                                                                // DRAW BRIDGE: its strips rebuilt as the leaves move
+            var land = play.State.Planet!.Faces[ScrIsland.Face].Ground;
+            var made = RoadMesh.Make(surface.Road, (x, z) => land.LandOnFace((ushort)Math.Clamp((int)x, 0, 65535), (ushort)Math.Clamp((int)z, 0, 65535)), scrRoadMaterial!, moving.Moves);
+            if (scrBridge is null) real3d!.AddWorldMesh(scrBridge = made);
+            else { scrBridge.Mesh = made.Mesh; made.Free(); }                        // the same instance, the new shape
+            scrBridgeVersion = surface.Road.Version;
         }
         real3d!.Gpu.PiecesStay = Settings.CardPieces && Settings.PiecesStay;            // EXPLOSIONS: LASTING
         real3d.Gpu.FireTicks = play.Smooth ? play.LastTicks * (1f - play.AnimFraction) : 0f;   // the star's age runs every frame between passes
@@ -1044,6 +1530,7 @@ public partial class GameView : Node2D
         if (real3d is not null)                                      // STUNTIN's racers: the rows the original's physics drives (their next upload)
         {
             real3d.Gpu.RacerRows.Clear();
+            flaming.Clear();
             var parts = real3d.Gpu.RacerParts;
             Array.Clear(parts);
             for (var r = 0; r < play.State.Entities.Count; r++)
@@ -1059,18 +1546,44 @@ public partial class GameView : Node2D
                 // the boost flames' frame over it, 256 a frame (KitBuilder.Flames): 1-3 in turn each drawn frame while boosting,
                 // as the original steps flameAnimationFrame each frame it draws them; 0 none
                 racerFlame[r] = drive.Boosting ? racerFlame[r] % 3 + 1 : 0;
-                parts[r * 4] = racerHand[r] + 256 * racerFlame[r];
-                // each wheel's squash against the three's mean as ScrDrive places the car (((front pair) / 2 + rear) / 2: the
-                // car stands where the wheels' mean road height is), so each drawn wheel meets its own road height
-                float fl = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontLeft), SpringRestFront);
-                float fr = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontRight), SpringRestFront);
-                float rr = Squash(drive.Car.W(ScrCar.clampedSuspensionRear), SpringRestRear);
-                var mean = ((fl + fr) / 2 + rr) / 2;
-                parts[r * 4 + 1] = Math.Clamp(fl - mean, -SpringDroop, SpringBump);
-                parts[r * 4 + 2] = Math.Clamp(fr - mean, -SpringDroop, SpringBump);
-                parts[r * 4 + 3] = Math.Clamp(rr - mean, -SpringDroop, SpringBump);
+                // each wheel's squash against the BODY (the shader draws the racer down by their mean - ((front pair) / 2 + rear)
+                // / 2, as ScrDrive stands the car on the wheels' mean road height - so each wheel meets its road and the body
+                // rises between them in the air, comes down on a landing), eased each drawn frame toward the physics' pass
+                // (8 a second: stepped, the body hopped); each wheel then put on its own road (WheelCheck)
+                // the body sinks onto its wheels by the springs' mean squash, never past its clearance (BodyClear): beyond, the car
+                // has bottomed out - all four lowered together by the excess, which is the scrape (racerScrape, logged)
+                var unit = e.W(4) == ScrRace.Jeep ? (float)(1 / JeepKit.Size) : 1f;   // the jeep drawn smaller: its springs in its own units
+                float sfl = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontLeft), SpringRestFront) * unit, sfr = Squash(drive.Car.W(ScrCar.clampedSuspensionFrontRight), SpringRestFront) * unit,
+                      srr = Squash(drive.Car.W(ScrCar.clampedSuspensionRear), SpringRestRear) * unit;
+                var sus = SuspensionOf(e.W(4) == ScrRace.Jeep ? real3d.Gpu.JeepRacerModel : real3d.Gpu.RacerModel);
+                var over = Math.Max(0f, ((sfl + sfr) / 2 + srr) / 2 - sus.BodyClear);
+                racerScrape[r] = over;
+                float[] target =
+                [
+                    Math.Clamp(sfl - over, -sus.Droop, sus.Bump),
+                    Math.Clamp(sfr - over, -sus.Droop, sus.Bump),
+                    Math.Clamp(srr - over, -sus.Droop, sus.Bump),
+                    0,
+                ];
+                for (var w = 0; w < 4; w++) racerSquash[r, w] += (target[w] - racerSquash[r, w]) * SquashEase;
+                for (var w = 0; w < 3; w++) parts[r * 4 + 1 + w] = racerSquash[r, w];
+                // the hand's way (0-255), the flames' frame (256s) and the rear axle's tilt + 64 (1024s) in one
+                parts[r * 4] = racerHand[r] + 256 * racerFlame[r] + 1024 * (Math.Clamp((int)Math.Round(racerSquash[r, 3]), -63, 63) + 64);
+                var model = e.W(4) == ScrRace.Jeep ? real3d.Gpu.JeepRacerModel : real3d.Gpu.RacerModel;   // each car its own model's wheels
+                if (model >= 0) WheelCheck(e, model, r, parts);                 // the wheels onto the road, the body's lift
+                SparkEmit(e, r, drive);
+                if (drive.Boosting) flaming.Add((e, r));
+                if (drive.Boosting != (boostSince[r] >= 0))                     // the log: each boost's start and length, either car
+                {
+                    var who = drive == play.State.ScrDrive ? "P" : "A";
+                    var blank = play.State.BlankCount;
+                    if (drive.Boosting) { boostSince[r] = blank; GD.Print($"SCRTRACE {blank} {who} boost lap {drive.Lap} fuel {drive.Car.B(ScrCar.boostFuelLevel)}"); }
+                    else { GD.Print($"SCRTRACE {blank} {who} boost ends after {blank - boostSince[r]} blanks, fuel {drive.Car.B(ScrCar.boostFuelLevel)}"); boostSince[r] = -1; }
+                }
             }
-            CraneStep();
+            SparkStep();
+            FlameStep();
+            FinishFlags();
         }
         if (scrCameraDue)                                            // STUNTIN's camera: from the place the card was just given (the
         {                                                            // in-between picture moves him after the game's pass - read earlier,
@@ -1078,10 +1591,11 @@ public partial class GameView : Node2D
             var me0 = play.State.Entities.All[0];
             if (inCar && play.State.ScrDrive is { } drive) InCarStep(me0, drive); else ChaseStep(me0);
             if (liveCam is { } livePick) real3d!.Free = livePick;    // HUNTER_LIVE's cam stays over it (placed after, it lost)
+            if (real3d!.Free is { } cam && carLogs.TryGetValue(0, out var mine)) mine.Metrics.Camera(cam.Eye.Y);
         }
         real3d!.Frame(play.PictureCamera ?? play.State.Camera, ViewDistanceNow().Distance, ViewDistanceNow().Lift, inside ? shell : 0, inside, play.State.Horizon1518, raw,
             play.SkySteps,                                                                  // SKY: SMOOTH - the stepped full-colour bands
-            Settings.Haze, Hunter.Rules.ViewDistance.FarEdge(Hunter.Rules.ViewDistance.TurnedRows(play.State.Ground, Settings.ViewDistance)), Settings.LivingSea, clock / 50f, Settings.GroundPattern, Settings.Clouds, Settings.SeaCycling, Settings.SkyTime);   // SKY's time of day   // HAZE, to the drawn ground's far edge (FAR VIEW's deeper patch at ORIGINAL); SEA
+            shownFace == ScrIsland.Face ? 0 : Settings.Haze, shownFace == ScrIsland.Face ? 1e6f : Hunter.Rules.ViewDistance.FarEdge(Hunter.Rules.ViewDistance.TurnedRows(play.State.Ground, Settings.ViewDistance)), Settings.LivingSea, clock / 50f, Settings.GroundPattern, Settings.Clouds, Settings.SeaCycling, Settings.SkyTime);   // SKY's time of day   // HAZE (none on Stuntin's face, nor a far edge: its whole island is drawn under its whole track), to the drawn ground's far edge (FAR VIEW's deeper patch at ORIGINAL); SEA
         if (checkFeed && real3d!.Gpu is { Ready: true } && play.SmoothWillDraw && play.PictureCamera is { } picCam)   // Ready: the card only holds a real upload once its first Update ran
         {                                                                          // after SmoothPicture: the picture's camera and the card's upload are both this frame's
             var (x, y, z) = real3d.Gpu!.PlayerPlace;
@@ -1574,6 +2088,28 @@ public partial class GameView : Node2D
         if (!scripted) PlayMouse();
     }
 
+    /// <summary>Checks: HUNTER_SAVE_STATE=blank|file saves the whole game state (SaveState) on the first frame in play at or
+    /// after that blank; HUNTER_LOAD_STATE=file loads one on the first frame in play - the run carries on from there.</summary>
+    void StateSaveLoad()
+    {
+        if (play.Mode != PlayMode.Play) return;
+        System.Type[] Statics() => [.. typeof(Play).Assembly.GetTypes(), typeof(ScrLeagueRun)];
+        if (!stateLoaded && System.Environment.GetEnvironmentVariable("HUNTER_LOAD_STATE") is { Length: > 0 } load)
+        {
+            stateLoaded = true;
+            SaveState.Load(load, play, Statics());
+            GD.Print($"HUNTER: state loaded from {load} at blank {play.State.BlankCount}");
+        }
+        if (!stateSaved && System.Environment.GetEnvironmentVariable("HUNTER_SAVE_STATE")?.Split('|') is [var at, var file]
+            && int.TryParse(at, out var blank) && play.State.BlankCount >= blank)
+        {
+            stateSaved = true;
+            SaveState.Save(file, play, Statics());
+            GD.Print($"HUNTER: state saved to {file} at blank {play.State.BlankCount}");
+        }
+    }
+    bool stateLoaded, stateSaved;
+
     /// <summary>One frame: the blank, then a pass of the main loop (or the screen that is up).</summary>
     public void Frame()
     {
@@ -1584,6 +2120,7 @@ public partial class GameView : Node2D
             if (DaySpeed > 0 && real3d is not null && InPlay) { play.DayTestLight(); Real3DFrame(); }   // the day test: the world stands, the clock, its light and the picture go on
             return;
         }
+        StateSaveLoad();
         if (ScrTrack >= 0 && ScrLeagueRun.Over(play.State)) { QuitToTitle?.Invoke(AfterGame.Menus); return; }   // STUNTIN': the race done, back to the league
         if (!scripted) { TrackMouse(); Hover(); UpdateReticle(); }   // $C77C: the pointer moves every blank
         play.HasSecondView = false;                            // mp_views: true again only if his pass draws this frame

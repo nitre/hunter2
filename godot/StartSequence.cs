@@ -337,13 +337,14 @@ public partial class StartSequence : Node2D
     /// handler ($1FA0), fade out. timeout: SetMenuTimeout ($1F8A, the main menu only): the copper
     /// interrupt counts it down a frame at a time from before the fade-in ($C684); at 0 the wait
     /// runs the demo ($1FB4: the routine at $F0) - only a click stops it, not the pointer moving.</summary>
-    IEnumerable<string> Menu(List<Menus.Button> buttons, string name, Action<int> chosen, int timeout = -1)
+    IEnumerable<string> Menu(List<Menus.Button> buttons, string name, Action<int> chosen, int timeout = -1, Action? everyFrame = null)
     {
         fade.SetBank(data.PaletteBanks[5]);
-        foreach (var _ in FadeTo(15)) { if (timeout > 0) timeout--; yield return name; }
+        foreach (var _ in FadeTo(15)) { if (timeout > 0) timeout--; everyFrame?.Invoke(); yield return name; }
         var was = true;
         while (true)
         {
+            everyFrame?.Invoke();
             if (timeout == 0)
             {
                 chosen(0x22D6);
@@ -382,17 +383,55 @@ public partial class StartSequence : Node2D
         while (true)
         {
             var l = ScrLeagueRun.League;
-            var (buttons, shown) = ScrLeagueScreen.Draw(screen, ui, l, ScrLeagueRun.Names(), ScrLeagueRun.News);
+            if (!checkShown && System.Environment.GetEnvironmentVariable("HUNTER_SCR_SCREEN") is { Length: > 0 } check
+                && Enum.TryParse<ScrResultScene.Kind>(check, true, out var shown0))
+            {                                                                    // checks: a race-end picture shown once at the start
+                checkShown = true;
+                foreach (var f in RacePicture(shown0, shown0 switch { ScrResultScene.Kind.Won => "You beat Road Hog", ScrResultScene.Kind.Lost => "Road Hog beat you",
+                    ScrResultScene.Kind.Promoted => "Up to Division III", _ => "Your car is out of the race" })) yield return f;
+            }
+            if (ScrLeagueRun.Played is { } played)                               // the round just played: its picture, its results
+            {
+                ScrLeagueRun.Played = null;
+                if (played.Race is { } race)
+                {
+                    var them = ScrLeagueRun.Names()[race.Opponent];
+                    var lost = race.Me.Wrecked || race.Me.FinishedAt < 0 || race.Them.FinishedAt >= 0 && !race.Them.Wrecked && race.Them.FinishedAt < race.Me.FinishedAt;
+                    var (kind, line) = race.Me.Wrecked ? (ScrResultScene.Kind.Wrecked, "Your car is out of the race")
+                        : lost ? (ScrResultScene.Kind.Lost, $"{them} beat you") : (ScrResultScene.Kind.Won, $"You beat {them}");
+                    foreach (var f in RacePicture(kind, line)) yield return f;
+                }
+                var (resultButtons, resultArt) = ScrLeagueScreen.Results(screen, ui, data.Picture("panfile"), l, ScrLeagueRun.Names(), played.Race, played.Round, ScrLeagueRun.News);
+                picture = resultArt.Pixels;
+                foreach (var f in Menu(resultButtons, "scr_results", _ => { })) yield return f;
+                picture = null;
+                if (l.Round == 0 && l.Season > 0 && (l.EndedTo > l.EndedFrom || l.Super && l.EndedFrom == 3 && l.EndedTo == 0) || l.Champion)   // the season over and him moved up (into the Super League too): promoted
+                    foreach (var f in RacePicture(ScrResultScene.Kind.Promoted, ScrLeagueRun.News ?? "Promoted")) yield return f;
+            }
+            var (buttons, shown, art) = ScrLeagueScreen.Draw(screen, ui, data.Picture("panfile"), l, ScrLeagueRun.Names(), ScrLeagueRun.News);
             faces = shown.Select(f => (FaceImage(f.Id), f.X, f.Y)).Where(f => f.Item1 is not null).Select(f => (f.Item1!, f.X, f.Y)).ToList();
+            picture = art.Pixels;
             var handler = 0;
             foreach (var f in Menu(buttons, "scr_league", h => handler = h)) yield return f;
             faces = null;
+            picture = null;
             switch (handler)
             {
-                case ScrLeagueScreen.RaceHandler when ScrLeagueRun.Next(data.Directory) is { } next:
+                case ScrLeagueScreen.RaceHandler when l.PlayerRace is { } coming && ScrRoad.Load(data.Directory, coming.Track) is { } road:
+                {
+                    // the track first (the original's preview), turning; Race goes, Back to the league
+                    var (previewButtons, previewArt, turn) = ScrLeagueScreen.Preview(screen, ui, data.Picture("panfile"), road, coming.Track,
+                        $"Division {ScrLeague.DivisionNames[l.PlayerDivision]}  -  Round {l.Round + 1} of {ScrLeague.Rounds}  -  v {ScrLeagueRun.Names()[coming.Opponent]}");
+                    picture = previewArt.Pixels;
+                    var angle = 0.6;
+                    var go = 0;
+                    foreach (var f in Menu(previewButtons, "scr_preview", h => go = h, everyFrame: () => turn(angle += 0.006))) yield return f;
+                    picture = null;
+                    if (go != ScrLeagueScreen.RaceHandler || ScrLeagueRun.Next(data.Directory) is not { } next) break;
                     ScrLeagueRun.Race = next.Opponent;
                     ScrTrack = next.Track;
                     yield break;
+                }
                 case ScrLeagueScreen.NextHandler:
                     ScrLeagueRun.SitOut();
                     break;
@@ -402,7 +441,10 @@ public partial class StartSequence : Node2D
                     yield break;
                 case ScrLeagueScreen.NewHandler:
                     var yes = 0;
-                    foreach (var f in Menu(ScrLeagueScreen.AskNew(screen, ui), "scr_league_new", h => yes = h)) yield return f;
+                    var (askButtons, askArt) = ScrLeagueScreen.AskNew(screen, ui, data.Picture("panfile"));
+                    picture = askArt.Pixels;
+                    foreach (var f in Menu(askButtons, "scr_league_new", h => yes = h)) yield return f;
+                    picture = null;
                     if (yes == ScrLeagueScreen.YesHandler) ScrLeagueRun.New();
                     break;
                 case ScrLeagueScreen.BackHandler:
@@ -414,6 +456,23 @@ public partial class StartSequence : Node2D
 
     /// <summary>The faces the league screen shows, painted over it in their own colours (Present).</summary>
     List<(Image Image, int X, int Y)>? faces;
+    /// <summary>A full-colour screen (STUNTIN's, ScrScreenArt: 0xRRGGBB, 320 x 200) shown in place of the palette screen, faded
+    /// with the menu (Present).</summary>
+    uint[]? picture;
+    /// <summary>Whether the check switch (HUNTER_SCR_SCREEN) showed its race-end picture.</summary>
+    bool checkShown;
+
+    /// <summary>A race-end picture (ScrResultScene) with its title and line, the scene moving until Continue.</summary>
+    IEnumerable<string> RacePicture(ScrResultScene.Kind kind, string line)
+    {
+        var title = kind switch { ScrResultScene.Kind.Won => "You Won", ScrResultScene.Kind.Lost => "You Lost", ScrResultScene.Kind.Promoted => "Promoted", _ => "Wrecked" };
+        var (buttons, art, box) = ScrLeagueScreen.Picture(screen, ui, data.Picture("panfile"), title, line);
+        var scene = new ScrResultScene(kind, data.Objfile, data.PaletteBanks[2]);
+        picture = art.Pixels;
+        var frame = 0;
+        foreach (var f in Menu(buttons, "scr_" + kind.ToString().ToLowerInvariant(), _ => { }, everyFrame: () => scene.Draw(art, box.X0, box.Y0, box.X1, box.Y1, frame++))) yield return f;
+        picture = null;
+    }
     readonly Dictionary<int, Image?> faceImages = [];
     Image? FaceImage(int id)
     {
@@ -549,7 +608,12 @@ public partial class StartSequence : Node2D
         // mode 1's copper re-writes colour 8 per row (list $5CEC, words $5D70-$5DC8), faded with
         // the picture ($6A4A) - the title's dusk sky; the palette's placeholder $0F0 shows nowhere
         var title = Current == "title";
-        for (var p = 0; p < screen.Pixels.Length; p++)
+        for (var p = 0; picture is not null && p < picture.Length; p++)
+        {
+            var c = picture[p];
+            rgb[3 * p] = (byte)(((c >> 16) & 255) * fade.Level / 15); rgb[3 * p + 1] = (byte)(((c >> 8) & 255) * fade.Level / 15); rgb[3 * p + 2] = (byte)((c & 255) * fade.Level / 15);
+        }
+        for (var p = 0; picture is null && p < screen.Pixels.Length; p++)
         {
             var i = screen.Pixels[p] & 15;
             if (title && i == 8)

@@ -21,6 +21,9 @@ public static class ScrLeagueRun
     public static bool Practice { get; set; }
     /// <summary>The line the league screen shows after a round.</summary>
     public static string? News { get; set; }
+    /// <summary>A round just played, its results screen still to show (the player's race, null when he sat it out), and its number.</summary>
+    public static (ScrLeagueScreen.RaceReport? Race, int Round)? Played { get; set; }
+    static ScrLeagueScreen.RaceReport? _report;
 
     static string FilePath => ProjectSettings.GlobalizePath(System.Environment.GetEnvironmentVariable("HUNTER_SCR_LEAGUE") is { Length: > 0 } p ? p : "user://scr_league.json");
 
@@ -65,12 +68,14 @@ public static class ScrLeagueRun
     /// <summary>Once a frame in play: true once the race is over and held - the result is kept for Done.</summary>
     public static bool Over(WorldState s)
     {
-        if (Race is null && !Practice || s.ScrDrive is not { FinishedAt: >= 0 } me) { _after = 0; return false; }
+        if (Race is null && !Practice || s.ScrDrive is not { } me || me.FinishedAt < 0 && !me.Out) { _after = 0; return false; }
         if (++_after < ShowFor) return false;
         var opp = s.ScrAi.Values.Select(a => a.Drive).FirstOrDefault();
-        var lost = opp is { FinishedAt: >= 0 } && opp.FinishedAt < me.FinishedAt;
+        var lost = me.Out || opp is { FinishedAt: >= 0 } && opp.FinishedAt < me.FinishedAt;   // a wreck loses the race
         var oppFastest = opp is { BestLap: >= 0 } && (me.BestLap < 0 || opp.BestLap < me.BestLap);
         _result = new ScrLeague.Result(lost, oppFastest);
+        static ScrLeagueScreen.CarReport Car(ScrDrive d) => new(d.FinishedAt, d.BestLap, d.Restarts, d.Out, d.Damage);
+        if (Race is { } race) _report = new ScrLeagueScreen.RaceReport(League.PlayerRace?.Track ?? 0, race.Id, Car(me), opp is null ? new(-1, -1, 0, false, 0) : Car(opp));
         GD.Print($"HUNTER: league race over - {(lost ? "lost" : "won")}, home at {me.FinishedAt} / {opp?.FinishedAt}, best laps {me.BestLap} / {opp?.BestLap}, restarts {me.Restarts} / {opp?.Restarts} (wrecks {me.Wrecks} / {opp?.Wrecks}), damage {me.Damage} / {opp?.Damage}, touches {ScrRace.Touches}, dice {s.ScrAutopilot?.CornerRoll}:{s.ScrAutopilot?.LaneRoll} / {s.ScrAi.Values.FirstOrDefault().Brain?.CornerRoll}:{s.ScrAi.Values.FirstOrDefault().Brain?.LaneRoll}");
         return true;
     }
@@ -83,9 +88,10 @@ public static class ScrLeagueRun
         if (Race is null) return false;
         var l = League;
         var before = l.PlayerDivision;
+        Played = (_result is null ? null : _report, l.Round);
         l.Play(_result);
         News = ScrLeagueScreen.News(l, Names(), before);
-        Race = null; _result = null; _after = 0;
+        Race = null; _result = null; _report = null; _after = 0;
         Save();
         return true;
     }
@@ -95,6 +101,7 @@ public static class ScrLeagueRun
     {
         var l = League;
         var before = l.PlayerDivision;
+        Played = (null, l.Round);
         l.Play(null);
         News = ScrLeagueScreen.News(l, Names(), before);
         Save();

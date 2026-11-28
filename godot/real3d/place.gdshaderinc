@@ -48,6 +48,9 @@ uniform int rotor_times = 1;
 // (a uniform array takes no default).
 uniform int steer_models[16];   // + the Stuntin racers (GpuWorld.RacerModel, JeepRacerModel), 0 when not built
 uniform float racer_parts[64];  // the Stuntin racers, per live row under 16 (GpuWorld.RacerParts): the right hand's way to the boost button 0-255, the springs FL, FR, rear
+// A racer's lift this frame (GameView.WheelCheck: the body where its tilt puts it, the wheels on the road), + 64 in 131072s over its hand / flames / tilt
+// (at most 127 x 131072 + 131071 = 2^24 - 1: whole in a float)
+float racer_lift(int row) { return row < 16 ? float(((int(racer_parts[row * 4] + 0.5) >> 17) & 127) - 64) : 0.0; }
 uniform int steer_turns[16];
 uniform int steer_fine_from = 16;   // steer_models from this index on (the Stuntin racers) carry the steering byte in sixteenths of full lock
 uniform int steer_lean = 0;   // STICK STEERING: the player's stick lean, -16..16 sixteenths of full lock (0 = none or off), on steer_lean_row only
@@ -112,10 +115,14 @@ ivec4 entity_artic(sampler2D ent, sampler2D pent, sampler2D anim, int arow, int 
     }
     if (is_racer(base) && row < 16)                   // the Stuntin' racer: channel 3 its right hand's way to the boost
         a[3] = (int(racer_parts[row * 4] + 0.5) & 255)                           // button (GpuWorld.RacerParts; RacingKit's hand part), and above
-            | ((clamp(int(round(racer_parts[row * 4 + 1])), -63, 63) + 64) << 8)   // it each wheel's squash, model units + 64: front left, front
+            | ((clamp((int(round(racer_parts[row * 4 + 1])) & 255) - 128, -63, 63) + 64) << 8)   // it each wheel's squash, model units + 64: front left, front
             | ((clamp(int(round(racer_parts[row * 4 + 2])), -63, 63) + 64) << 15)  // right, rear (model.gdshaderinc _racer_spring)
             | ((clamp(int(round(racer_parts[row * 4 + 3])), -63, 63) + 64) << 22)
             | (((int(racer_parts[row * 4] + 0.5) >> 8) & 3) << 29);                // the boost flames' frame, 256s over the hand (0: none)
+    if (is_racer(base) && row < 16)                   // and over channel 0's angle byte the rear axle's tilt + 64 (1024s over the flames)
+        a[0] = (a[0] & 255) | (((int(racer_parts[row * 4] + 0.5) >> 10) & 127) << 8);
+    if (is_racer(base) && row < 16)                   // and over channel 1's the wheels' rolled spin (GameView: 256ths of a turn, over the front left spring's + 128)
+        a[1] = (a[1] & 255) | (((int(round(racer_parts[row * 4 + 1])) >> 8) & 255) << 8);
     return a;
 }
 

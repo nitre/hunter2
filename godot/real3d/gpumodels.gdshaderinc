@@ -315,10 +315,11 @@ bool gpu_model_vertex_rot(int id, out vec3 pos, out int colour, out bool pull, o
         rot = entity_corner_rot(trig_tex, ent_tex, entprev_tex, anim_tex, 0, 1, row, base, vidx, low);
     int x = _euw(ent_tex, row, 0x4A), y = _ew(ent_tex, row, 0x4C), z = _euw(ent_tex, row, 0x4E), ground = _ew(ent_tex, row, 0x74);
     float fine = fine_of(base);                                                           // STUNTIN's racer: its quarter units back down,
-    vec3 frot = vec3(rot) / fine;                                                         // its place kept to them; its lowest corner and
-    if (fine > 1.0) { low = y + int(round(float(low - y) / fine)); rot = frot; }   // what else reads rot in model units
+    float sc = fine > 1.0 ? RACER_SIZE / fine : 1.0;                                     // (and RACER_SIZE up: the physics car's size)
+    vec3 frot = vec3(rot) * sc;                                                         // its place kept to them; its lowest corner and
+    if (fine > 1.0) { low = y + int(round(float(low - y) * sc)); rot = frot; }   // what else reads rot in model units
     if (layer == 0 && fine > 1.0) {
-        pos = vec3((float(2 * x) + frot.x) * 0.5, float(y + lift_to_ground(ground, low)) + frot.y - sink_below(row, ground, low), (float(2 * z) + frot.z) * 0.5);
+        pos = vec3((float(2 * x) + frot.x) * 0.5, float(y + lift_to_ground(ground, low)) + frot.y - sink_below(row, ground, low) + racer_lift(row), (float(2 * z) + frot.z) * 0.5);
     } else if (layer == 0) {
         if (better_fire && fire) fire_look(row, type, core, slot, rot, colour);
         pos = entity_place(ent_tex, row, rot, low);                                                               // a boat floats as the original's (no sink)

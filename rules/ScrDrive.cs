@@ -21,11 +21,11 @@ public sealed class ScrDrive
     /// there is always road under the wheels and a car meeting a ramp's face gets the spring's push; ours has roads over
     /// land and over each other, so a road this much above the body is still its road (Little Ramp's gap faces rise 480),
     /// and one higher overhead is an overpass to drive under.</summary>
-    public const int Reach = 480;
+    public const int Reach = 960;
     /// <summary>The boost's fuel before the car is put on a track (the track's own amount then: Race).</summary>
     public const int BoostFuel = 60;
     /// <summary>The league the race is in (0 the Standard League, 1 the Super League): the original's playerContextConfiguration
-    /// rows - the engine's push (/usr/bin/bash0F0 / /usr/bin/bash140), the boost's burn rate (one unit every rate + 1 boosting passes: 0 / /usr/bin/bashC)
+    /// rows - the engine's push ($0F0 / $140), the boost's burn rate (one unit every rate + 1 boosting passes: $10 / $C)
     /// and the damage allowance (trackWidthMultiplier 0 / 1) - and which of the track's two boost and damage values it takes.</summary>
     public static int League { get; set; }
     static readonly int[] Push = [0x00F0, 0x0140], BurnRate = [0x10, 0x0C], DamageAllowance = [0, 1];
@@ -38,18 +38,20 @@ public sealed class ScrDrive
     /// <summary>The lap line was crossed and the finish piece not reached since (lapCrossingDetectionFlag's bit 7): the
     /// line does not count again until it is - no laps from rocking over it.</summary>
     bool _lapCrossed;
-    /// <summary>Hunter passes into this lap (50 a second); the last lap's and the best (passes, -1 = none yet).</summary>
+    /// <summary>This lap's time on the original's clock (hundredths of its seconds); the last lap's and the best (-1 = none yet).</summary>
     public int LapPasses { get; private set; }
     public int LastLap { get; private set; } = -1;
     public int BestLap { get; private set; } = -1;
-    /// <summary>Passes the lap just done stays on the timer (the original's lapTimeDisplayDuration, $1B of its frames).</summary>
+    /// <summary>Original passes the lap just done stays on the timer (lapTimeDisplayDuration, $1B).</summary>
     public int ShowLast { get; private set; }
-    public const int ShowLastFor = 150;
+    public const int ShowLastFor = 0x1B;
     /// <summary>The pass the car finished the race on (s.BlankCount), -1 while racing.</summary>
     public long FinishedAt { get; private set; } = -1;
     /// <summary>A lap was counted this pass (the new lap number), 0 otherwise: the messages.</summary>
     public int LapJustDone { get; private set; }
     ScrRoad? _raced;
+    /// <summary>The damage bar's pictures (game_data/scr/damage_bar.bin, ScrCar.LoadBar).</summary>
+    byte[]? _bar;
 
     /// <summary>The car put in the race on this road: the league's values (League) - the track's boost fuel and damage frame
     /// limit for the league (the original's 6788 / 12559 take the track's second values in the Super League), the engine's
@@ -58,6 +60,8 @@ public sealed class ScrDrive
     void Race(ScrRoad road)
     {
         _raced = road;
+        if (road.Tables is { } tables) { Car.LoadTrack(tables); Car.RoadFrame(); }
+        if (_bar is { } bar) Car.LoadBar(bar);                              // the damage bar with the car's holes (setupDamageBar)
         var l = Math.Clamp(League, 0, 1);
         MaxBoost = road.Boost[l];
         Car.B(ScrCar.boostFuelLevel, MaxBoost);
@@ -78,32 +82,18 @@ public sealed class ScrDrive
     /// <summary>Passes spent in another car's slipstream (a probe's count).</summary>
     public int DraftPasses { get; private set; }
 
-    /// <summary>THE SLIPSTREAM (the original's handleOpponentPositioning 12287-12313 setting draftingTimer, calculatePlayerDistance
-    /// its opponentAheadFlag - set when the opponent is BEHIND - and the physics' drag 11576 / the opponent's speed 12585): a
-    /// car close behind another - within 64 of the original's units round the lap (opponentDistance under $40), scaled to
-    /// ours - loses less to the air: its drag less $14 x 128 (ScrCar's drag step). The player only in the other's line
-    /// (under $32 of 255 across the road apart); a computer car whenever it is that close behind. Set before each pass.</summary>
-    void Slipstream(WorldState s, ScrRoad road)
+    /// <summary>THE OTHER CAR, after the frame (the original's calculatePlayerDistance and handleOpponentPositioning's
+    /// slipstream and touch, ScrCarCollide): the nearest other racing car as the original's opponent; none: no slipstream,
+    /// no touch.</summary>
+    void Opponent(WorldState s)
     {
-        var draft = false;
-        var p = Progress(road);
-        if (!double.IsNaN(p))
-        {
-            var reach = 64.0 * road.LapLength / road.LapUnits;
-            var player = this == s.ScrDrive;
-            foreach (var o in ScrRace.Drives(s))
-            {
-                if (o == this || o.Wrecked) continue;
-                var gap = o.Progress(road) - p;
-                if (!(gap > 0 && gap < reach)) continue;
-                if (player && Math.Abs(o.Across(road) - Across(road)) >= 0x32 / 255.0) continue;
-                draft = true;
-                break;
-            }
-        }
-        if (draft) DraftPasses++;
-        Car.B(ScrCar.draftingTimer, draft ? 0xFF : 0);
-        Car.B(ScrCar.opponentAheadFlag, draft ? 0 : 0x80);                   // clear: the car in front is ahead (the drag's test)
+        var c = Car;
+        var other = ScrRace.Drives(s).Where(o => o != this && !o.Wrecked && !o.Hanging).FirstOrDefault();
+        if (other is null) { c.B(ScrCar.draftingTimer, 0); c.B(ScrCar.opponentCollisionActive, 0); return; }
+        c.SetOpponent(other.Car);
+        c.PlayerDistance();
+        c.OpponentTouch();
+        if (c.B(ScrCar.draftingTimer) != 0) DraftPasses++;
     }
 
     /// <summary>The player's lap on the message line (the original's displayGameMessage): the next lap, the last one, and at
@@ -120,32 +110,73 @@ public sealed class ScrDrive
         s.Panel.Text.Print(System.Text.Encoding.ASCII.GetBytes("]" + text));
     }
 
-    /// <summary>Once a pass, from the piece the car was last on: past the finish piece the line is armed again; on the lap
-    /// line, armed, a lap is counted - the first starts the race, each after it ends a lap (its time kept, the best), the
-    /// last ends the race. The lap's time runs from the line (updateLapTimer) and stops at the race's end.</summary>
+    /// <summary>checkLapCompletion (7110) once an original pass, from the piece the original's lookup has the car on
+    /// (playerSegmentIndex; none while off the grid): past the finish piece the line is armed again; on the lap line, armed,
+    /// a lap is counted - the first starts the race, each after it ends a lap (its time kept, the best), the last ends the
+    /// race. Then updateLapTimer: the lap's clock runs from the line and stops at the race's end.</summary>
     void CountLap(WorldState s, ScrRoad road)
     {
-        LapJustDone = 0;
         if (ShowLast > 0) ShowLast--;
-        if (_lastStrip < 0) return;
-        var piece = road.Piece[_lastStrip];
-        if (_lapCrossed) { if (piece == road.Finish) _lapCrossed = false; }
-        else if (piece == road.LapLine && Lap <= ScrRoad.Laps)
+        if ((Car.B(ScrCar.offTrackStateFlags) & 0x40) == 0)
         {
-            _lapCrossed = true;
-            Lap++;
-            LapJustDone = Lap;
-            if (Lap > 1)
+            var piece = Car.B(ScrCar.playerSegmentIndex);
+            if (_lapCrossed) { if (piece == Car.B(0x1CA1D)) _lapCrossed = false; }       // finishLineSegmentIndex
+            else if (piece == Car.B(0x1CA32) && Lap <= ScrRoad.Laps)               // lapLineSegment
             {
-                LastLap = LapPasses;
-                if (BestLap < 0 || LapPasses < BestLap) BestLap = LapPasses;
-                ShowLast = ShowLastFor;
+                _lapCrossed = true;
+                Lap++;
+                LapJustDone = Lap;
+                if (Lap > 1)
+                {
+                    LastLap = LapPasses;
+                    if (BestLap < 0 || LapPasses < BestLap) BestLap = LapPasses;
+                    ShowLast = ShowLastFor;
+                }
+                _sub = _sec = _min = 0;                                      // clearGameDataSlot
+                LapPasses = 0;
+                if (Lap > ScrRoad.Laps) FinishedAt = s.BlankCount;
+                Log(s, $"lap {Lap}");
             }
-            LapPasses = 0;
-            if (Lap > ScrRoad.Laps) FinishedAt = s.BlankCount;
         }
-        if (Lap >= 1 && Lap <= ScrRoad.Laps) LapPasses++;
+        if (Lap >= 1 && Lap <= ScrRoad.Laps) LapTick();
     }
+
+    /// <summary>The lap clock in the original's BCD: subseconds, seconds, minutes (lapTimeSubseconds / lapTimeSeconds /
+    /// playerStatsArray).</summary>
+    int _sub, _sec, _min;
+
+    /// <summary>updateLapTimer / incrementLapTimeBCD (7270): $13 hundredths a pass; 60 seconds a minute, at most 9.</summary>
+    void LapTick()
+    {
+        static int Bcd(int a, int b, ref int carry) { var lo = (a & 15) + (b & 15) + carry; var c = lo > 9 ? 1 : 0; if (c != 0) lo -= 10; var hi = (a >> 4) + (b >> 4) + c; carry = hi > 9 ? 1 : 0; if (carry != 0) hi -= 10; return (hi << 4 | lo) & 0xFF; }
+        var x = 0;
+        _sub = Bcd(_sub, 0x13, ref x);
+        if (x != 0)
+        {
+            _sec = Bcd(_sec, 0, ref x);
+            if (_sec >= 0x60)
+            {
+                _sec = 0;
+                var y = 0;
+                var m = Bcd(_min, 1, ref y);
+                if (m < 0x0A) _min = m;
+            }
+        }
+        static int Dec(int b) => (b >> 4) * 10 + (b & 15);
+        LapPasses = _min * 6000 + Dec(_sec) * 100 + Dec(_sub);
+    }
+
+    /// <summary>THE TRACE: laps, restarts and wrecks always; each pass's state when HUNTER_TRACE is from:to:who (frames,
+    /// who P the player, A the AI, B both).</summary>
+    void Log(WorldState s, string what) => Console.WriteLine($"SCRTRACE {s.BlankCount} {Who(s)} {what}");
+    string Who(WorldState s) => this == s.ScrDrive ? "P" : "A";
+    static readonly string[]? TraceSpan = Environment.GetEnvironmentVariable("HUNTER_TRACE")?.Split(':');
+    /// <summary>Checks: HUNTER_SCR_DUMP=tick|file writes the player's car memory (ScrCar.Ram) before its first pass at or
+    /// after that tick.</summary>
+    static readonly string[]? Dump = Environment.GetEnvironmentVariable("HUNTER_SCR_DUMP")?.Split('|');
+    bool _dumped;
+    bool Tracing(WorldState s) => TraceSpan is [var a, var b, var w] && int.TryParse(a, out var from) && int.TryParse(b, out var to)
+        && s.BlankCount >= from && s.BlankCount <= to && (w == "B" || w == Who(s));
 
     public readonly ScrCar Car = new();
     /// <summary>The road's height under the three contact points at the last original pass (wheel units: front left,
@@ -158,31 +189,30 @@ public sealed class ScrDrive
     const int SteerPasses = 8;
     readonly sbyte[] _steerRing = new sbyte[SteerPasses];
     int _steerAt;
-    int _lastStrip = -1, _off;
-    /// <summary>Passes off the road before the restart: the original's $10 processed frames, about 2 seconds.</summary>
+    int _lastStrip = -1;
+    /// <summary>The wreck's collapse before the car is out of the race (Hunter passes).</summary>
     public const int RestartAfter = 100;
-    /// <summary>A car on the road that gets no further round the lap for StuckAfter Hunter passes (5 seconds) is stuck.</summary>
+    /// <summary>A computer-driven car on the road that gets no further round the lap for StuckAfter Hunter passes (5 seconds)
+    /// is stuck (the original's opponent rode rails and never was).</summary>
     const int StuckAfter = 250;
     int _still, _furthest = -1;
-    /// <summary>How far into its piece a restarted car is put (world units: about the car's length).</summary>
-    const double RestartInto = 120;
-    /// <summary>A restart this close (world units) to another racing car takes the far side of the road from it.</summary>
-    const double RestartClear = 600;
-    /// <summary>The run-up a restart leaves before the next jump (strips): from still, a car needs it to reach a jump's speed.</summary>
+    /// <summary>The run-up a car needs before a jump (strips; the AI's boost).</summary>
     public const int RunUp = 40;
     /// <summary>Restarts so far (a probe's count).</summary>
     public int Restarts { get; private set; }
-    /// <summary>The wreck's value of the shown damage (the original's updateDamageBarHUD: $F0 of 255).</summary>
+    /// <summary>The rail over big gaps (computer-driven cars only: the AI cars and the autopilot's; ScrRail).</summary>
+    readonly ScrRail _rail = new();
+    /// <summary>The shown damage that wrecks (the original's updateDamageBarHUD: $F0).</summary>
     public const int WreckAt = 0xF0;
-    /// <summary>The shown damage (the original's accumulatedCarDamage: climbs to the target the same pass).</summary>
+    /// <summary>The shown damage (the original's accumulatedCarDamage).</summary>
     public int Damage { get; private set; }
     /// <summary>The road section the car was last on (its place round the lap; -1 before the first pass).</summary>
     public int Section => _lastStrip;
     /// <summary>Wrecks so far (a probe's count).</summary>
     public int Wrecks { get; private set; }
-    /// <summary>Hunter passes left with the car in pieces before the restart; 0 = not wrecked.</summary>
+    /// <summary>Hunter passes since the wreck (0 = not wrecked).</summary>
     int _wreck;
-    /// <summary>The car is in pieces (hidden, waiting for the restart): it touches nothing and nobody races it.</summary>
+    /// <summary>The car is in pieces (hidden): it touches nothing and nobody races it.</summary>
     public bool Wrecked => _wreck > 0;
     /// <summary>Where the record is kept while the car is in pieces (out of sight under the world).</summary>
     const int HiddenY = -4000;
@@ -203,105 +233,50 @@ public sealed class ScrDrive
     public static (double X, double Z, double Yaw)? Listener;
     readonly Random _noise = new(1);                                    // the ground grind's pitch wobble (sound only)
 
-    /// <summary>The car back on the road: the last piece it was on, stepped back while that piece is a corner or one of the
-    /// track's listed feature pieces (as the original's initializePlayerAtSegment) or one of its jumps' takeoff pieces, and on
-    /// back till RunUp strips before the next jump (from still a car cannot clear a jump without a run-up), at its first
-    /// cross-section's middle, pointing round the lap, still.</summary>
+    /// <summary>THE RESTART, the original's (ScrCar.RestartAt: initializePlayerAtSegment on lastValidSegmentIndex - stepped
+    /// back over joins, corners and the track's feature pieces, at its cell's middle, pointing along it, moved to the side
+    /// it went off - then the crane's countdown in the physics): the record put where the car is.</summary>
     void Restart(WorldState s, Entity e)
     {
-        var surface = s.Ground.Road!;
-        var road = surface.Road;
-        if (_lastStrip < 0) _lastStrip = road.SpawnSection;
-        var piece = road.Piece[_lastStrip];
-        bool Jump(int p) => road.Obstacles.Any(o => o.Piece == p);
-        int ToJump(int p)                                                    // strips from piece p's start to the next jump's
-        {
-            var at = road.Piece.ToList().IndexOf(p);
-            for (var k = 0; k < RunUp; k++) if (Jump(road.Piece[(at + k) % road.Sections.Count])) return k;
-            return RunUp;
-        }
-        for (var k = 0; k < road.Steer.Count && ((road.Steer[piece].Flags & 0x80) != 0 || road.Features.Contains(piece)
-                 || Jump(piece) || ToJump(piece) < RunUp); k++)
-            piece = (piece - 1 + road.Steer.Count) % road.Steer.Count;      // past corners, the track's feature pieces and its jumps,
-                                                                            // and back till RunUp strips before the next jump
-        var sec = road.Piece.ToList().IndexOf(piece);
-        // ...a car's length into the piece (its rear contact point on it too): at its very first cross-section, on a jump's
-        // landing that starts with a step up, the rear hung over the gap behind and the car tipped back down into it, unable to
-        // climb out
-        for (double run = 0; run < RestartInto && road.Piece[(sec + 1) % road.Sections.Count] == piece; sec = (sec + 1) % road.Sections.Count)
-        {
-            var (a, b) = (road.Sections[sec], road.Sections[(sec + 1) % road.Sections.Count]);
-            run += Math.Sqrt(Math.Pow((b.LX + b.RX - a.LX - a.RX) / 2, 2) + Math.Pow((b.LZ + b.RZ - a.LZ - a.RZ) / 2, 2));
-        }
-        var c = road.Sections[sec];
-        // the middle, or the far side of the road from another racing car within RestartClear
-        var f = 0.5;
-        foreach (var o in ScrRace.Drives(s))
-        {
-            if (o == this || o.Entity is not { } oe) continue;
-            double mx = (c.LX + c.RX) / 2 - oe.UW(0x4A), mz = (c.LZ + c.RZ) / 2 - oe.UW(0x4E);
-            if (mx * mx + mz * mz < RestartClear * RestartClear) f = road.Across(sec, oe.UW(0x4A), oe.UW(0x4E)) < 0.5 ? 0.75 : 0.25;
-        }
-        int x = (int)Math.Round(c.LX + (c.RX - c.LX) * f), z = (int)Math.Round(c.LZ + (c.RZ - c.LZ) * f);
-        e.SetW(0x4A, x); e.SetW(0x4E, z); e.SetW(0x4C, s.Ground.SurfaceOnFace((ushort)x, (ushort)z, short.MaxValue));
-        e.SetW(0x7E, surface.Way(sec)); e.HeadingFine = e.UW(0x7E);
+        Car.RestartAt(Car.B(ScrCar.lastValidSegmentIndex));
+        _now = _was = Place();
+        (_prevX, _prevY, _prevZ) = (_now.X, _now.Y, _now.Z);
+        _nowEye = _wasEye = (Car.L(ScrCar.cameraWorldY) >> 8) * ScrRoad.Rise / 32;
+        e.SetW(0x4A, (int)Math.Round(_now.X)); e.SetW(0x4C, (int)Math.Round(_now.Y)); e.SetW(0x4E, (int)Math.Round(_now.Z));
+        e.SetW(0x7E, _now.Yaw); e.HeadingFine = e.UW(0x7E);
         if (s.Planet is { } planet && e == s.Entities.All[0]) planet.Anchor();   // put there by hand: not a walk past an edge (a
                                                                                 // jump of over half a face read as one, turned back)
-        Bind(s, e);
-        _lastStrip = sec; _off = 0;
-        foreach (var a in new[] { ScrCar.accumulatedForceFrontLeft, ScrCar.accumulatedForceFrontRight, ScrCar.accumulatedForceRear, ScrCar.damageAccumulationActive })
-            Car.B(a, 0);                                                     // a fresh car: no damage carried
-        Car.B(ScrCar.holeRenderingPosition, 0x0A); Car.B(ScrCar.majorImpactCooldownTimer, 0);
-        Damage = 0;
+        _lastStrip = -1; _still = 0; _furthest = -1;
+        Damage = Car.B(ScrCar.accumulatedCarDamage);                        // the restart keeps the car's damage
         Restarts++;
-        // the crane: held up on its chains, still, then let go
-        var road0 = s.Ground.SurfaceOnFace(e.UW(0x4A), e.UW(0x4E), e.W(0x4C));
-        Car.L(ScrCar.cameraWorldY, (Wheel(road0 + HangLift) - RestOffset) << 8);
-        _now = _was = Place();
-        _nowEye = _wasEye = (Car.L(ScrCar.cameraWorldY) >> 8) * ScrRoad.Scale / 32;
-        _hang = HangPasses;
+        _rail.Reset();
         _chainRise = -1;
         _hungAt = (_now.X, _now.Y, _now.Z, _now.Yaw);
+        _acc = 0;
     }
 
-    // THE CRANE (basic, after the original's restart and updateChainAnimation): the restarted car hangs on chains HangLift
-    // above the road for HangPasses, still; then the physics drops it and the chains are pulled up, faster each pass (the
-    // original's lift: 8 more each frame), until ChainLength has gone up out of sight.
-    /// <summary>Height units the car hangs above the road, Hunter passes it hangs.</summary>
-    public const int HangLift = 60, HangPasses = 75;
+    // THE CRANE's chains (drawn): they hold the car while the original's countdown runs (raceStartTimer, in the physics),
+    // then are pulled up, faster each pass (the original's lift: 8 more each frame), until ChainLength has gone up out of sight.
     /// <summary>The chains' length above the car (height units) and their lift's gain a pass (height units a pass, a pass).</summary>
     public const double ChainLength = 1500, ChainGain = 1.5;
-    int _hang;
-    /// <summary>How far the chains have been pulled up since the drop (height units); -1 = still holding the car.</summary>
+    /// <summary>How far the chains have been pulled up since the drop (height units); -1 = none.</summary>
     double _chainRise = -1, _chainSpeed;
     (double X, double Y, double Z, int Yaw) _hungAt;
-    /// <summary>The car is on the crane (held still above the road).</summary>
-    public bool Hanging => _hang > 0;
+    bool _wasHanging;
+    /// <summary>The car is on the crane (the original's raceStartTimer running).</summary>
+    public bool Hanging => Car.B(ScrCar.raceStartTimer) != 0;
     /// <summary>The crane's chains: the place the car hangs or hung (its record's place and heading) and how far they have
     /// been pulled up from it (0 while holding it); null = no chains.</summary>
     public (double X, double Y, double Z, int Yaw, double Rise)? Chains =>
-        _hang > 0 ? (_hungAt.X, _hungAt.Y, _hungAt.Z, _hungAt.Yaw, 0)
+        Hanging ? (_hungAt.X, _hungAt.Y, _hungAt.Z, _hungAt.Yaw, 0)
         : _chainRise >= 0 ? (_hungAt.X, _hungAt.Y, _hungAt.Z, _hungAt.Yaw, _chainRise) : null;
 
-    /// <summary>One pass on the crane: the record held at the hang, the lap's time running; at the end the car let go (no
-    /// speed, level) and the chains' lift begun.</summary>
-    void HangPass(WorldState s, Entity e)
+    /// <summary>The chains after a physics pass: following the car while it hangs, the lift begun when it is let go.</summary>
+    void CranePass()
     {
-        _hungAt = (_now.X, _now.Y, _now.Z, _now.Yaw);
-        e.SetW(0x50, e.W(0x4A)); e.SetW(0x52, e.W(0x4C)); e.SetW(0x54, e.W(0x4E));
-        e.SetW(0x4A, (int)Math.Round(_now.X)); e.SetW(0x4C, (int)Math.Round(_now.Y)); e.SetW(0x4E, (int)Math.Round(_now.Z));
-        e.SetW(0x74, e.W(0x4C));
-        e.SetW(0x7E, _now.Yaw); e.HeadingFine = e.UW(0x7E);
-        e.B[0x7C] = 0; e.B[0x80] = 0; e.PitchFine = 0; e.RollFine = 0; e.B[0x18] = 0; e.SetW(0x3E, 0);
-        ViewAngles = (0, 0);
-        EyeHeight = _nowEye;
-        if (Lap >= 1 && Lap <= ScrRoad.Laps) LapPasses++;
-        if (--_hang > 0) return;
-        foreach (var a in new[] { ScrCar.worldXSpeed, ScrCar.worldYSpeed, ScrCar.worldZSpeed, ScrCar.rotationSpeedX, ScrCar.rotationSpeedY, ScrCar.rotationSpeedZ })
-            Car.W(a, 0);
-        Car.W(ScrCar.cameraAngleX, 0); Car.W(ScrCar.cameraAngleZ, 0);
-        _acc = 1 - Rate;                                                     // the next Hunter pass runs a physics pass: the drop at once
-        _chainRise = 0; _chainSpeed = 0;
+        if (Hanging) _hungAt = (_now.X, _now.Y, _now.Z, _now.Yaw);
+        else if (_wasHanging) { _chainRise = 0; _chainSpeed = 0; }
+        _wasHanging = Hanging;
     }
 
     /// <summary>The chains' lift after the drop, once a Hunter pass.</summary>
@@ -314,6 +289,8 @@ public sealed class ScrDrive
     }
     long _lastBlank = long.MinValue / 2;
     (double X, double Y, double Z, int Yaw, int Pitch, int Roll) _was, _now;
+    /// <summary>The drawn place at the pass before _was (the curve's slope there: _was - _prev).</summary>
+    double _prevX, _prevY, _prevZ;
 
     /// <summary>The original's starting physics memory (game_data/scr/car_start.bin, from the original disk - the state the
     /// emulator proof began from); null when the file is not there.</summary>
@@ -330,6 +307,8 @@ public sealed class ScrDrive
         d.Car.B(ScrCar.fuelConsumptionRate, BurnRate[0]);
         d.Car.FuelTick += () => d.Car.B(ScrCar.boostFuelLevel, Math.Max(0, d.Car.B(ScrCar.boostFuelLevel) - 1));
         d.Car.B(ScrCar.holeRenderingPosition, 0x0A);                       // a new car's ten holes left (as a new season, 4221)
+        var bar = Path.Combine(dataDir, "scr", "damage_bar.bin");
+        if (File.Exists(bar)) d._bar = File.ReadAllBytes(bar);
         d.Car.Sample += d.Play;
         return d;
     }
@@ -360,7 +339,7 @@ public sealed class ScrDrive
 
     static double ToGround(double world) => (world - ScrRoad.Offset) / ScrRoad.Scale;
     static double ToWorld(double ground) => ScrRoad.Offset + ground * ScrRoad.Scale;
-    static int Wheel(int worldHeight) => (int)Math.Round(worldHeight / ScrRoad.Scale * 32);
+    static int Wheel(int worldHeight) => (int)Math.Round(worldHeight / ScrRoad.Rise * 32);
 
     /// <summary>The car put at the record's place and heading, standing on the surface there, still (a new boarding).</summary>
     void Bind(WorldState s, Entity e)
@@ -375,7 +354,9 @@ public sealed class ScrDrive
         foreach (var a in new[] { ScrCar.worldXSpeed, ScrCar.worldYSpeed, ScrCar.worldZSpeed, ScrCar.rotationSpeedX, ScrCar.rotationSpeedY, ScrCar.rotationSpeedZ })
             c.W(a, 0);
         _now = _was = Place();
+        (_prevX, _prevY, _prevZ) = (_now.X, _now.Y, _now.Z);
         _acc = 0;
+        Car.RoadFrame();                                                     // the piece under it, for the first pass
     }
 
     /// <summary>Where the record goes: the car drawn standing on its WHEELS, at wheelHeight (wheel units: the road under
@@ -388,7 +369,7 @@ public sealed class ScrDrive
     {
         var c = Car;
         var h = wheelHeight ?? (c.L(ScrCar.cameraWorldY) >> 8) + RestOffset;
-        return (ToWorld(c.L(ScrCar.cameraWorldX) / 4096.0), h * ScrRoad.Scale / 32,
+        return (ToWorld(c.L(ScrCar.cameraWorldX) / 4096.0), h * ScrRoad.Rise / 32,
                 ToWorld(c.L(ScrCar.cameraWorldZ) / 4096.0), (ushort)c.W(ScrCar.cameraAngleY), c.W(ScrCar.cameraAngleX), c.W(ScrCar.cameraAngleZ));
     }
 
@@ -445,20 +426,25 @@ public sealed class ScrDrive
         Hear(s, e);
         EngineBlank();
         if (_wreck > 0)
-        {                                                                        // in pieces: the record out of sight, then the restart
+        {                                                                        // in pieces: out of sight while the collapse plays
             e.SetW(0x4C, HiddenY); e.SetW(0x74, HiddenY); e.SetW(0x3E, 0);
-            if (Lap >= 1 && Lap <= ScrRoad.Laps) LapPasses++;                  // the lap's time runs on through the wreck
-            if (--_wreck == 0) Restart(s, e);
+            if (++_wreck > RestartAfter) Out = true;                           // the collapse played out: out of the race
             return;
         }
-        if (_hang > 0) { HangPass(s, e); return; }
         ChainPass();
+        LapJustDone = 0;
         _acc += Rate;
         while (_acc >= 1)
         {
             _acc -= 1;
             stickD6 = Feather(ref _leanAcc, stickD6, lean);
             var flags = ((stickD6 & 2) != 0 ? 1 : (stickD6 & 1) != 0 ? 2 : 0) | ((stickD6 & 8) != 0 ? 4 : (stickD6 & 4) != 0 ? 8 : 0) | (fire ? 0x10 : 0);
+            if (Dump is [var at, var path] && int.TryParse(at, out var dumpAt) && this == s.ScrDrive && s.BlankCount >= dumpAt && !_dumped)
+            {                                                                   // checks: the car's memory before this pass
+                _dumped = true;
+                File.WriteAllBytes(path, c.Ram);
+                Log(s, $"dump {path}");
+            }
             c.Input(flags);
             // the steering wheel drawn (the record's steering byte, as Hunter's own cars: + turns the heading up): measured on both
             // cars, the stick's 8 turns the heading up, its 4 down
@@ -470,31 +456,31 @@ public sealed class ScrDrive
             var y = (int)Math.Round(_now.Y);
             var road = s.Ground.Road!;
             var yaw = (ushort)c.W(ScrCar.cameraAngleY);
-            var strip = road.StripAt((int)ToWorld(gx), (int)ToWorld(gz), y, Reach);
-            if (strip >= 0)
-            {                                                                           // on the road: the piece's own values, as
-                var (pf, bas, inv, rev) = road.Road.Steer[road.Road.Piece[strip]];     // loadTrackSegmentConfiguration sets them
-                c.B(ScrCar.segmentSteeringFlags, pf); c.B(ScrCar.segmentBaseSteeringOffset, bas);
-                c.B(ScrCar.trackDirectionInversionFlag, inv); c.B(ScrCar.reverseDirectionFlag, rev);
-                // the target: the steering takes (target - yaw) EOR reverseDirectionFlag's word - so the target is put where
-                // that comes out as the road's own way round the lap here
-                var r = (ushort)c.W(ScrCar.reverseDirectionFlag);
-                c.W(ScrCar.segmentTargetAngle, (ushort)((((ushort)(road.Way(strip) - yaw)) ^ r) + yaw));
-            }
-            else
-            {                                                                           // off the road: a straight, no pull
-                c.B(ScrCar.segmentSteeringFlags, 0); c.B(ScrCar.segmentBaseSteeringOffset, 0);
-                c.B(ScrCar.trackDirectionInversionFlag, 0); c.B(ScrCar.reverseDirectionFlag, 0);
-                c.W(ScrCar.segmentTargetAngle, yaw);
-            }
-            var edge = false;                                                      // a contact point off the road (the grind)
-            Slipstream(s, road.Road);
+            var strip = road.StripAt((int)ToWorld(gx), (int)ToWorld(gz), y, Reach);   // our road's strip (the AI, the trace)
             Passes++;
-            c.Physics(car =>
-            {
-                LastHeights = Contacts(s, gx, gz, y, ref edge);
-                return LastHeights;
-            });
+            if (this != s.ScrDrive || s.ScrAutopilot is not null) _rail.Pass(road.Road, c, road.StripAt((int)ToWorld(gx), (int)ToWorld(gz), y, int.MaxValue / 2), ToWorld(gx), ToWorld(gz), _now.Y);   // a computer-driven car over a big gap (ScrRail)
+            // the original's pass: the road's height under the wheels from the piece it is on (updateWheelHeightsFromTrack), the
+            // physics, then the piece, place across and steering target where it is now (processGameFrame)
+            c.Physics(car => LastHeights = car.WheelHeights());
+            c.RoadFrame();
+            Opponent(s);
+            if (this == s.ScrDrive && road.Bridge is { } bridge)
+            {                                                                   // DRAW BRIDGE (animateDrawBridge), on the player's car,
+                var opp = s.ScrAi.Values.Select(a => a.Drive).FirstOrDefault();  // copied to the others; the drawn leaves follow it
+                c.B(ScrCar.opponentSegmentIndex, opp?.Car.B(ScrCar.playerSegmentIndex) ?? 0);
+                var heldWas = c.B(ScrCar.drawBridgeActive) != 0;
+                c.AnimateDrawBridge();
+                if (heldWas != (c.B(ScrCar.drawBridgeActive) != 0))
+                    Log(s, $"bridge {(heldWas ? "free" : "held")} phase {c.B(ScrCar.drawBridgeAnimationPhase)} seg {c.B(ScrCar.playerSegmentIndex)} other {c.B(ScrCar.opponentSegmentIndex)}");
+                foreach (var a in s.ScrAi.Values) c.CopyBridgeTo(a.Drive.Car);
+                bridge.Follow(c.B(ScrCar.drawBridgeAnimationPhase), c.B(ScrCar.drawBridgeActive) != 0);
+            }
+            var edge = c.B(ScrCar.offRoadSideFlags) != 0;                        // over the edge: the grind
+            if (Tracing(s))
+                Log(s, $"pass in {flags} x {ToWorld(gx):0} z {ToWorld(gz):0} y {y} strip {strip} seg {c.B(ScrCar.playerSegmentIndex)} " +
+                    $"lateral {c.W(ScrCar.lateralRoadPosition)} target {(ushort)c.W(ScrCar.segmentTargetAngle)} off {c.B(ScrCar.offTrackStateFlags):X2} " +
+                    $"heights {LastHeights.FL}/{LastHeights.FR}/{LastHeights.Rear} vy {c.W(ScrCar.worldYSpeed)} vz {c.W(ScrCar.carLocalVelocityZ)} " +
+                    $"yaw {(ushort)c.W(ScrCar.cameraAngleY)} pitch {c.W(ScrCar.cameraAngleX)} roll {c.W(ScrCar.cameraAngleZ)} dmg {Damage} fuel {c.B(ScrCar.boostFuelLevel)}");
             // the drawn car on its wheels, on the road where the car is NOW: the physics measured the road where the pass
             // began and then moved the car, so its travels are a pass behind (on a climb at speed a pass's rise under the
             // road, on a descent as much over it). The wheels reach down at most to the springs' full stretch (travel 0:
@@ -502,34 +488,59 @@ public sealed class ScrDrive
             var ignore = false;
             var under = Mean(Contacts(s, c.L(ScrCar.cameraWorldX) / 4096.0, c.L(ScrCar.cameraWorldZ) / 4096.0, y, ref ignore));
             var stretch = (c.L(ScrCar.cameraWorldY) >> 8) + c.L(ScrCar.trackOffsetAdjustment);
+            (_prevX, _prevY, _prevZ) = (_was.X, _was.Y, _was.Z);
             _was = _now;
             _now = Place(Math.Max(under, stretch));
             _wasEye = _nowEye;
-            _nowEye = (c.L(ScrCar.cameraWorldY) >> 8) * ScrRoad.Scale / 32;   // the body: the original's own eye
+            _nowEye = (c.L(ScrCar.cameraWorldY) >> 8) * ScrRoad.Rise / 32;   // the body: the original's own eye
             EnginePitch(flags);
-            Grind(strip < 0, edge);
-            if (DamagePass()) { Wreck(e); return; }
+            Grind((c.B(ScrCar.offTrackStateFlags) & 0x80) != 0, edge);
+            GrindLog(s);
+            CranePass();
+            var damageWas = Damage;
+            var wrecked = DamagePass();
+            if (Damage > damageWas)
+                Log(s, $"hit +{Damage - damageWas} dmg {Damage} lap {Lap} seg {c.B(ScrCar.playerSegmentIndex)} x {_now.X:0} z {_now.Z:0} y {_now.Y:0} vy {c.W(ScrCar.worldYSpeed)} vz {c.W(ScrCar.carLocalVelocityZ)}");
+            if (wrecked) { Wreck(s, e); return; }
+            c.FrameThrottle();                                                  // updateFrameThrottlingAndTimers: the throttle,
+            CountLap(s, road.Road);                                             // the laps and the lap clock
+            // THE RESTART (continueGameLoop): off the track with the wheels on the ground, the original's timer; out, the
+            // original's restart on the last piece it was on the track
+            if (c.RestartDue())
+            {
+                Log(s, $"restart off lap {Lap} seg {c.B(ScrCar.lastValidSegmentIndex)} x {_now.X:0} z {_now.Z:0} y {_now.Y:0} vz {c.W(ScrCar.carLocalVelocityZ)} dmg {Damage}");
+                Restart(s, e);
+                break;
+            }
         }
-        // THE RESTART (the original's continueGameLoop / initializePlayerAtSegment, docs/scr-physics.md): off the road for
-        // RestartAfter passes (its $10 processed frames, 2 s), or in the sea, the car is put back on the last piece it was
-        // on - stepped back past corners - at that piece's start, in the middle, pointing round the lap, still
+        // STUCK (ours, computer-driven cars only - the original's opponent rode rails): on the road but no strip further round
+        // the lap for StuckAfter passes (rocking in a jump's gap), the car is restarted
         var here = s.Ground.Road!.StripAt((int)Math.Round(_now.X), (int)Math.Round(_now.Z), (int)Math.Round(_now.Y), Reach);
-        // STUCK: on the road but no strip further round the lap for StuckAfter passes (rocking in a jump's gap, which is not
-        // marked: a car in it counts as on the road), the car is restarted too
         if (here >= 0)
         {
+            _lastStrip = here;
             var n = s.Ground.Road!.Road.Sections.Count;
             var on = _furthest < 0 ? 1 : (here - _furthest + n) % n;
-            if (on > 0 && on < n / 2) { _furthest = here; _still = 0; } else _still++;
+            if (on > 0 && on < n / 2) { _furthest = here; _still = 0; } else if (!Hanging) _still++;
         }
-        if (here >= 0) { _lastStrip = here; _off = 0; }
-        if (here < 0 && (++_off >= RestartAfter || _now.Y < 8) || _still >= StuckAfter) { _still = 0; _furthest = -1; Restart(s, e); }
-        CountLap(s, s.Ground.Road!.Road);
+        if (_still >= StuckAfter && (this != s.ScrDrive || s.ScrAutopilot is not null))
+        {
+            Log(s, $"restart stuck lap {Lap} seg {c.B(ScrCar.lastValidSegmentIndex)} x {_now.X:0} z {_now.Z:0} y {_now.Y:0} vz {c.W(ScrCar.carLocalVelocityZ)} dmg {Damage}");
+            Restart(s, e);
+        }
         if (this == s.ScrDrive && LapJustDone > 1) Announce(s);
         var f = Math.Clamp(_acc, 0, 1);                                          // the share of the way to the next pass
         double L(double p, double q) => p + (q - p) * f;
         int A(int p, int q) => p + (int)Math.Round((short)(q - p) * f);
         var px = L(_was.X, _now.X); var py = L(_was.Y, _now.Y); var pz = L(_was.Z, _now.Z);
+        // THE PLACE on a smooth curve through the passes' places (cubic, each pass's slope its move from the pass before - known
+        // when it is reached, the same on both sides of it): straight lines between them cut inside every turn (on a banking, onto
+        // lower road - the wheels bobbed 8 times a second following it) and through each crest
+        {
+            var f2 = f * f; var f3 = f2 * f;
+            double C(double p, double a, double b) => (2 * f3 - 3 * f2 + 1) * a + (f3 - 2 * f2 + f) * (a - p) + (-2 * f3 + 3 * f2) * b + (f3 - f2) * (b - a);
+            px = C(_prevX, _was.X, _now.X); py = C(_prevY, _was.Y, _now.Y); pz = C(_prevZ, _was.Z, _now.Z);
+        }
         e.SetW(0x50, e.W(0x4A)); e.SetW(0x52, e.W(0x4C)); e.SetW(0x54, e.W(0x4E));   // where it was (the game's own old place words)
         e.SetW(0x4A, (int)Math.Round(px)); e.SetW(0x4C, (int)Math.Round(py)); e.SetW(0x4E, (int)Math.Round(pz));
         e.SetW(0x7E, A(_was.Yaw, _now.Yaw)); e.HeadingFine = e.UW(0x7E);
@@ -546,57 +557,15 @@ public sealed class ScrDrive
         e.SetW(0x3E, Math.Min(32767, Math.Abs((int)c.W(ScrCar.carLocalVelocityZ)) >> 8));   // a speed for the wheels' spin and the sound
     }
 
-    /// <summary>The original's damage step (updateDamageAndTimers 7318 / updateDamageBarHUD 15054), after each pass: when a
-    /// corner took a hit this pass the target is ((front left + front right) / 2 + rear) / 2 (9-bit sums, as its ROXRs),
-    /// the shown damage climbs to it at once (its loop), and reaching WreckAt wrecks. Then the sounds: a hit of $1400 or
-    /// more with holes left makes a new hole and the major impact (its cooldown $45 passes - the original's, the source
-    /// has $FF counted in blanks), any other hit the creak, louder with the hit (and the pass after a new hole creaks too).
-    /// The hit flag is cleared after, as there. Not taken: the bar's crack pixels (a crack landing on an old one adds a
-    /// point to the target) - no bar here; the source's added creak cooldown.</summary>
+    /// <summary>The original's damage step after each pass (ScrCar.DamageStep: the target, the bar's cracks, the holes, the
+    /// sounds): true the pass the car is wrecked.</summary>
     bool DamagePass()
     {
-        var c = Car;
-        var active = c.B(ScrCar.damageAccumulationActive) != 0;
-        var wreck = false;
-        if (active)
-        {
-            var target = ((c.B(ScrCar.accumulatedForceFrontLeft) + c.B(ScrCar.accumulatedForceFrontRight)) / 2 + c.B(ScrCar.accumulatedForceRear)) / 2;
-            if (target > Damage) Damage = target;
-            if (Damage >= WreckAt) { Damage = WreckAt - 1; wreck = true; }       // as the original's SUBQ before initiateCarWreck
-        }
-        var timer = c.B(ScrCar.majorImpactCooldownTimer);
-        if (timer != 0)
-        {
-            c.B(ScrCar.majorImpactCooldownTimer, timer - 1);
-            if (timer != MajorCooldown && !active) return wreck;
-            Creak();
-        }
-        else if (active)
-        {
-            var holes = c.B(ScrCar.holeRenderingPosition);
-            if ((ushort)c.W(ScrCar.maxCompressionVelocity) >= 0x1400 && holes != 0)
-            {
-                c.B(ScrCar.holeRenderingPosition, holes - 1);
-                c.B(ScrCar.majorImpactCooldownTimer, MajorCooldown);
-                Play(5);
-            }
-            else Creak();
-        }
-        c.B(ScrCar.damageAccumulationActive, 0);
-        return wreck;
-    }
-
-    /// <summary>MAJOR_IMPACT_COOLDOWN_TIME, the original's.</summary>
-    const int MajorCooldown = 0x45;
-
-    void Creak()
-    {
-        int v = Car.B(ScrCar.maxCompressionVelocity);
-        if (v < 7) v = 7;
-        v = (v << 2) & 0xFF;
-        if (v >= 0x40) v = 0x40;
-        Car.W(ScrCar.sampleParameterTable + 4 * 16 + 0xA, v);                 // audioSample4Volume
-        Play(4);
+        var was = Car.Wrecked;
+        var sample = Car.DamageStep();
+        if (sample >= 0) Play(sample);
+        Damage = Car.B(ScrCar.accumulatedCarDamage);
+        return !was && Car.Wrecked;
     }
 
     /// <summary>playSample: the effect at the period and volume its table entry holds now.</summary>
@@ -685,12 +654,15 @@ public sealed class ScrDrive
     void Grind(bool offRoad, bool edge)
     {
         var c = Car;
+        Grinding = 0;
         var ground = c.B(ScrCar.wheelMovementActive) != 0;
         if (offRoad)
         {
             if (!ground) return;
             c.W(ScrCar.sampleParameterTable + 6 * 16 + 8, 0x1C2 + (_noise.Next(256) & 0x1C));   // sampleGroundCollisionPeriod
             Play(6);
+            int sp = c.B(ScrCar.carSpeedMagnitude);
+            (Grinding, GrindLevel) = (2, Math.Min(sp >= 0x80 ? 0 : sp, 0x10));   // collisionImpactLevel: the speed, at most $10
             return;
         }
         if (!edge && c.B(ScrCar.postWreckStateFlag) == 0) return;
@@ -701,26 +673,53 @@ public sealed class ScrDrive
         if (level >= 0x1F) level = 0x1F;
         c.W(ScrCar.sampleParameterTable + 1 * 16 + 8, ((level ^ 0x1F) << 2) + 0xAA);   // sampleGrindPeriod
         Play(1);
+        (Grinding, GrindLevel) = (1, level);
+    }
+
+    /// <summary>The grind this pass, as the original's particles follow it (handleEdgeCollision 32 of them, handleGroundCollision
+    /// 16): 0 none, 1 the edge grind (a wheel over the road's edge), 2 the ground grind (off the road on the ground); its level
+    /// (the edge's: speed / 2 up to $1F; the ground's: the speed up to $10).</summary>
+    public int Grinding { get; private set; }
+    public int GrindLevel { get; private set; }
+    int _grindKind, _grindSince, _grindQuiet, _grindMost;
+    /// <summary>Passes without a grind before it is logged as ended (the edge flag comes and goes pass to pass along a kerb).</summary>
+    const int GrindQuiet = 4;
+
+    /// <summary>The log: each grind's start (where, how fast) and end (how long, its highest level).</summary>
+    void GrindLog(WorldState s)
+    {
+        static string Name(int k) => k == 1 ? "edge" : "ground";
+        if (Grinding != 0 && Grinding == _grindKind) { _grindQuiet = 0; _grindMost = Math.Max(_grindMost, GrindLevel); return; }
+        if (Grinding == 0 && _grindKind != 0 && ++_grindQuiet < GrindQuiet) return;
+        if (Grinding == 0 && _grindKind == 0) return;
+        if (_grindKind != 0) Log(s, $"grind {Name(_grindKind)} ends after {s.BlankCount - _grindSince} blanks, level up to {_grindMost}");
+        if (Grinding != 0)
+            Log(s, $"grind {Name(Grinding)} level {GrindLevel} lap {Lap} seg {Car.B(ScrCar.playerSegmentIndex)} side {(short)Car.W(ScrCar.offsetFromRoadCenter)} x {_now.X:0} z {_now.Z:0} y {_now.Y:0}");
+        (_grindKind, _grindSince, _grindQuiet, _grindMost) = (Grinding, s.BlankCount, 0, GrindLevel);
     }
 
     /// <summary>Picture units a frame per world speed: one original pass moves worldX/ZSpeed x $EE/256 x 64/4096 ground
     /// units and worldYSpeed x $EE/256 x 128/256 wheel units, at Rate passes a frame; the picture's x, z are doubled world
     /// units, its heights whole.</summary>
-    const double CarryXz = 0xEE / 256.0 * 64 / 4096 * ScrRoad.Scale * Rate * 2, CarryY = 0xEE / 256.0 * 128 / 256 * ScrRoad.Scale / 32 * Rate;
+    const double CarryXz = 0xEE / 256.0 * 64 / 4096 * ScrRoad.Scale * Rate * 2, CarryY = 0xEE / 256.0 * 128 / 256 * ScrRoad.Rise / 32 * Rate;
 
-    /// <summary>THE WRECK: the car comes apart where it is, the pieces carrying its speed, then it is out of sight until the
-    /// restart (RestartAfter passes, the off-road wait).</summary>
-    void Wreck(Entity e)
+    /// <summary>THE WRECK: the car comes apart where it is, the pieces carrying its speed, and is out of the race - once the
+    /// RestartAfter passes (the collapse and its debris) it is Out (a player's race lost).</summary>
+    void Wreck(WorldState s, Entity e)
     {
         var c = Car;
+        Log(s, $"wreck lap {Lap} seg {c.B(ScrCar.playerSegmentIndex)} section {_lastStrip} dmg {Damage} x {_now.X:0} z {_now.Z:0} y {_now.Y:0} vz {c.W(ScrCar.carLocalVelocityZ)} pass {Passes}");
         e.SetW(0x4A, (int)Math.Round(_now.X)); e.SetW(0x4C, (int)Math.Round(_now.Y)); e.SetW(0x4E, (int)Math.Round(_now.Z));
         e.SetW(0x7E, _now.Yaw); e.HeadingFine = e.UW(0x7E);
         e.B[0x7C] = (byte)(-(_now.Pitch >> 8)); e.B[0x80] = (byte)(_now.Roll >> 8);
         Objects.Wrecked?.Invoke((byte[])e.B.Clone(), ((float)(c.W(ScrCar.worldXSpeed) * CarryXz), (float)(c.W(ScrCar.worldYSpeed) * CarryY), (float)(c.W(ScrCar.worldZSpeed) * CarryXz)));
         Wrecks++;
-        _wreck = RestartAfter;
+        _wreck = 1;
         e.SetW(0x4C, HiddenY); e.SetW(0x74, HiddenY); e.SetW(0x3E, 0);
     }
+
+    /// <summary>Wrecked and its blink run out: out of the race.</summary>
+    public bool Out { get; private set; }
 
     /// <summary>The boost is burning this pass (the original's flag: the flames).</summary>
     /// <summary>The car's pitch and roll words (pitch nose up positive, roll as the original's cameraAngleZ) glided between

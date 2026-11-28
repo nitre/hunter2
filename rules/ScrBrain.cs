@@ -48,6 +48,14 @@ public sealed class ScrBrain
     const int JumpDeadZone = 600;
     /// <summary>Near a jump, a car closer to an edge than this lane (0-255; the car is about 54 wide) steers back in.</summary>
     const int SafeLane = 0x30;
+    /// <summary>The lanes a car aims for (0-255): no target nearer an edge than EdgeLane - a car (about 54 wide) aimed at
+    /// $20 had 5 lanes left, and slid the rest off in a corner.</summary>
+    const int EdgeLane = 0x40;
+    /// <summary>Outside EdgeLane the pull back is full and may turn the car up to EdgeTurn off the road's way.</summary>
+    const int EdgeTurn = 3 * LaneTurn;
+    /// <summary>Running wide brakes only above this speed: braking still is reverse (a car held on the brake at the edge
+    /// stopped, then backed off the road).</summary>
+    const int BrakeAbove = 0x10;
     /// <summary>The most a lane change turns the car off the road's way (a turn is $10000: about 6.6 degrees).</summary>
     const int LaneTurn = 1200;
     /// <summary>The lane's pull on the heading (a turn per lane off it), full below speed LanePullBelow, less above.</summary>
@@ -57,9 +65,9 @@ public sealed class ScrBrain
     const int CornerDrop = 0x14;
     /// <summary>A crest: within CrestAhead strips the road's climb a strip falls by more than CrestDrop (world units) - a car
     /// carried by the climb leaves the ground there, so it is driven as a jump.</summary>
-    const int CrestAhead = 6, CrestDrop = 40;
+    const int CrestAhead = 6, CrestDrop = 80;
     /// <summary>A car this close over the road (world units, the record's height) has its wheels on it.</summary>
-    const int GroundedBy = 12;
+    const int GroundedBy = 24;
     /// <summary>Strips before a crest from which a car makes for the middle of the road.</summary>
     const int LineUp = 20;
     /// <summary>The boost only with the heading this close to the road's way (a turn is $10000: about 2.2 degrees).</summary>
@@ -84,16 +92,77 @@ public sealed class ScrBrain
         }
         return false;
     }
-    static bool JumpAhead(ScrRoad road, int strip)
+    bool JumpAhead(ScrRoad road, int strip)
     {
         var n = road.Sections.Count;
+        var trench = Trenches(road);
         for (var k = 1; k <= BoostBefore; k++)
         {
             int s0 = (strip + k) % n, p = road.Piece[s0], q = road.Piece[(s0 - 1 + n) % n];
-            if (p != q && road.Obstacles.Any(o => o.Piece == p)) return true;
+            if (p != q && road.Obstacles.Any(o => o.Piece == p) || trench[s0]) return true;
         }
         return false;
     }
+    bool[]? _trenches;
+
+    /// <summary>A TRENCH (a gap the track's list of jumps leaves out): the road drops more than TrenchDepth below a strip and
+    /// climbs back to within TrenchBack of it no more than TrenchLong strips on, no listed jump within a piece - a car must
+    /// fly it. Per strip: the lip.</summary>
+    bool[] Trenches(ScrRoad road)
+    {
+        if (_trenches is not null) return _trenches;
+        var n = road.Sections.Count;
+        double H(int i) { var c = road.Sections[(i % n + n) % n]; return (c.LY + c.RY) / 2; }
+        var lip = new bool[n];
+        for (var i = 0; i < n; i++)
+        {
+            if (H(i + 1) > H(i) - TrenchDepth) continue;
+            var p = road.Piece[i];                                           // a listed jump's own gap is not one
+            if (road.Obstacles.Any(o => Math.Abs((o.Piece - p + road.Steer.Count + road.Steer.Count / 2) % road.Steer.Count - road.Steer.Count / 2) <= 1)) continue;
+            for (var m = 2; m <= TrenchLong; m++)
+                if (H(i + m) >= H(i) - TrenchBack) { lip[i] = true; break; }
+        }
+        return _trenches = lip;
+    }
+    const int TrenchDepth = 400, TrenchBack = 200, TrenchLong = 12;
+
+    /// <summary>THE RUN-IN TO A TRENCH: from TrenchRunFrom to BoostBefore strips before its lip the car keeps under
+    /// TrenchSpeed - a car must be on the road at the lip; one flying in off a jump before it (Stepping Stones' ramp onto the
+    /// plateau, boosted to 17700) came down on the lip nose first.</summary>
+    bool TrenchRunIn(ScrRoad road, int strip)
+    {
+        var n = road.Sections.Count;
+        var trench = Trenches(road);
+        for (var k = BoostBefore + 1; k <= TrenchRunFrom; k++)
+            if (trench[(strip + k) % n]) return true;
+        return false;
+    }
+    const int TrenchRunFrom = 25, TrenchSpeed = 0x37;
+
+    /// <summary>A BIG JUMP: a listed jump whose speed byte is BigJump or more - more than a car's engine gives it on the flat
+    /// (Big Ramp's $56). Per strip: up the climb to its lip (a crest on its piece within ClimbStrips, no corner between) - the
+    /// boost the whole way up (a car boosted only the last BoostBefore strips left the lip at 17400 and landed far short; the
+    /// whole climb gives about 20500, enough for ScrRail).</summary>
+    bool[] BigClimbs(ScrRoad road)
+    {
+        if (_bigClimbs is not null) return _bigClimbs;
+        var n = road.Sections.Count;
+        var crest = Crests(road);
+        var big = road.Obstacles.Where(o => (o.Speed & 0x7F) >= BigJump).Select(o => o.Piece).ToHashSet();
+        var at = new bool[n];
+        for (var i = 0; i < n; i++)
+            for (var k = 1; k <= ClimbStrips; k++)
+            {
+                var j = (i + k) % n;
+                if ((road.Steer[road.Piece[j]].Flags & 0x80) != 0) break;            // a corner between: not this climb
+                if (crest[j] && big.Contains(road.Piece[j])) { at[i] = true; break; }
+            }
+        return _bigClimbs = at;
+    }
+    bool[]? _bigClimbs;
+    /// <summary>A big jump's speed byte and how far back its climb's boost reaches; the fuel a climb costs (3 units in a run up
+    /// Big Ramp, kept for each lap still to come).</summary>
+    const int BigJump = 0x50, ClimbStrips = 55, ClimbCost = 4;
     bool[]? _crests;
 
     /// <summary>Per strip: a crest within CrestAhead strips (the road's mean height, strip to strip).</summary>
@@ -243,6 +312,44 @@ public sealed class ScrBrain
         return _limits = lim;
     }
 
+    /// <summary>DRAW BRIDGE's timing: the bridge holds at whatever its leaves are at when a car reaches its first piece, so a
+    /// car arriving with them raised runs up a steep leaf (a hard hit) and lands hard past it. From BridgeLook pieces before
+    /// it, the phase the leaves will have when the car gets there at its speed (they step one a pass while free) is worked
+    /// out; with them higher than BridgeLow then, the car eases off (arriving later). Held raised by the other car, it stays
+    /// short of piece HoldFrom (a computer car there keeps a held bridge held). Null: no limit.</summary>
+    static int? BridgeWait(ScrRoad road, ScrBridge bridge, int strip, int piece, int speed, int limit)
+    {
+        if (piece >= ScrBridge.First || piece < ScrBridge.First - BridgeLook) return null;
+        var n = road.Sections.Count;
+        double to = 0, toHold = -1;
+        for (int k = 0, i = strip; k < n && road.Piece[i] != ScrBridge.First; k++, i = (i + 1) % n)
+        {
+            if (toHold < 0 && road.Piece[i] >= ScrBridge.HoldFrom) toHold = to;
+            var a = road.Sections[i]; var b = road.Sections[(i + 1) % n];
+            to += Math.Sqrt(Math.Pow((b.LX + b.RX - a.LX - a.RX) / 2, 2) + Math.Pow((b.LZ + b.RZ - a.LZ - a.RZ) / 2, 2));
+        }
+        if (bridge.Held)
+        {                                                                    // held: it goes on a low one; short of HoldFrom it
+            if (Low(bridge.Phase) || toHold < 0 || piece >= ScrBridge.HoldFrom) return null;   // waits for a raised one to be
+            return (int)Math.Min(speed, toHold / BridgeStopIn);              // freed (past it, waiting would keep it held)
+        }
+        // free: the leaves are lowest between phases $0F and $10 (of each $20); the first such moment the car can reach at
+        // its piece's limit, and the speed that gets it there then
+        var at = bridge.Phase & 0x1F;
+        for (var t = (0x0F - at + 0x20) % 0x20 + 0.5; t < 4 * 0x20; t += 0x20)
+        {
+            var needed = to * WorldPerPassAt / t / 256;                       // the speed byte that arrives in t passes
+            if (needed <= limit) return (int)needed;
+        }
+        return null;
+    }
+    static bool Low(int phase) => (ScrBridge.Step(phase) / 8 - 4) <= BridgeLow;
+    /// <summary>Pieces before the bridge the timing starts; the leaves' highest index (0 flat .. 15) still driven onto; a pass's
+    /// way (world units) is carLocalVelocityZ / WorldPerPassAt; the world units a speed byte stops in (waiting short of
+    /// HoldFrom).</summary>
+    const int BridgeLook = 6, BridgeLow = 3;
+    const double WorldPerPassAt = 46, BridgeStopIn = 12;
+
     /// <summary>What the driver does this pass: the stick ($D6 bits: down 1, up 2, right 4, left 8) and the boost.
     /// others: the other cars on the road (for the lane); opponent: a computer car (it may slip when leading).</summary>
     public (byte D6, bool Fire) Decide(WorldState s, Entity me, ScrDrive drive, IEnumerable<Entity> others, bool opponent = false)
@@ -262,8 +369,10 @@ public sealed class ScrBrain
         var piece = road.Piece[strip];
         if (opponent && drive.Passes != _lastPass) { _lastPass = drive.Passes; SlipPass(s, drive, road, piece); }
         var limit = Math.Min(lim[piece] & 0x7F, lim[(piece + 1) % lim.Length] & 0x7F);
+        if (TrenchRunIn(road, strip)) limit = Math.Min(limit, TrenchSpeed);
         if (_slip > 0) limit = Math.Max(0, Math.Min(limit, _slipSpeed - SlipSlower));   // slipping: $19 under its racing speed (the
                                                                                         // original's base speed; a straight's limit is none)
+        if (surface.Bridge is { } bridge && BridgeWait(road, bridge, strip, piece, speed, limit) is { } wait) limit = Math.Min(limit, wait);
         bool up = speed < limit, down = speed > limit + 2;
 
         // the lane
@@ -312,14 +421,14 @@ public sealed class ScrBrain
             // into the outside one and pushed it off)
             if (Math.Abs(along) < Alongside && Math.Abs(across) < 2 * SideBy)
             {
-                keepOff = myLane < otherLane ? Math.Max(0x20, otherLane - Apart) : Math.Min(0xE0, otherLane + Apart);
+                keepOff = myLane < otherLane ? Math.Max(EdgeLane, otherLane - Apart) : Math.Min(255 - EdgeLane, otherLane + Apart);
                 if (cornerNear && along > 0) { limit = Math.Min(limit, otherSpeed - 4); up = speed < limit; down = speed > limit + 2; }
             }
             if (closing && cornerNear) { limit = Math.Min(limit, otherSpeed); up = speed < limit; down = speed > limit + 2; }
-            else if (closing) target = otherLane < 128 ? 0xE0 : 0x20;
+            else if (closing) target = otherLane < 128 ? 255 - EdgeLane : EdgeLane;
             else if (ahead > 0 && ahead <= 6)                                // just ahead of me
             {
-                if ((Traits & Overtake) != 0) target = otherLane < 128 ? 0xE0 : 0x20;   // pull out past it
+                if ((Traits & Overtake) != 0) target = otherLane < 128 ? 255 - EdgeLane : EdgeLane;   // pull out past it
                 else if ((Traits & Follow) != 0) target = otherLane;          // tuck in behind (not closing on it)
             }
             else if (behind > 0 && behind <= 6 && (Traits & Aggressive) != 0)
@@ -335,9 +444,9 @@ public sealed class ScrBrain
         {
             var turn = (short)(surface.Way((strip + 2) % n) - surface.Way(strip));
             var outer = turn > 0 ? myLane : 255 - myLane;                    // lanes from the outside edge (the way turning up: the left)
-            if (outer < 0x40) { up = false; down |= outer < SafeLane; }
+            if (outer < 0x40) { up = false; down |= outer < SafeLane && speed > BrakeAbove; }
         }
-        target = Math.Clamp(target + _weave, 0x20, 0xE0);                   // a slip's weave on top
+        target = Math.Clamp(target + _weave, EdgeLane, 255 - EdgeLane);                   // a slip's weave on top
 
         // the stick: toward the road's way a strip on, and back toward the lane, feathered. STRAIGHT AT A JUMP: on the jump's
         // pieces and before a crest no lane moves and no small corrections - only a heading clearly off the road's way is
@@ -349,11 +458,13 @@ public sealed class ScrBrain
         // at 14000 one at full pull ran on past its lane and off the road before the car straightened)
         var pull = cornerNear ? LanePull                                     // into and on a corner the full pull (against the slide)
                  : Math.Min(LanePull, LanePull * LanePullBelow / Math.Max(1, Math.Abs(speed)));
-        int Toward(int lane) => Math.Clamp((lane - myLane) * pull, -LaneTurn, LaneTurn);
+        var nearEdge = myLane < EdgeLane || myLane > 255 - EdgeLane;
+        int Toward(int lane) => nearEdge ? Math.Clamp((lane - myLane) * LanePull, -EdgeTurn, EdgeTurn)
+                                         : Math.Clamp((lane - myLane) * pull, -LaneTurn, LaneTurn);
         var safe = Math.Clamp(myLane, SafeLane, 255 - SafeLane);
         var gap = !(jumpNear || lip) ? off + Toward(target)
                 : !lip && safe != myLane ? off + Toward(safe)
-                : Math.Abs(off) > JumpDeadZone ? off : 0;
+                : Math.Abs((int)off) > JumpDeadZone ? off : 0;
         var duty = Math.Clamp(gap / 3000.0, -1, 1);
         var on = Math.Abs(duty) > ((_pass + _phase) % 8) / 8.0;
         var right = on && duty > 0;
@@ -365,8 +476,10 @@ public sealed class ScrBrain
         var grounded = me.W(0x4C) - surface.Under(x, z, me.W(0x4C), -1000) <= GroundedBy;
         // a single jump's boost keeps a reserve for the runs of jumps still to come (RunCost a lap left)
         var lapsLeft = Math.Clamp(ScrRoad.Laps - drive.Lap + 1, 1, ScrRoad.Laps);
-        var single = JumpAhead(road, strip) && (_inRun.Count == 0 || car.B(ScrCar.boostFuelLevel) > RunCost * lapsLeft);
-        var boost = (_inRun.Contains(piece) || single) && grounded && up && speed < limit && Math.Abs(off) < BoostAligned;
+        // up the whole climb to a big jump (BigClimbs), while the tank holds ClimbCost a lap still to come after this one
+        var climb = BigClimbs(road)[strip] && car.B(ScrCar.boostFuelLevel) > ClimbCost * (lapsLeft - 1);
+        var single = (JumpAhead(road, strip) || climb) && (_inRun.Count == 0 || car.B(ScrCar.boostFuelLevel) > RunCost * lapsLeft);
+        var boost = (_inRun.Contains(piece) || single) && grounded && up && speed < limit && Math.Abs((int)off) < BoostAligned;
         return ((byte)((down ? 1 : up ? 2 : 0) | (right ? 4 : 0) | (left ? 8 : 0)), boost);
     }
 }

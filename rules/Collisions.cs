@@ -44,6 +44,9 @@ public static class Collisions
                 var e3 = t.All[order[b]];
                 if (Bit(e3.Flags, 30)) continue;
                 if (!Overlap(e4, e3)) continue;
+                // STUNTIN': two race cars touch as the original's (ScrRace.Collide) - put back here each frame they overlapped,
+                // the drawn car stood still while its physics drove on, then jumped ahead
+                if (s is not null && ScrDrive.Takes(s, e4, order[a]) && ScrDrive.Takes(s, e3, order[b])) continue;
                 if (e4.InHand && Shooter(t, e4) == e3 || e3.InHand && Shooter(t, e3) == e4) continue;   // just left his hand
                 _pair = (order[a], order[b]);
                 Respond(e4, order[a], e3, order[b]);

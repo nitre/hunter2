@@ -13,6 +13,9 @@ public sealed class ScrRoad
     /// docs/scr-physics.md), Hunter's car 120 - so 1.5 gives a 576 road, 4.8 of ours. (1.75, matched by length, left our
     /// car small on the road: Hunter's car is longer for its width than SCR's.)</summary>
     public const double Scale = 1.5;
+    /// <summary>Height units to a ground unit: Hunter's heights are drawn at half a world unit, so twice Scale keeps the track's
+    /// true shape - a slope, a banking, a jump's face as steep as the original's, the car's own pitch and roll lying on it.</summary>
+    public const double Rise = 2 * Scale;
     /// <summary>The grid's corner on the face: (65536 - 32768 x Scale) / 2.</summary>
     public const double Offset = (65536 - 32768 * Scale) / 2;
 
@@ -20,7 +23,18 @@ public sealed class ScrRoad
     public readonly record struct Section(double LX, double LY, double LZ, double RX, double RY, double RZ);
 
     public string Name { get; }
-    public IReadOnlyList<Section> Sections { get; }
+    public IReadOnlyList<Section> Sections => _sections;
+    readonly List<Section> _sections;
+    /// <summary>Counts every change to a cross-section's height (the draw bridge): the drawing rebuilds what moved.</summary>
+    public int Version { get; private set; }
+
+    /// <summary>A cross-section's height, both edges (world units): the draw bridge's leaves.</summary>
+    public void SetHeight(int i, double y)
+    {
+        if (_sections[i].LY == y && _sections[i].RY == y) return;
+        _sections[i] = _sections[i] with { LY = y, RY = y };
+        Version++;
+    }
     /// <summary>The piece each cross-section (and the strip after it) is in; the lap runs in the sections' order (the
     /// original's piece index + 1, as its opponent drives).</summary>
     public IReadOnlyList<int> Piece { get; }
@@ -47,6 +61,9 @@ public sealed class ScrRoad
     /// <summary>The lap's length in the original's distance units (startWorldPosition, set by its loader): its race distances
     /// (the slipstream's reach) scale to ours by LapLength / LapUnits.</summary>
     public int LapUnits { get; private init; } = 12736;
+    /// <summary>The track's own tables for the original's road lookup (game_data/scr/track_N.bin, ScrCar.LoadTrack); null
+    /// when the file is not there.</summary>
+    public byte[]? Tables { get; private init; }
 
     double[]? _along;
     /// <summary>Each cross-section's middle's distance round the lap from the first (world units), and the lap's length.</summary>
@@ -93,7 +110,7 @@ public sealed class ScrRoad
     }
 
     ScrRoad(string name, List<Section> sections, List<int> piece, int spawn, List<(int, int, int, int)> steer) =>
-        (Name, Sections, Piece, Spawn, Steer) = (name, sections, piece, spawn, steer);
+        (Name, _sections, Piece, Spawn, Steer) = (name, sections, piece, spawn, steer);
 
     /// <summary>The first cross-section of the spawn piece: where the player starts.</summary>
     public int SpawnSection => Math.Max(0, Piece.ToList().IndexOf(Spawn));
@@ -114,8 +131,8 @@ public sealed class ScrRoad
         var secs = t.GetProperty("sections").EnumerateArray().Select(s =>
         {
             double V(int i) => s[i].GetDouble();
-            return new Section(Offset + V(0) * Scale, V(2) * Scale, Offset + V(1) * Scale,
-                               Offset + V(3) * Scale, V(5) * Scale, Offset + V(4) * Scale);
+            return new Section(Offset + V(0) * Scale, V(2) * Rise, Offset + V(1) * Scale,
+                               Offset + V(3) * Scale, V(5) * Rise, Offset + V(4) * Scale);
         }).ToList();
         var piece = t.TryGetProperty("piece", out var pe) ? pe.EnumerateArray().Select(v => v.GetInt32()).ToList() : Enumerable.Repeat(0, secs.Count).ToList();
         var spawn = t.TryGetProperty("spawn", out var sp) ? sp.GetInt32() : 0;
@@ -132,6 +149,7 @@ public sealed class ScrRoad
             Finish = t.TryGetProperty("finish", out var fi) ? fi.GetInt32() : (spawn + steer.Count / 2) % steer.Count,
             Damage = Pair("damage", 6), Boost = Pair("boost", 60),
             LapUnits = t.TryGetProperty("lap_units", out var lu) ? lu.GetInt32() : 12736,
+            Tables = File.Exists(Path.Combine(dataDir, "scr", $"track_{track}.bin")) ? File.ReadAllBytes(Path.Combine(dataDir, "scr", $"track_{track}.bin")) : null,
         };
     }
 }

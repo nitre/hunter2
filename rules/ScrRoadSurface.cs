@@ -8,7 +8,7 @@ public sealed class ScrRoadSurface
 {
     /// <summary>How far above a thing the road may be and still be the surface it stands on: what a wheel climbs in one
     /// step (a road start or a ramp's foot from the land).</summary>
-    public const int Climb = 96;
+    public const int Climb = 192;
 
     readonly (double X, double Y, double Z)[] _l, _r;
     readonly Dictionary<int, List<int>> _cells = [];
@@ -40,6 +40,18 @@ public sealed class ScrRoadSurface
                 }
         }
         StartHeading = Way(k0);
+        Bridge = ScrBridge.For(this);
+    }
+
+    /// <summary>Draw Bridge's moving leaves (null on the other tracks).</summary>
+    public ScrBridge? Bridge { get; }
+
+    /// <summary>A cross-section's height, both edges (world units), here and in the road (the draw bridge's leaves).</summary>
+    public void SetHeight(int i, double y)
+    {
+        _l[i] = (_l[i].X, y, _l[i].Z);
+        _r[i] = (_r[i].X, y, _r[i].Z);
+        Road.SetHeight(i, y);
     }
 
     /// <summary>The way round the lap along strip i (from cross-section i to the next), as a heading word.</summary>
@@ -47,6 +59,7 @@ public sealed class ScrRoadSurface
     {
         var k = (i + 1) % _l.Length;
         double dx = (_l[k].X + _r[k].X - _l[i].X - _r[i].X) / 2, dz = (_l[k].Z + _r[k].Z - _l[i].Z - _r[i].Z) / 2;
+        if (dx == 0 && dz == 0 && k != i) return Way(k);                    // a section on the next one (the lap's closing one)
         return (ushort)(int)Math.Round(Math.Atan2(dx, dz) / (2 * Math.PI) * 65536);
     }
 
@@ -57,8 +70,7 @@ public sealed class ScrRoadSurface
         int best = int.MinValue, at = -1;
         foreach (var i in list)
         {
-            var j = (i + 1) % _l.Length;
-            var h = OnTriangle(x, z, _l[i], _r[i], _r[j]) ?? OnTriangle(x, z, _l[i], _r[j], _l[j]);
+            var h = OnStrip(i, x, z) is { } hd ? (int?)(int)Math.Round(hd) : null;
             if (h is { } v && v <= y + climb && v > best) (best, at) = (v, i);
         }
         return at;
@@ -70,9 +82,7 @@ public sealed class ScrRoadSurface
         if (!_cells.TryGetValue((z >> 9) * 128 + (x >> 9), out var list)) yield break;
         foreach (var i in list)
         {
-            var j = (i + 1) % _l.Length;
-            if (OnTriangle(x, z, _l[i], _r[i], _r[j]) is { } h1) yield return h1;
-            else if (OnTriangle(x, z, _l[i], _r[j], _l[j]) is { } h2) yield return h2;
+            if (OnStrip(i, x, z) is { } h) yield return (int)Math.Round(h);
         }
     }
 
@@ -89,6 +99,39 @@ public sealed class ScrRoadSurface
         foreach (var h in HeightsAt(x, z))
             if (h <= y + climb && h > best) best = h;
         return best;
+    }
+
+    /// <summary>The road's height at (px, pz) on strip i (cross-section i to the next), null when the point is off it: the strip
+    /// a smooth twisted surface through its four corners (bilinear: u across from the left edge, v along to the next cross-section),
+    /// as RoadMesh draws it - two flat triangles creased along the diagonal wherever a strip twists, and a car's wheels dropped
+    /// into each crease.</summary>
+    double? OnStrip(int i, double px, double pz)
+    {
+        var j = (i + 1) % _l.Length;
+        return Patch(px, pz, _l[i], _r[i], _r[j], _l[j]);
+    }
+
+    /// <summary>The height at (px, pz) on the bilinear patch a (u 0, v 0), b (1, 0), c (1, 1), d (0, 1); null off it.</summary>
+    public static double? Patch(double px, double pz, (double X, double Y, double Z) a, (double X, double Y, double Z) b, (double X, double Y, double Z) c, (double X, double Y, double Z) d)
+    {
+        double ex = b.X - a.X, ez = b.Z - a.Z, fx = d.X - a.X, fz = d.Z - a.Z, gx = a.X - b.X + c.X - d.X, gz = a.Z - b.Z + c.Z - d.Z, hx = px - a.X, hz = pz - a.Z;
+        static double Cross(double ax, double az, double bx, double bz) => ax * bz - az * bx;
+        double k2 = Cross(gx, gz, fx, fz), k1 = Cross(ex, ez, fx, fz) + Cross(hx, hz, gx, gz), k0 = Cross(hx, hz, ex, ez);
+        double? U(double v)
+        {
+            double dx = ex + gx * v, dz = ez + gz * v;
+            if (Math.Abs(dx) < 1e-9 && Math.Abs(dz) < 1e-9) return null;
+            return Math.Abs(dx) >= Math.Abs(dz) ? (hx - fx * v) / dx : (hz - fz * v) / dz;
+        }
+        const double e = 1e-6;
+        static bool In(double t) => t >= -e && t <= 1 + e;
+        double? At(double v) => In(v) && U(v) is { } u && In(u)
+            ? (1 - u) * (1 - v) * a.Y + u * (1 - v) * b.Y + u * v * c.Y + (1 - u) * v * d.Y : null;
+        if (Math.Abs(k2) < 1e-9) return Math.Abs(k1) < 1e-12 ? null : At(-k0 / k1);
+        var w = k1 * k1 - 4 * k0 * k2;
+        if (w < 0) return null;
+        w = Math.Sqrt(w);
+        return At((-k1 - w) / (2 * k2)) ?? At((-k1 + w) / (2 * k2));
     }
 
     static int? OnTriangle(double px, double pz, (double X, double Y, double Z) a, (double X, double Y, double Z) b, (double X, double Y, double Z) c)
